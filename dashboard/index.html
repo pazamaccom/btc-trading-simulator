@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BTC Trading Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- HEADER -->
+<header id="header">
+  <div class="header-left">
+    <div class="header-logo">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+        <rect width="28" height="28" rx="4" fill="#58a6ff" opacity="0.15"/>
+        <path d="M9 7h3c2.5 0 4 1 4 3 0 1.5-1 2.5-2 3 1.5.3 3 1.5 3 3.5 0 2.5-2 3.5-4.5 3.5H9V7zm3 5c1.5 0 2-.7 2-1.7S13.5 8.5 12 8.5h-1V12h1zm.5 6c1.5 0 2.5-.7 2.5-2s-1-2-2.5-2H11v4h1.5z" fill="#58a6ff" stroke="#58a6ff" stroke-width="0.5"/>
+        <line x1="8" y1="5" x2="8" y2="23" stroke="#58a6ff" stroke-width="1" opacity="0.3"/>
+        <line x1="15" y1="5" x2="15" y2="7" stroke="#58a6ff" stroke-width="1.5"/>
+        <line x1="15" y1="20" x2="15" y2="23" stroke="#58a6ff" stroke-width="1.5"/>
+      </svg>
+    </div>
+    <div>
+      <h1>BTC Trading Simulator</h1>
+      <p class="header-sub" id="headerSub">Loading...</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="timeframe-toggle" id="timeframeToggle">
+      <button class="tf-btn active" data-tf="1h">1H</button>
+      <button class="tf-btn" data-tf="1d">1D</button>
+    </div>
+  </div>
+</header>
+
+<!-- SUMMARY STATS BAR -->
+<section id="summaryBar" class="summary-bar">
+  <div class="summary-item">
+    <span class="summary-label">Combinations Tested</span>
+    <span class="summary-value mono" id="sumCombinations">—</span>
+  </div>
+  <div class="summary-item">
+    <span class="summary-label">Best Strategy</span>
+    <span class="summary-value mono" id="sumBestStrategy">—</span>
+  </div>
+  <div class="summary-item">
+    <span class="summary-label">Best Return</span>
+    <span class="summary-value mono" id="sumBestReturn">—</span>
+  </div>
+  <div class="summary-item">
+    <span class="summary-label">Best Sharpe</span>
+    <span class="summary-value mono" id="sumBestSharpe">—</span>
+  </div>
+  <div class="summary-item">
+    <span class="summary-label">Worst Drawdown</span>
+    <span class="summary-value mono" id="sumWorstDD">—</span>
+  </div>
+  <div class="summary-item">
+    <span class="summary-label">Buy &amp; Hold</span>
+    <span class="summary-value mono" id="sumBuyHold">—</span>
+  </div>
+</section>
+
+<!-- STRATEGY CARDS -->
+<section id="strategyCards" class="strategy-cards"></section>
+
+<!-- MAIN CONTENT: Chart + Trade Log -->
+<section class="main-grid">
+  <div class="chart-panel">
+    <div class="panel-header">
+      <h2 id="chartTitle">Equity Curve</h2>
+      <div class="chart-legend" id="chartLegend"></div>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="equityChart"></canvas>
+    </div>
+  </div>
+
+  <div class="trades-panel">
+    <div class="panel-header">
+      <h2 id="tradesTitle">Trade Log</h2>
+      <span class="trade-count mono" id="tradeCount">0 trades</span>
+    </div>
+    <div class="trades-table-wrap" id="tradesTableWrap">
+      <table id="tradesTable">
+        <thead>
+          <tr>
+            <th data-sort="idx">#</th>
+            <th data-sort="type">Side</th>
+            <th data-sort="time">Time</th>
+            <th data-sort="price">Price</th>
+            <th data-sort="pnl">P&L ($)</th>
+            <th data-sort="pnl_pct">P&L %</th>
+          </tr>
+        </thead>
+        <tbody id="tradesBody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- OPTIMIZATION TABLE -->
+<section class="optimization-panel">
+  <div class="panel-header">
+    <h2 id="optTitle">Parameter Optimization</h2>
+    <span class="opt-count mono" id="optCount">0 combinations</span>
+  </div>
+  <div class="opt-table-wrap" id="optTableWrap">
+    <table id="optTable">
+      <thead id="optHead"></thead>
+      <tbody id="optBody"></tbody>
+    </table>
+  </div>
+</section>
+
+<footer>
+  <span class="mono">BTC TRADING SIMULATOR</span>
+  <span>Backtest results — not financial advice</span>
+</footer>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
