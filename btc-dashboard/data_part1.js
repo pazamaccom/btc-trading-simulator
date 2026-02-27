@@ -1,1 +1,1 @@
-const BACKTEST_DATA = {"method": "rolling_walk_forward", "lookback_days": 90, "refit_interval_days": 5, "total_candles": 455, "date_range": {"full_data_start": "2024-11-30T00:00:00", "oos_start": "2025-02-28T00:00:00", "end": "2026-02-27T00:00:00"}, "price_range": {"min": 60001.0, "max": 126296.0}, "strategies": {"RSI": {}, "Bollinger": {}, "MA Crossover": {}, "MACD": {}, "Volume Breakout": {}}};
+REAL_CONTENT_NEEDED
