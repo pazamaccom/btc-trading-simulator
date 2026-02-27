@@ -1,220 +1,190 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BTC Trading Simulator v2</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <link rel="stylesheet" href="./style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BTC Trading Simulator v3</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.1.0/dist/chartjs-plugin-annotation.min.js"></script>
+  <link rel="stylesheet" href="./style.css">
 </head>
 <body>
-    <!-- Scanline overlay -->
-    <div class="scanline-overlay"></div>
 
-    <!-- Header -->
-    <header id="header">
-        <div class="header-top">
-            <div class="header-left">
-                <div class="terminal-tag"><span class="status-dot"></span>BTC/USD</div>
-                <h1 class="title">BTC Trading Simulator <span class="version">v2</span></h1>
-                <p class="subtitle">Enhanced with ATR Risk Management, Signal Confluence, Regime Filters, Walk-Forward Validation</p>
-            </div>
-            <div class="header-right">
-                <div class="header-meta">
-                    <div class="meta-item">
-                        <span class="meta-label">DATE RANGE</span>
-                        <span class="meta-value" id="date-range">—</span>
-                    </div>
-                    <div class="meta-item">
-                        <span class="meta-label">CANDLES</span>
-                        <span class="meta-value" id="candle-count">—</span>
-                    </div>
-                    <div class="meta-item">
-                        <span class="meta-label">PRICE RANGE</span>
-                        <span class="meta-value" id="price-range">—</span>
-                    </div>
-                </div>
-            </div>
+  <!-- HEADER -->
+  <header id="header">
+    <div class="header-top">
+      <div class="header-title-group">
+        <h1 class="header-title">BTC Trading Simulator <span class="version-tag">v3</span></h1>
+        <p class="header-subtitle">Rolling Walk-Forward &nbsp;|&nbsp; 90-Day Lookback &nbsp;|&nbsp; Re-fit Every 5 Days &nbsp;|&nbsp; 100% Out-of-Sample</p>
+      </div>
+      <div class="oos-badge">ALL RESULTS OUT-OF-SAMPLE</div>
+    </div>
+    <div class="header-meta">
+      <div class="meta-item">
+        <span class="meta-label">OOS Period</span>
+        <span class="meta-value" id="meta-oos-period"></span>
+      </div>
+      <div class="meta-divider"></div>
+      <div class="meta-item">
+        <span class="meta-label">Total Candles</span>
+        <span class="meta-value" id="meta-candles"></span>
+      </div>
+      <div class="meta-divider"></div>
+      <div class="meta-item">
+        <span class="meta-label">Price Range</span>
+        <span class="meta-value" id="meta-price-range"></span>
+      </div>
+      <div class="meta-divider"></div>
+      <div class="meta-item">
+        <span class="meta-label">Method</span>
+        <span class="meta-value" id="meta-method"></span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <!-- KPI CARDS -->
+    <section id="kpi-section">
+      <div class="kpi-grid">
+        <div class="kpi-card kpi-highlight">
+          <div class="kpi-label">Best Strategy</div>
+          <div class="kpi-value" id="kpi-best-name"></div>
+          <div class="kpi-sub" id="kpi-best-return"></div>
         </div>
-        <div class="timeframe-tabs">
-            <button class="tf-tab active" data-tf="1h">1H</button>
-            <button class="tf-tab" data-tf="1d">1D</button>
+        <div class="kpi-card">
+          <div class="kpi-label">Buy &amp; Hold</div>
+          <div class="kpi-value" id="kpi-bh"></div>
+          <div class="kpi-sub">Same period baseline</div>
         </div>
-    </header>
+        <div class="kpi-card kpi-alpha">
+          <div class="kpi-label">Alpha Generated</div>
+          <div class="kpi-value" id="kpi-alpha"></div>
+          <div class="kpi-sub">Best strat vs B&amp;H</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Strategies Tested</div>
+          <div class="kpi-value" id="kpi-count"></div>
+          <div class="kpi-sub">Walk-forward validated</div>
+        </div>
+      </div>
+    </section>
 
-    <!-- Navigation -->
-    <nav id="nav">
-        <a href="#performance" class="nav-link active">Performance</a>
-        <a href="#comparison" class="nav-link">v1 vs v2</a>
-        <a href="#equity" class="nav-link">Equity Curves</a>
-        <a href="#details" class="nav-link">Strategy Details</a>
-        <a href="#walkforward" class="nav-link">Walk-Forward</a>
-        <a href="#risk" class="nav-link">Risk Metrics</a>
-    </nav>
+    <!-- STRATEGY TABLE -->
+    <section id="table-section">
+      <div class="section-header">
+        <h2 class="section-title">Strategy Performance</h2>
+        <span class="section-hint">Click a row for details</span>
+      </div>
+      <div class="table-wrapper">
+        <table id="strategy-table">
+          <thead>
+            <tr>
+              <th data-col="name">Strategy</th>
+              <th data-col="return" data-sort="num">OOS Return %</th>
+              <th data-col="bh" data-sort="num">Buy &amp; Hold %</th>
+              <th data-col="alpha" data-sort="num">Alpha %</th>
+              <th data-col="sharpe" data-sort="num">Sharpe</th>
+              <th data-col="sortino" data-sort="num">Sortino</th>
+              <th data-col="winrate" data-sort="num">Win Rate %</th>
+              <th data-col="trades" data-sort="num">Trades</th>
+              <th data-col="dd" data-sort="num">Max DD %</th>
+              <th data-col="pf" data-sort="num">Profit Factor</th>
+              <th data-col="refits" data-sort="num">Re-fits</th>
+            </tr>
+          </thead>
+          <tbody id="strategy-tbody"></tbody>
+        </table>
+      </div>
+    </section>
 
-    <main>
-        <!-- Section 1: Performance Table -->
-        <section id="performance" class="section">
-            <div class="section-header">
-                <div class="section-number">01</div>
-                <h2>Strategy Performance Overview</h2>
-            </div>
-            <div class="kpi-strip" id="kpi-strip">
-                <!-- Populated by JS -->
-            </div>
-            <div class="table-wrapper">
-                <table id="performance-table">
-                    <thead>
-                        <tr>
-                            <th data-sort="name" class="sortable">Strategy <span class="sort-icon">⇕</span></th>
-                            <th data-sort="total_return_pct" class="sortable num">Return % <span class="sort-icon">⇕</span></th>
-                            <th data-sort="sharpe_ratio" class="sortable num">Sharpe <span class="sort-icon">⇕</span></th>
-                            <th data-sort="sortino_ratio" class="sortable num">Sortino <span class="sort-icon">⇕</span></th>
-                            <th data-sort="win_rate_pct" class="sortable num">Win Rate % <span class="sort-icon">⇕</span></th>
-                            <th data-sort="num_trades" class="sortable num">Trades <span class="sort-icon">⇕</span></th>
-                            <th data-sort="max_drawdown_pct" class="sortable num">Max DD % <span class="sort-icon">⇕</span></th>
-                            <th data-sort="profit_factor" class="sortable num">Profit Factor <span class="sort-icon">⇕</span></th>
-                            <th data-sort="calmar_ratio" class="sortable num">Calmar <span class="sort-icon">⇕</span></th>
-                        </tr>
-                    </thead>
-                    <tbody id="performance-tbody"></tbody>
-                </table>
-            </div>
-        </section>
+    <!-- STRATEGY DETAIL PANEL (shown on row click) -->
+    <section id="detail-section" class="hidden">
+      <div class="section-header">
+        <h2 class="section-title" id="detail-title">Strategy Details</h2>
+        <button class="close-btn" id="detail-close">&times;</button>
+      </div>
+      <div class="detail-grid">
+        <div class="detail-card">
+          <h3>Parameter Evolution (Refit Log)</h3>
+          <div class="detail-table-wrapper">
+            <table id="refit-table">
+              <thead><tr id="refit-thead"></tr></thead>
+              <tbody id="refit-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="detail-card">
+          <h3>Exit Breakdown</h3>
+          <div class="chart-container chart-sm">
+            <canvas id="exit-chart"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="detail-card detail-full">
+        <h3>Trade Log</h3>
+        <div class="detail-table-wrapper">
+          <table id="trade-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Type</th>
+                <th>Date</th>
+                <th>Price</th>
+                <th>Amount</th>
+                <th>PnL</th>
+                <th>PnL %</th>
+              </tr>
+            </thead>
+            <tbody id="trade-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
 
-        <!-- Section 2: v1 vs v2 Comparison -->
-        <section id="comparison" class="section">
-            <div class="section-header">
-                <div class="section-number">02</div>
-                <h2>v1 vs v2 Comparison</h2>
-            </div>
-            <div class="chart-container chart-bar">
-                <canvas id="comparison-chart"></canvas>
-            </div>
-        </section>
+    <!-- VERSION COMPARISON -->
+    <section id="version-section">
+      <div class="section-header">
+        <h2 class="section-title">Version Comparison</h2>
+        <span class="section-hint">v1: Overfit &nbsp;|&nbsp; v2: Risk-managed but still static &nbsp;|&nbsp; v3: True out-of-sample</span>
+      </div>
+      <div class="chart-container chart-md">
+        <canvas id="version-chart"></canvas>
+      </div>
+    </section>
 
-        <!-- Section 3: Equity Curves -->
-        <section id="equity" class="section">
-            <div class="section-header">
-                <div class="section-number">03</div>
-                <h2>Equity Curves</h2>
-            </div>
-            <div class="chart-container chart-wide">
-                <canvas id="equity-chart"></canvas>
-            </div>
-        </section>
+    <!-- EQUITY CURVES -->
+    <section id="equity-section">
+      <div class="section-header">
+        <h2 class="section-title">Equity Curves</h2>
+        <span class="section-hint">Toggle strategies via legend &nbsp;|&nbsp; Starting capital: $10,000</span>
+      </div>
+      <div class="chart-container chart-lg">
+        <canvas id="equity-chart"></canvas>
+      </div>
+    </section>
 
-        <!-- Section 4: Strategy Details -->
-        <section id="details" class="section">
-            <div class="section-header">
-                <div class="section-number">04</div>
-                <h2>Strategy Details</h2>
-            </div>
-            <div id="detail-placeholder" class="detail-placeholder">
-                <div class="placeholder-icon">↑</div>
-                <p>Click a strategy row in the Performance table to view details</p>
-            </div>
-            <div id="detail-content" class="detail-content" style="display:none;">
-                <div class="detail-strategy-header">
-                    <span class="detail-strategy-name" id="detail-strategy-name"></span>
-                </div>
-                <div class="detail-grid">
-                    <div class="detail-card">
-                        <h3>Optimal Parameters</h3>
-                        <div id="detail-params" class="params-grid"></div>
-                    </div>
-                    <div class="detail-card">
-                        <h3>Exit Type Breakdown</h3>
-                        <div class="pie-container">
-                            <canvas id="exit-pie-chart"></canvas>
-                        </div>
-                    </div>
-                </div>
-                <div class="detail-card full-width">
-                    <h3>Trade History</h3>
-                    <div class="table-wrapper">
-                        <table id="trades-table">
-                            <thead>
-                                <tr>
-                                    <th>#</th>
-                                    <th>Type</th>
-                                    <th>Time</th>
-                                    <th>Price</th>
-                                    <th>Amount</th>
-                                    <th>P&L</th>
-                                    <th>P&L %</th>
-                                </tr>
-                            </thead>
-                            <tbody id="trades-tbody"></tbody>
-                        </table>
-                    </div>
-                </div>
-                <div id="detail-walkforward-container" class="detail-card full-width" style="display:none;">
-                    <h3>Walk-Forward Fold Results</h3>
-                    <div class="table-wrapper">
-                        <table id="wf-fold-table">
-                            <thead>
-                                <tr>
-                                    <th>Fold</th>
-                                    <th>Parameters</th>
-                                    <th>Train Return %</th>
-                                    <th>Test Return %</th>
-                                    <th>Train Sharpe</th>
-                                    <th>Test Sharpe</th>
-                                </tr>
-                            </thead>
-                            <tbody id="wf-fold-tbody"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </section>
+    <!-- RISK-RETURN SCATTER -->
+    <section id="scatter-section">
+      <div class="section-header">
+        <h2 class="section-title">Risk-Return Profile</h2>
+        <span class="section-hint">X = Max Drawdown % &nbsp;|&nbsp; Y = OOS Return %</span>
+      </div>
+      <div class="chart-container chart-md">
+        <canvas id="scatter-chart"></canvas>
+      </div>
+    </section>
+  </main>
 
-        <!-- Section 5: Walk-Forward Analysis -->
-        <section id="walkforward" class="section">
-            <div class="section-header">
-                <div class="section-number">05</div>
-                <h2>Walk-Forward Analysis</h2>
-            </div>
-            <div class="table-wrapper">
-                <table id="walkforward-table">
-                    <thead>
-                        <tr>
-                            <th>Strategy</th>
-                            <th class="num">Avg OOS Return %</th>
-                            <th class="num">Avg OOS Sharpe</th>
-                            <th class="num">Avg Train Return %</th>
-                            <th class="num">Overfit Ratio</th>
-                            <th class="num">Assessment</th>
-                        </tr>
-                    </thead>
-                    <tbody id="walkforward-tbody"></tbody>
-                </table>
-            </div>
-        </section>
+  <footer>
+    <p>BTC Trading Simulator v3 &mdash; Rolling Walk-Forward Backtest &mdash; Data is for educational purposes only</p>
+  </footer>
 
-        <!-- Section 6: Risk Metrics -->
-        <section id="risk" class="section">
-            <div class="section-header">
-                <div class="section-number">06</div>
-                <h2>Risk-Return Tradeoff</h2>
-            </div>
-            <div class="chart-container chart-square">
-                <canvas id="risk-chart"></canvas>
-            </div>
-        </section>
-    </main>
-
-    <footer>
-        <span>BTC Trading Simulator v2 &mdash; Data generated Feb 2026</span>
-        <span class="footer-dot">&bull;</span>
-        <span>Walk-Forward Validated</span>
-    </footer>
-
-    <script src="./data.js"></script>
-    <script src="./app.js"></script>
+  <script src="./data_part1.js"></script>
+  <script src="./data_part2.js"></script>
+  <script src="./data.js"></script>
+  <script src="./app.js"></script>
 </body>
 </html>
