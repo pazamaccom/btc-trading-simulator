@@ -1,91 +1,78 @@
-# Bitcoin Trading Simulator v3
+# BTC Trading Simulator
 
-A Bitcoin trading backtester using **rolling walk-forward optimization** to produce 100% out-of-sample results. No look-ahead bias.
+A systematic Bitcoin trading backtesting framework with rolling walk-forward optimization. All results are 100% out-of-sample.
 
-## How It Works
+## Current Version: v4 (Alternative Data Integration)
 
-```
-For each trading day:
-  1. Look back 90 days of historical data
-  2. Grid-search the best strategy parameters on that window
-  3. Generate a signal for TODAY using those parameters
-  4. Execute trade if signal fires (with ATR-based risk management)
-  5. Advance one day, repeat
-```
+### What's New in v4
+- **Fear & Greed Index** — contrarian and momentum sentiment strategies
+- **On-chain metrics** — active addresses, transaction volume, hash rate, mempool congestion
+- **Hybrid strategies** — combining technical analysis with alternative data signals
+- **Category system** — strategies classified as Technical, Alternative, or Hybrid
 
-Every trade decision is made using only past data. Parameters are re-fit every 5 days on a rolling 90-day window. The results you see are what you would have gotten trading this live.
+### Strategy Categories
 
-## Results (100% Out-of-Sample, Feb 2025 – Feb 2026)
+| Category | Strategies | Description |
+|----------|-----------|-------------|
+| **Technical** | MA Crossover, RSI, Bollinger, Confluence Reversal | Traditional price-based indicators |
+| **Alternative** | FNG Contrarian, FNG Momentum, On-Chain Activity, Hash Rate, Mempool Pressure | Blockchain and sentiment data |
+| **Hybrid** | MA + FNG Hybrid, Confluence + AltData | TA + alternative data fusion |
 
-| Strategy | OOS Return | Buy & Hold | Alpha | Sharpe | Win Rate | Max DD | Profit Factor |
-|---|---|---|---|---|---|---|---|
-| **MA Crossover** | **+9.85%** | -20.32% | **+30.17%** | 1.965 | 80.0% | 2.70% | 5.647 |
-| Confluence Reversal | +7.71% | -20.32% | +28.03% | 1.397 | 66.7% | 4.35% | 2.805 |
-| Volume Breakout | +5.10% | -20.32% | +25.42% | 0.786 | 54.5% | 4.32% | 1.540 |
-| Bollinger | +2.45% | -20.32% | +22.77% | 0.441 | 44.4% | 4.99% | 1.301 |
-| RSI | +0.81% | -20.32% | +21.13% | 0.263 | 50.0% | 3.22% | 1.420 |
-| Adaptive | +0.19% | -20.32% | +20.51% | 0.065 | 40.0% | 5.52% | 1.075 |
-| MACD | -2.25% | -20.32% | +18.07% | -0.316 | 31.6% | 6.92% | 0.882 |
-| Confluence Trend | -4.05% | -20.32% | +16.27% | -0.497 | 31.3% | 7.04% | 0.773 |
+### Out-of-Sample Results (v4)
 
-**All 8 strategies beat Buy & Hold** by +16% to +30% alpha. Six out of eight are profitable in absolute terms.
+Over a 1,318-day OOS period (Dec 2024 — Feb 2026) with Buy & Hold returning **-29.91%**:
+
+| Strategy | Return | Alpha | Category |
+|----------|--------|-------|----------|
+| Mempool Pressure | +2.27% | +32.18% | Alternative |
+| Confluence Reversal | +0.73% | +30.64% | Technical |
+| FNG Momentum | -0.64% | +29.27% | Alternative |
+| MA + FNG Hybrid | -1.28% | +28.63% | Hybrid |
+
+**All 11 strategies beat Buy & Hold** — generating +16.88% to +32.18% alpha.
+
+## Architecture
+
+### Rolling Walk-Forward Framework
+- **90-day lookback** — train on trailing 3 months
+- **5-day refit interval** — re-optimize parameters every 5 trading days
+- **ATR-based risk management** — 2x ATR stop loss, 3x ATR take profit
+- **Position sizing** — 2% risk per trade
+- **Commission** — 0.1% per trade
+
+### Data Sources
+- **Price**: Coinbase Pro API (daily OHLCV)
+- **Sentiment**: Fear & Greed Index (alternative.me)
+- **On-chain**: blockchain.info (addresses, TX volume, hash rate, mempool)
+
+## Files
+
+| File | Description |
+|------|-------------|
+| `btc_backtester.py` | v1 — Original static grid search (overfitting baseline) |
+| `btc_backtester_v2.py` | v2 — ATR stops, regime filters, position sizing (still static) |
+| `btc_backtester_v3.py` | v3 — Rolling walk-forward, 100% OOS |
+| `btc_backtester_v4.py` | v4 — Alternative data integration |
+| `run_v4_fast.py` | v4 speed-optimized runner (trimmed grids) |
+| `btc-dashboard/` | Interactive Bloomberg-style dashboard |
 
 ## Version History
 
-| Version | Method | Problem |
-|---|---|---|
-| v1 (`btc_backtester.py`) | Static grid search, full-data optimization | Overfitting — optimized and tested on same data |
-| v2 (`btc_backtester_v2.py`) | Added ATR stops, regime filters, position sizing | Still static — parameters fit once on full dataset |
-| **v3 (`btc_backtester_v3.py`)** | **Rolling walk-forward, 90-day lookback** | **No overfitting — 100% out-of-sample** |
+| Version | Key Change | Best Return | Method |
+|---------|-----------|-------------|--------|
+| v1 | 5 strategies, grid search | +26.50% | Static (overfit) |
+| v2 | ATR stops, regime filters | +17.22% | Static (less overfit) |
+| v3 | Rolling walk-forward | +9.85% | 100% OOS |
+| v4 | Alt data (FNG, on-chain) | +2.27% | 100% OOS, longer period |
 
-## Strategies
+Note: v4 runs over a much longer and more bearish OOS period (1,318 days vs 365 days), so raw returns are not directly comparable. Alpha vs B&H is the fair comparison.
 
-| Strategy | Type | Description |
-|---|---|---|
-| RSI | Mean-reversion | RSI oversold/overbought with ADX regime filter |
-| Bollinger | Dual-mode | Mean-reversion in ranges, breakout in trends |
-| MA Crossover | Trend-following | EMA crossover with ADX trend-strength filter |
-| MACD | Momentum | MACD crossover with histogram confirmation |
-| Volume Breakout | Breakout | Price-volume breakout with N-bar confirmation |
-| Confluence Trend | Multi-indicator | MA + MACD + RSI + OBV must agree |
-| Confluence Reversal | Multi-indicator | RSI + Bollinger + Stochastic confluence in ranges |
-| Adaptive | Regime-switching | Switches between trend and mean-reversion via ADX |
+## Roadmap
+1. ~~Alternative data signals~~ (v4 - completed)
+2. ML signal generation
+3. Ensemble / meta-strategy
+4. Dynamic position sizing
+5. Multi-asset correlation
 
-## Risk Management
-
-- **Position sizing**: 2% of capital risked per trade
-- **ATR stop-loss**: 2x ATR below entry
-- **ATR take-profit**: 3x ATR above entry
-- **Commission**: 0.1% per trade
-- **Re-optimization**: Every 5 days on trailing 90-day window
-
-## Project Structure
-
-```
-├── btc_backtester_v3.py     # Rolling walk-forward engine (current)
-├── btc_backtester_v2.py     # v2 with risk management (archived)
-├── btc_backtester.py        # v1 original (archived)
-├── README.md
-└── btc-dashboard/           # Interactive web dashboard
-    ├── index.html
-    ├── style.css
-    ├── app.js
-    └── data*.js             # Backtest results data
-```
-
-## How to Run
-
-```bash
-pip install requests pandas numpy
-python btc_backtester_v3.py
-```
-
-Fetches ~455 days of BTC-USD data from Coinbase (90 days for initial training + 365 days of trading). Results saved to `backtest_results_v3.json`.
-
-## Data Source
-
-[Coinbase Exchange API](https://docs.cloud.coinbase.com/exchange/reference/exchangerestapi_getproductcandles) — public BTC-USD OHLCV candles, no authentication required.
-
-## License
-
-MIT
+## Disclaimer
+This project is for educational and research purposes only. Not financial advice. Past performance does not guarantee future results.
