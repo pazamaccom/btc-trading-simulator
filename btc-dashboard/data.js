@@ -1,11 +1,11 @@
-const BACKTEST_DATA = {
-  "version": "v6",
-  "method": "rolling_walk_forward",
-  "lookback_days": 90,
-  "refit_interval_days": 15,
-  "total_candles": 1408,
-  "date_range": {
-    "full_data_start": "2024-12-01 00:00:00",
-    "oos_start": "2024-12-30 00:00:00",
-    "end": "2026-02-28 00:00:00"
-  }
+// BTC Trading Simulator v6 — Compressed Data (v6 ensemble)
+// Requires pako.js loaded before this script
+(function() {
+  var b64 = "PLACEHOLDER";
+  var raw = atob(b64); var ua = new Uint8Array(raw.length);
+  for (var i = 0; i < raw.length; i++) ua[i] = raw.charCodeAt(i);
+  var src = pako.inflate(ua, { to: 'string' });
+  // Define as window globals instead of const (for cross-script access)
+  src = src.replace(/^const /gm, 'window.');
+  (new Function(src))();
+})();
