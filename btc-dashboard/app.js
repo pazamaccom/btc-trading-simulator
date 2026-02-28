@@ -1,4 +1,4 @@
-// ===== BTC Trading Simulator v3 Dashboard =====
+// ===== BTC Trading Simulator v4 Dashboard =====
 // All data from data.js globals: BACKTEST_DATA, VERSION_COMPARISON
 
 (function () {
@@ -51,25 +51,42 @@
   const strategies = data.strategies;
   const stratNames = Object.keys(strategies);
 
-  // Strategy colors
+  // Strategy colors — categorized
   const STRAT_COLORS = {
+    // Technical (cyan family)
+    'MA Crossover': '#00d4ff',
     'RSI': '#00ffa3',
-    'Bollinger': '#00d4ff',
-    'MA Crossover': '#ffd000',
-    'MACD': '#ff8a00',
-    'Volume Breakout': '#a855f7',
-    'Confluence Trend': '#ff3860',
-    'Confluence Reversal': '#22d3ee',
-    'Adaptive': '#f472b6',
+    'Bollinger': '#22d3ee',
+    'MACD': '#06b6d4',
+    'Volume Breakout': '#67e8f9',
+    'Confluence Trend': '#2dd4bf',
+    'Confluence Reversal': '#34d399',
+    'Adaptive': '#5eead4',
+    // Alternative (purple family)
+    'FNG Contrarian': '#a855f7',
+    'FNG Momentum': '#c084fc',
+    'On-Chain Activity': '#8b5cf6',
+    'Hash Rate': '#7c3aed',
+    'Mempool Pressure': '#d946ef',
+    // Hybrid (yellow/orange family)
+    'MA + FNG Hybrid': '#ffd000',
+    'Confluence + AltData': '#ff8a00',
+  };
+
+  const CAT_COLORS = {
+    'technical': '#00d4ff',
+    'alternative': '#a855f7',
+    'hybrid': '#ffd000',
   };
 
   const getColor = (name) => STRAT_COLORS[name] || '#8888a8';
+  const getCategory = (name) => (strategies[name] && strategies[name].category) || 'technical';
 
   // ===== HEADER =====
   document.getElementById('meta-oos-period').textContent = fmtDate(data.date_range.oos_start) + ' → ' + fmtDate(data.date_range.end);
   document.getElementById('meta-candles').textContent = data.total_candles.toLocaleString();
   document.getElementById('meta-price-range').textContent = fmtUsd(data.price_range.min) + ' — ' + fmtUsd(data.price_range.max);
-  document.getElementById('meta-method').textContent = 'Rolling Walk-Forward';
+  document.getElementById('meta-method').textContent = data.alt_data_available ? 'Price + Alt Data' : 'Price Only';
 
   // ===== KPI CARDS =====
   let bestName = '', bestReturn = -Infinity;
@@ -89,11 +106,33 @@
   document.getElementById('kpi-alpha').textContent = fmtPct(alpha);
   document.getElementById('kpi-count').textContent = stratNames.length;
 
+  // Count categories
+  const catCounts = { technical: 0, alternative: 0, hybrid: 0 };
+  for (const name of stratNames) {
+    const cat = getCategory(name);
+    if (catCounts[cat] !== undefined) catCounts[cat]++;
+  }
+  document.getElementById('kpi-categories-sub').textContent =
+    `${catCounts.technical} TA  ·  ${catCounts.alternative} Alt  ·  ${catCounts.hybrid} Hybrid`;
+
+  // ===== CATEGORY FILTER =====
+  let activeFilter = 'all';
+
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeFilter = btn.dataset.cat;
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderTable();
+    });
+  });
+
   // ===== STRATEGY TABLE =====
   let tableData = stratNames.map(name => {
     const s = strategies[name];
     return {
       name,
+      category: getCategory(name),
       return: s.total_return_pct,
       bh: s.buy_hold_return_pct,
       alpha: s.total_return_pct - s.buy_hold_return_pct,
@@ -103,7 +142,6 @@
       trades: s.num_trades,
       dd: s.max_drawdown_pct,
       pf: s.profit_factor,
-      refits: s.num_refits,
     };
   });
 
@@ -111,7 +149,12 @@
   let sortAsc = false;
 
   function renderTable() {
-    const sorted = [...tableData].sort((a, b) => {
+    let filtered = tableData;
+    if (activeFilter !== 'all') {
+      filtered = tableData.filter(r => r.category === activeFilter);
+    }
+
+    const sorted = [...filtered].sort((a, b) => {
       let va = a[sortCol], vb = b[sortCol];
       if (typeof va === 'string') {
         return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
@@ -126,8 +169,11 @@
       const tr = document.createElement('tr');
       tr.dataset.strategy = row.name;
 
+      const catBadge = `<span class="cat-badge cat-${row.category}">${row.category}</span>`;
+
       const cells = [
-        { val: row.name, cls: '' },
+        { val: row.name, cls: '', html: false },
+        { val: catBadge, cls: '', html: true },
         { val: fmtPct(row.return), cls: colorVal(row.return) },
         { val: fmtPct(row.bh), cls: colorVal(row.bh) },
         { val: fmtPct(row.alpha), cls: colorVal(row.alpha) },
@@ -137,12 +183,15 @@
         { val: row.trades, cls: '' },
         { val: '-' + fmt(row.dd, 2) + '%', cls: 'val-neg' },
         { val: fmt(row.pf, 3), cls: colorVal(row.pf - 1) },
-        { val: row.refits, cls: '' },
       ];
 
       for (const c of cells) {
         const td = document.createElement('td');
-        td.textContent = c.val;
+        if (c.html) {
+          td.innerHTML = c.val;
+        } else {
+          td.textContent = c.val;
+        }
         if (c.cls) td.className = c.cls;
         tr.appendChild(td);
       }
@@ -188,7 +237,9 @@
       tr.classList.toggle('active-row', tr.dataset.strategy === name);
     });
 
-    document.getElementById('detail-title').textContent = name + ' — Strategy Details';
+    const cat = getCategory(name);
+    document.getElementById('detail-title').innerHTML =
+      `${name} <span class="cat-badge cat-${cat}">${cat}</span>`;
 
     // Refit log table
     const refitHead = document.getElementById('refit-thead');
@@ -277,16 +328,147 @@
     document.querySelectorAll('#strategy-table tbody tr').forEach(tr => tr.classList.remove('active-row'));
   });
 
+  // ===== CATEGORY BREAKDOWN CHART =====
+  (function () {
+    const categories = ['technical', 'alternative', 'hybrid'];
+    const catData = {};
+
+    for (const cat of categories) {
+      catData[cat] = {
+        names: [],
+        returns: [],
+        alphas: [],
+      };
+    }
+
+    for (const name of stratNames) {
+      const s = strategies[name];
+      const cat = getCategory(name);
+      if (catData[cat]) {
+        catData[cat].names.push(name);
+        catData[cat].returns.push(s.total_return_pct);
+        catData[cat].alphas.push(s.total_return_pct - s.buy_hold_return_pct);
+      }
+    }
+
+    // Grouped bar: each strategy, colored by category
+    const allNames = [];
+    const allReturns = [];
+    const allColors = [];
+    const allBorderColors = [];
+
+    for (const cat of categories) {
+      const cd = catData[cat];
+      // Sort by return descending within category
+      const indices = cd.returns.map((_, i) => i).sort((a, b) => cd.returns[b] - cd.returns[a]);
+      for (const i of indices) {
+        allNames.push(cd.names[i]);
+        allReturns.push(cd.returns[i]);
+        allColors.push(CAT_COLORS[cat] + '99'); // with transparency
+        allBorderColors.push(CAT_COLORS[cat]);
+      }
+    }
+
+    const ctx = document.getElementById('category-chart').getContext('2d');
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: allNames,
+        datasets: [{
+          label: 'OOS Return %',
+          data: allReturns,
+          backgroundColor: allColors,
+          borderColor: allBorderColors,
+          borderWidth: 1.5,
+          borderRadius: 3,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const name = allNames[ctx.dataIndex];
+                const cat = getCategory(name);
+                return `${name} [${cat}]: ${fmtPct(ctx.raw)}`;
+              }
+            }
+          },
+          annotation: {
+            annotations: {
+              zeroLine: {
+                type: 'line',
+                yMin: 0, yMax: 0,
+                borderColor: 'rgba(255,255,255,0.15)',
+                borderWidth: 1,
+                borderDash: [4, 4],
+              },
+              bhLine: {
+                type: 'line',
+                yMin: bhReturn, yMax: bhReturn,
+                borderColor: 'rgba(255,56,96,0.4)',
+                borderWidth: 1.5,
+                borderDash: [6, 4],
+                label: {
+                  display: true,
+                  content: 'Buy & Hold: ' + fmtPct(bhReturn),
+                  position: 'start',
+                  font: { family: "'JetBrains Mono', monospace", size: 9 },
+                  color: 'rgba(255,56,96,0.8)',
+                  backgroundColor: 'rgba(12,12,20,0.8)',
+                  padding: 4,
+                }
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: {
+              font: { family: "'JetBrains Mono', monospace", size: 9 },
+              maxRotation: 45,
+            }
+          },
+          y: {
+            grid: { color: 'rgba(26,26,46,0.4)' },
+            ticks: {
+              callback: v => v + '%',
+              font: { family: "'JetBrains Mono', monospace", size: 10 }
+            },
+            title: {
+              display: true,
+              text: 'OOS Return %',
+              font: { family: "'JetBrains Mono', monospace", size: 11 },
+              color: '#6a6a88'
+            }
+          }
+        }
+      }
+    });
+  })();
+
   // ===== VERSION COMPARISON CHART =====
   (function () {
+    // Show only strategies that exist in v4 for the comparison
+    const v4Strats = Object.keys(vc.v4_oos || {});
+    // Also include v3-only strategies for comparison
     const allStrats = [...new Set([
       ...Object.keys(vc.v1_static || {}),
       ...Object.keys(vc.v2_static || {}),
-      ...Object.keys(vc.v3_oos || {})
+      ...Object.keys(vc.v3_oos || {}),
+      ...v4Strats
     ])];
 
-    // Sort by v3 return descending
-    allStrats.sort((a, b) => (vc.v3_oos[b] || 0) - (vc.v3_oos[a] || 0));
+    // Sort by v4 return descending, then v3
+    allStrats.sort((a, b) => {
+      const av = vc.v4_oos?.[a] ?? vc.v3_oos?.[a] ?? -999;
+      const bv = vc.v4_oos?.[b] ?? vc.v3_oos?.[b] ?? -999;
+      return bv - av;
+    });
 
     const ctx = document.getElementById('version-chart').getContext('2d');
     new Chart(ctx, {
@@ -297,24 +479,32 @@
           {
             label: 'v1 (Static, Overfit)',
             data: allStrats.map(s => vc.v1_static?.[s] ?? null),
-            backgroundColor: 'rgba(120,120,140,0.6)',
-            borderColor: 'rgba(120,120,140,0.8)',
+            backgroundColor: 'rgba(120,120,140,0.5)',
+            borderColor: 'rgba(120,120,140,0.7)',
             borderWidth: 1,
             borderRadius: 2,
           },
           {
             label: 'v2 (Risk-Managed Static)',
             data: allStrats.map(s => vc.v2_static?.[s] ?? null),
-            backgroundColor: 'rgba(255,208,0,0.6)',
-            borderColor: 'rgba(255,208,0,0.8)',
+            backgroundColor: 'rgba(255,208,0,0.5)',
+            borderColor: 'rgba(255,208,0,0.7)',
             borderWidth: 1,
             borderRadius: 2,
           },
           {
             label: 'v3 (Rolling OOS)',
             data: allStrats.map(s => vc.v3_oos?.[s] ?? null),
-            backgroundColor: 'rgba(0,255,163,0.7)',
-            borderColor: 'rgba(0,255,163,0.9)',
+            backgroundColor: 'rgba(0,255,163,0.6)',
+            borderColor: 'rgba(0,255,163,0.8)',
+            borderWidth: 1,
+            borderRadius: 2,
+          },
+          {
+            label: 'v4 (+ Alt Data)',
+            data: allStrats.map(s => vc.v4_oos?.[s] ?? null),
+            backgroundColor: 'rgba(168,85,247,0.6)',
+            borderColor: 'rgba(168,85,247,0.8)',
             borderWidth: 1,
             borderRadius: 2,
           },
@@ -346,7 +536,10 @@
         scales: {
           x: {
             grid: { display: false },
-            ticks: { font: { family: "'JetBrains Mono', monospace", size: 10 } }
+            ticks: {
+              font: { family: "'JetBrains Mono', monospace", size: 9 },
+              maxRotation: 45,
+            }
           },
           y: {
             grid: { color: 'rgba(26,26,46,0.4)' },
@@ -370,6 +563,8 @@
   (function () {
     // Build Buy & Hold equity from price_data starting at $10,000
     const priceData = data.price_data;
+    if (!priceData || priceData.length === 0) return;
+
     const startPrice = priceData[0].close;
     const bhEquity = priceData.map(p => ({
       time: p.time,
@@ -386,9 +581,22 @@
     // Add strategy equity curves
     for (const name of stratNames) {
       const s = strategies[name];
+      if (!s.equity_curve || s.equity_curve.length === 0) continue;
+
+      // Align equity curve length to labels
+      let eqData = s.equity_curve.map(e => e.equity);
+      // Pad front if needed
+      while (eqData.length < labels.length) {
+        eqData.unshift(10000);
+      }
+      // Trim if longer
+      if (eqData.length > labels.length) {
+        eqData = eqData.slice(eqData.length - labels.length);
+      }
+
       datasets.push({
         label: name,
-        data: s.equity_curve.map(e => e.equity),
+        data: eqData,
         borderColor: getColor(name),
         backgroundColor: 'transparent',
         borderWidth: 1.5,
@@ -426,7 +634,7 @@
           legend: {
             position: 'top',
             labels: {
-              font: { family: "'JetBrains Mono', monospace", size: 10 },
+              font: { family: "'JetBrains Mono', monospace", size: 9 },
             }
           },
           tooltip: {
@@ -489,13 +697,15 @@
         x: s.max_drawdown_pct,
         y: s.total_return_pct,
         label: name,
+        category: getCategory(name),
       };
     });
 
     // Buy & Hold reference point
     const priceData = data.price_data;
+    if (!priceData || priceData.length === 0) return;
+
     const startPrice = priceData[0].close;
-    // Calculate B&H max drawdown
     let peak = startPrice;
     let maxDD = 0;
     for (const p of priceData) {
@@ -508,6 +718,7 @@
       x: maxDD,
       y: bhReturn,
       label: 'Buy & Hold',
+      category: 'benchmark',
     });
 
     const ctx = document.getElementById('scatter-chart').getContext('2d');
@@ -516,15 +727,22 @@
       data: {
         datasets: [{
           data: scatterData.map(d => ({ x: d.x, y: d.y })),
-          backgroundColor: scatterData.map(d =>
-            d.label === 'Buy & Hold' ? 'rgba(120,120,140,0.8)' : getColor(d.label)
-          ),
-          borderColor: scatterData.map(d =>
-            d.label === 'Buy & Hold' ? 'rgba(120,120,140,1)' : getColor(d.label)
-          ),
+          backgroundColor: scatterData.map(d => {
+            if (d.label === 'Buy & Hold') return 'rgba(120,120,140,0.8)';
+            return CAT_COLORS[d.category] || '#8888a8';
+          }),
+          borderColor: scatterData.map(d => {
+            if (d.label === 'Buy & Hold') return 'rgba(120,120,140,1)';
+            return CAT_COLORS[d.category] || '#8888a8';
+          }),
           borderWidth: 2,
           pointRadius: scatterData.map(d => d.label === 'Buy & Hold' ? 8 : 7),
-          pointStyle: scatterData.map(d => d.label === 'Buy & Hold' ? 'rectRot' : 'circle'),
+          pointStyle: scatterData.map(d => {
+            if (d.label === 'Buy & Hold') return 'rectRot';
+            if (d.category === 'alternative') return 'triangle';
+            if (d.category === 'hybrid') return 'rect';
+            return 'circle';
+          }),
           pointHoverRadius: 10,
         }]
       },
@@ -537,11 +755,10 @@
             callbacks: {
               label: ctx => {
                 const d = scatterData[ctx.dataIndex];
-                return `${d.label}: Return ${fmtPct(d.y)}, Max DD -${fmt(d.x)}%`;
+                return `${d.label} [${d.category}]: Return ${fmtPct(d.y)}, Max DD -${fmt(d.x)}%`;
               }
             }
           },
-          // Labels on points
           annotation: {
             annotations: {
               zeroLine: {
@@ -590,28 +807,32 @@
         afterDraw(chart) {
           const ctx = chart.ctx;
           ctx.save();
-          ctx.font = "500 10px 'JetBrains Mono', monospace";
+          ctx.font = "500 9px 'JetBrains Mono', monospace";
           ctx.textAlign = 'center';
 
           const meta = chart.getDatasetMeta(0);
           const positions = [];
-          
+
           meta.data.forEach((point, i) => {
             const d = scatterData[i];
             let labelX = point.x;
-            let labelY = point.y - 16;
-            
+            let labelY = point.y - 14;
+
             // Shift labels to avoid overlap
             for (const pos of positions) {
               const dx = Math.abs(labelX - pos.x);
               const dy = Math.abs(labelY - pos.y);
-              if (dx < 80 && dy < 14) {
-                labelY = pos.y - 15;
+              if (dx < 70 && dy < 12) {
+                labelY = pos.y - 13;
               }
             }
             positions.push({ x: labelX, y: labelY });
-            
-            ctx.fillStyle = d.label === 'Buy & Hold' ? 'rgba(120,120,140,0.9)' : getColor(d.label);
+
+            if (d.label === 'Buy & Hold') {
+              ctx.fillStyle = 'rgba(120,120,140,0.9)';
+            } else {
+              ctx.fillStyle = CAT_COLORS[d.category] || '#8888a8';
+            }
             ctx.fillText(d.label, labelX, labelY);
           });
           ctx.restore();

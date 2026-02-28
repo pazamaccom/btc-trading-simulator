@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BTC Trading Simulator v3</title>
+  <title>BTC Trading Simulator v4</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -17,8 +17,8 @@
   <header id="header">
     <div class="header-top">
       <div class="header-title-group">
-        <h1 class="header-title">BTC Trading Simulator <span class="version-tag">v3</span></h1>
-        <p class="header-subtitle">Rolling Walk-Forward &nbsp;|&nbsp; 90-Day Lookback &nbsp;|&nbsp; Re-fit Every 5 Days &nbsp;|&nbsp; 100% Out-of-Sample</p>
+        <h1 class="header-title">BTC Trading Simulator <span class="version-tag">v4</span></h1>
+        <p class="header-subtitle">Rolling Walk-Forward &nbsp;|&nbsp; 90-Day Lookback &nbsp;|&nbsp; Alternative Data &nbsp;|&nbsp; 100% Out-of-Sample</p>
       </div>
       <div class="oos-badge">ALL RESULTS OUT-OF-SAMPLE</div>
     </div>
@@ -39,7 +39,7 @@
       </div>
       <div class="meta-divider"></div>
       <div class="meta-item">
-        <span class="meta-label">Method</span>
+        <span class="meta-label">Data Sources</span>
         <span class="meta-value" id="meta-method"></span>
       </div>
     </div>
@@ -67,8 +67,19 @@
         <div class="kpi-card">
           <div class="kpi-label">Strategies Tested</div>
           <div class="kpi-value" id="kpi-count"></div>
-          <div class="kpi-sub">Walk-forward validated</div>
+          <div class="kpi-sub" id="kpi-categories-sub">Walk-forward validated</div>
         </div>
+      </div>
+    </section>
+
+    <!-- CATEGORY FILTER -->
+    <section id="filter-section">
+      <div class="filter-bar">
+        <span class="filter-label">Filter by category:</span>
+        <button class="filter-btn active" data-cat="all">All</button>
+        <button class="filter-btn filter-technical" data-cat="technical">Technical</button>
+        <button class="filter-btn filter-alternative" data-cat="alternative">Alternative</button>
+        <button class="filter-btn filter-hybrid" data-cat="hybrid">Hybrid</button>
       </div>
     </section>
 
@@ -83,6 +94,7 @@
           <thead>
             <tr>
               <th data-col="name">Strategy</th>
+              <th data-col="category">Category</th>
               <th data-col="return" data-sort="num">OOS Return %</th>
               <th data-col="bh" data-sort="num">Buy &amp; Hold %</th>
               <th data-col="alpha" data-sort="num">Alpha %</th>
@@ -92,7 +104,6 @@
               <th data-col="trades" data-sort="num">Trades</th>
               <th data-col="dd" data-sort="num">Max DD %</th>
               <th data-col="pf" data-sort="num">Profit Factor</th>
-              <th data-col="refits" data-sort="num">Re-fits</th>
             </tr>
           </thead>
           <tbody id="strategy-tbody"></tbody>
@@ -144,11 +155,22 @@
       </div>
     </section>
 
+    <!-- CATEGORY BREAKDOWN -->
+    <section id="category-section">
+      <div class="section-header">
+        <h2 class="section-title">Category Breakdown</h2>
+        <span class="section-hint">Technical vs Alternative vs Hybrid data signals</span>
+      </div>
+      <div class="chart-container chart-md">
+        <canvas id="category-chart"></canvas>
+      </div>
+    </section>
+
     <!-- VERSION COMPARISON -->
     <section id="version-section">
       <div class="section-header">
         <h2 class="section-title">Version Comparison</h2>
-        <span class="section-hint">v1: Overfit &nbsp;|&nbsp; v2: Risk-managed but still static &nbsp;|&nbsp; v3: True out-of-sample</span>
+        <span class="section-hint">v1: Overfit &nbsp;|&nbsp; v2: Risk-managed static &nbsp;|&nbsp; v3: Rolling OOS &nbsp;|&nbsp; v4: + Alt Data</span>
       </div>
       <div class="chart-container chart-md">
         <canvas id="version-chart"></canvas>
@@ -179,19 +201,10 @@
   </main>
 
   <footer>
-    <p>BTC Trading Simulator v3 &mdash; Rolling Walk-Forward Backtest &mdash; Data is for educational purposes only</p>
+    <p>BTC Trading Simulator v4 &mdash; Rolling Walk-Forward + Alternative Data &mdash; Data is for educational purposes only</p>
   </footer>
 
-  <!-- Data loaded in 9 chunks to stay under GitHub file size limits -->
-  <script src="./data_chunk_a.js"></script>
-  <script src="./data_chunk_a2.js"></script>
-  <script src="./data_chunk_b.js"></script>
-  <script src="./data_chunk_c.js"></script>
-  <script src="./data_chunk_d.js"></script>
-  <script src="./data_chunk_e.js"></script>
-  <script src="./data_chunk_e2.js"></script>
-  <script src="./data_chunk_f.js"></script>
-  <script src="./data_chunk_f2.js"></script>
+  <script src="./data.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>
