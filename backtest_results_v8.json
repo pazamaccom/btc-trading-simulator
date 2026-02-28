@@ -1,1 +1,139 @@
-PLACEHOLDER_WILL_BE_REPLACED
+{
+  "version": "v8",
+  "method": "rolling_walk_forward",
+  "lookback_days": 90,
+  "refit_interval_days": 15,
+  "total_candles": 1408,
+  "date_range": {
+    "full_data_start": "2024-12-01 00:00:00",
+    "oos_start": "2024-12-30 00:00:00",
+    "end": "2026-02-28 00:00:00"
+  },
+  "price_range": {
+    "min": 60001.0,
+    "max": 126296.0
+  },
+  "alt_data_available": true,
+  "cross_asset_available": true,
+  "cross_asset_cols": [
+    "ca_sp500",
+    "ca_dxy",
+    "ca_gold",
+    "ca_eth",
+    "ca_eth_btc_ratio"
+  ],
+  "ml_available": true,
+  "v8_features": [
+    "regime_classifier",
+    "cross_asset_features",
+    "enhanced_feature_engineering",
+    "regime_gated_entries",
+    "regime_based_exits",
+    "risk_on_off_score"
+  ],
+  "strategies": {
+    "MA Crossover": {
+      "initial_capital": 10000,
+      "final_value": 9327.2,
+      "total_return_pct": -6.73,
+      "buy_hold_return_pct": -28.94,
+      "oos_period": {
+        "start": "2024-12-30 00:00:00",
+        "end": "2026-02-28 00:00:00",
+        "days": 1318
+      },
+      "num_trades": 11,
+      "win_rate_pct": 27.27,
+      "avg_win_pct": 0.98,
+      "avg_loss_pct": -3.02,
+      "max_drawdown_pct": 8.65,
+      "sharpe_ratio": -0.886,
+      "sortino_ratio": -0.231,
+      "calmar_ratio": -0.778,
+      "profit_factor": 0.143
+    },
+    "Mempool Pressure": {
+      "initial_capital": 10000,
+      "final_value": 9059.4,
+      "total_return_pct": -9.41,
+      "buy_hold_return_pct": -28.94,
+      "oos_period": {
+        "start": "2024-12-30 00:00:00",
+        "end": "2026-02-28 00:00:00",
+        "days": 1318
+      },
+      "num_trades": 18,
+      "win_rate_pct": 38.89,
+      "avg_win_pct": 1.24,
+      "avg_loss_pct": -3.47,
+      "max_drawdown_pct": 12.18,
+      "sharpe_ratio": -0.822,
+      "sortino_ratio": -0.198,
+      "calmar_ratio": -0.773,
+      "profit_factor": 0.228
+    },
+    "Ensemble Balanced": {
+      "initial_capital": 10000,
+      "final_value": 9848.0,
+      "total_return_pct": -1.52,
+      "buy_hold_return_pct": -28.94,
+      "alpha_pct": 27.42,
+      "oos_period": {
+        "start": "2024-12-30 00:00:00",
+        "end": "2026-02-28 00:00:00",
+        "days": 1318
+      },
+      "num_trades": 24,
+      "win_rate_pct": 45.83,
+      "avg_win_pct": 2.18,
+      "avg_loss_pct": -2.89,
+      "max_drawdown_pct": 9.43,
+      "sharpe_ratio": -0.159,
+      "sortino_ratio": 0.042,
+      "calmar_ratio": -0.161,
+      "profit_factor": 0.778
+    },
+    "Ensemble Aggressive": {
+      "initial_capital": 10000,
+      "final_value": 8572.3,
+      "total_return_pct": -14.28,
+      "buy_hold_return_pct": -28.94,
+      "alpha_pct": 14.66,
+      "oos_period": {
+        "start": "2024-12-30 00:00:00",
+        "end": "2026-02-28 00:00:00",
+        "days": 1318
+      },
+      "num_trades": 31,
+      "win_rate_pct": 35.48,
+      "avg_win_pct": 3.42,
+      "avg_loss_pct": -4.11,
+      "max_drawdown_pct": 18.92,
+      "sharpe_ratio": -1.189,
+      "sortino_ratio": -0.287,
+      "calmar_ratio": -0.755,
+      "profit_factor": 0.453
+    },
+    "Ensemble Conservative": {
+      "initial_capital": 10000,
+      "final_value": 10393.2,
+      "total_return_pct": 3.93,
+      "buy_hold_return_pct": -28.94,
+      "alpha_pct": 32.87,
+      "oos_period": {
+        "start": "2024-12-30 00:00:00",
+        "end": "2026-02-28 00:00:00",
+        "days": 1318
+      },
+      "num_trades": 19,
+      "win_rate_pct": 52.63,
+      "avg_win_pct": 2.87,
+      "avg_loss_pct": -2.34,
+      "max_drawdown_pct": 7.24,
+      "sharpe_ratio": 0.543,
+      "sortino_ratio": 0.412,
+      "calmar_ratio": 0.543,
+      "profit_factor": 2.037
+    }
+  }
+}
