@@ -1,474 +1,977 @@
-/* ===== BTC Trading Simulator — App Logic ===== */
+// ===== BTC Trading Simulator v5 Dashboard =====
+// All data from data.js globals: BACKTEST_DATA, VERSION_COMPARISON
+
 (function () {
   'use strict';
 
-  // ===== STATE =====
-  let currentTF = '1h';
-  let currentStrategy = null;
-  let equityChart = null;
-  let sortState = { col: null, dir: 'asc' };
-
-  const STRATEGY_COLORS = {
-    'RSI': '#58a6ff',
-    'Bollinger Bands': '#bc8cff',
-    'MA Crossover': '#00d97e',
-    'MACD': '#f0883e',
-    'Volume Breakout': '#39d2c0'
+  // ===== UTILITIES =====
+  const fmt = (n, d = 2) => n != null ? Number(n).toFixed(d) : '—';
+  const fmtPct = (n) => n != null ? (n >= 0 ? '+' : '') + fmt(n) + '%' : '—';
+  const fmtUsd = (n) => n != null ? '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '—';
+  const fmtDate = (d) => {
+    if (!d) return '—';
+    const dt = new Date(d);
+    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  };
+  const fmtDateShort = (d) => {
+    if (!d) return '—';
+    const dt = new Date(d);
+    return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  const STRATEGY_SHORT = {
-    'RSI': 'RSI',
-    'Bollinger Bands': 'BB',
-    'MA Crossover': 'MA',
-    'MACD': 'MACD',
-    'Volume Breakout': 'VOL'
+  const colorVal = (n, invert = false) => {
+    if (n == null) return 'val-neutral';
+    const positive = invert ? n < 0 : n > 0;
+    const negative = invert ? n > 0 : n < 0;
+    if (positive) return 'val-pos';
+    if (negative) return 'val-neg';
+    return 'val-neutral';
   };
 
-  // ===== UTILITY =====
-  function fmt(n, decimals) {
-    if (n == null || isNaN(n)) return '—';
-    if (decimals === undefined) decimals = 2;
-    return Number(n).toFixed(decimals);
-  }
+  // ===== CHART.JS DEFAULTS =====
+  Chart.defaults.color = '#8888a8';
+  Chart.defaults.borderColor = 'rgba(26,26,46,0.6)';
+  Chart.defaults.font.family = "'Inter', sans-serif";
+  Chart.defaults.font.size = 11;
+  Chart.defaults.plugins.legend.labels.usePointStyle = true;
+  Chart.defaults.plugins.legend.labels.pointStyleWidth = 8;
+  Chart.defaults.plugins.legend.labels.padding = 16;
+  Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(12,12,20,0.95)';
+  Chart.defaults.plugins.tooltip.borderColor = 'rgba(0,255,163,0.2)';
+  Chart.defaults.plugins.tooltip.borderWidth = 1;
+  Chart.defaults.plugins.tooltip.titleFont = { family: "'JetBrains Mono', monospace", size: 12, weight: '600' };
+  Chart.defaults.plugins.tooltip.bodyFont = { family: "'JetBrains Mono', monospace", size: 11 };
+  Chart.defaults.plugins.tooltip.padding = 10;
+  Chart.defaults.plugins.tooltip.cornerRadius = 4;
+  Chart.defaults.animation = { duration: 600, easing: 'easeOutQuart' };
 
-  function fmtPct(n) {
-    if (n == null || isNaN(n)) return '—';
-    const sign = n > 0 ? '+' : '';
-    return sign + Number(n).toFixed(2) + '%';
-  }
+  // ===== DATA EXTRACTION =====
+  const data = BACKTEST_DATA;
+  const vc = VERSION_COMPARISON;
+  const strategies = data.strategies;
+  const stratNames = Object.keys(strategies);
 
-  function fmtPrice(n) {
-    if (n == null) return '—';
-    return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  }
+  // Strategy colors — categorized
+  const STRAT_COLORS = {
+    // Technical (cyan family)
+    'MA Crossover': '#00d4ff',
+    'RSI': '#00ffa3',
+    'Bollinger': '#22d3ee',
+    'MACD': '#06b6d4',
+    'Volume Breakout': '#67e8f9',
+    'Confluence Trend': '#2dd4bf',
+    'Confluence Reversal': '#34d399',
+    'Adaptive': '#5eead4',
+    // Alternative (purple family)
+    'FNG Contrarian': '#a855f7',
+    'FNG Momentum': '#c084fc',
+    'On-Chain Activity': '#8b5cf6',
+    'Hash Rate': '#7c3aed',
+    'Mempool Pressure': '#d946ef',
+    // Hybrid (yellow/orange family)
+    'MA + FNG Hybrid': '#ffd000',
+    'Confluence + AltData': '#ff8a00',
+    // ML (rose/pink family)
+    'ML RandomForest': '#f43f5e',
+    'ML GradientBoost': '#fb923c',
+    'ML RF Short-Horizon': '#e879f9',
+    'ML RF Conservative': '#f472b6',
+  };
 
-  function fmtMoney(n) {
-    if (n == null) return '—';
-    const sign = n >= 0 ? '+' : '-';
-    const abs = Math.abs(n);
-    return sign + '$' + abs.toFixed(0);
-  }
+  const CAT_COLORS = {
+    'technical': '#00d4ff',
+    'alternative': '#a855f7',
+    'hybrid': '#ffd000',
+    'ml': '#f43f5e',
+  };
 
-  function fmtDate(iso) {
-    const d = new Date(iso);
-    const mo = (d.getMonth() + 1).toString().padStart(2, '0');
-    const day = d.getDate().toString().padStart(2, '0');
-    const h = d.getHours().toString().padStart(2, '0');
-    const m = d.getMinutes().toString().padStart(2, '0');
-    return `${mo}-${day} ${h}:${m}`;
-  }
-
-  function fmtDateShort(iso) {
-    const d = new Date(iso);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  }
-
-  function valClass(n) {
-    if (n > 0) return 'positive';
-    if (n < 0) return 'negative';
-    return 'neutral';
-  }
-
-  // ===== DATA ACCESS =====
-  function tfData() { return DATA[currentTF]; }
-  function strategies() { return tfData().strategies; }
-  function strategyNames() { return Object.keys(strategies()); }
-
-  function bestStrategyName() {
-    let best = null, bestRet = -Infinity;
-    for (const [name, s] of Object.entries(strategies())) {
-      if (s.best.total_return_pct > bestRet) {
-        bestRet = s.best.total_return_pct;
-        best = name;
-      }
-    }
-    return best;
-  }
+  const getColor = (name) => STRAT_COLORS[name] || '#8888a8';
+  const getCategory = (name) => (strategies[name] && strategies[name].category) || 'technical';
 
   // ===== HEADER =====
-  function updateHeader() {
-    const d = tfData();
-    const start = fmtDateShort(d.date_range.start);
-    const end = fmtDateShort(d.date_range.end);
-    const lo = fmtPrice(d.price_range.min);
-    const hi = fmtPrice(d.price_range.max);
-    document.getElementById('headerSub').textContent =
-      `${d.candles} candles · ${start} → ${end} · Range: ${lo} – ${hi}`;
-  }
+  document.getElementById('meta-oos-period').textContent = fmtDate(data.date_range.oos_start) + ' → ' + fmtDate(data.date_range.end);
+  document.getElementById('meta-candles').textContent = data.total_candles.toLocaleString();
+  document.getElementById('meta-price-range').textContent = fmtUsd(data.price_range.min) + ' — ' + fmtUsd(data.price_range.max);
+  document.getElementById('meta-method').textContent =
+    data.ml_available ? 'Price + Alt Data + ML' :
+    data.alt_data_available ? 'Price + Alt Data' : 'Price Only';
 
-  // ===== SUMMARY BAR =====
-  function updateSummary() {
-    const strats = strategies();
-    let totalCombinations = 0;
-    let bestStrat = null, bestReturn = -Infinity, bestSharpe = -Infinity, worstDD = 0, buyHold = null;
-
-    for (const [name, s] of Object.entries(strats)) {
-      totalCombinations += s.optimization.length;
-      if (s.best.total_return_pct > bestReturn) {
-        bestReturn = s.best.total_return_pct;
-        bestStrat = name;
-      }
-      if (s.best.sharpe_ratio > bestSharpe) bestSharpe = s.best.sharpe_ratio;
-      if (s.best.max_drawdown_pct > worstDD) worstDD = s.best.max_drawdown_pct;
-      if (buyHold === null) buyHold = s.best.buy_hold_return_pct;
-    }
-
-    document.getElementById('sumCombinations').textContent = totalCombinations;
-    document.getElementById('sumBestStrategy').textContent = bestStrat;
-    const retEl = document.getElementById('sumBestReturn');
-    retEl.textContent = fmtPct(bestReturn);
-    retEl.className = 'summary-value mono ' + valClass(bestReturn);
-    document.getElementById('sumBestSharpe').textContent = fmt(bestSharpe, 3);
-    const ddEl = document.getElementById('sumWorstDD');
-    ddEl.textContent = '-' + fmt(worstDD) + '%';
-    ddEl.className = 'summary-value mono negative';
-    const bhEl = document.getElementById('sumBuyHold');
-    bhEl.textContent = fmtPct(buyHold);
-    bhEl.className = 'summary-value mono ' + valClass(buyHold);
-  }
-
-  // ===== STRATEGY CARDS =====
-  function buildCards() {
-    const container = document.getElementById('strategyCards');
-    container.innerHTML = '';
-    const strats = strategies();
-    const best = bestStrategyName();
-
-    for (const name of strategyNames()) {
-      const s = strats[name].best;
-      const card = document.createElement('div');
-      card.className = 'strat-card fade-in';
-      if (name === best) card.classList.add('best');
-      if (name === currentStrategy) card.classList.add('active');
-
-      const color = STRATEGY_COLORS[name];
-      card.style.borderBottomColor = name === currentStrategy ? color : 'transparent';
-      card.dataset.strategy = name;
-
-      card.innerHTML = `
-        <div class="strat-name">
-          <span class="strat-dot" style="background:${color}"></span>
-          ${name}
-        </div>
-        <div class="strat-metrics">
-          <div class="metric">
-            <span class="metric-label">Return</span>
-            <span class="metric-value ${valClass(s.total_return_pct)}">${fmtPct(s.total_return_pct)}</span>
-          </div>
-          <div class="metric">
-            <span class="metric-label">Sharpe</span>
-            <span class="metric-value ${valClass(s.sharpe_ratio)}">${fmt(s.sharpe_ratio, 3)}</span>
-          </div>
-          <div class="metric">
-            <span class="metric-label">Win Rate</span>
-            <span class="metric-value neutral">${fmt(s.win_rate_pct, 1)}%</span>
-          </div>
-          <div class="metric">
-            <span class="metric-label">Max DD</span>
-            <span class="metric-value negative">-${fmt(s.max_drawdown_pct)}%</span>
-          </div>
-          <div class="metric">
-            <span class="metric-label">Trades</span>
-            <span class="metric-value neutral">${s.num_trades}</span>
-          </div>
-          <div class="metric">
-            <span class="metric-label">Avg Win</span>
-            <span class="metric-value positive">${s.avg_win_pct > 0 ? '+' : ''}${fmt(s.avg_win_pct)}%</span>
-          </div>
-        </div>
-      `;
-
-      card.addEventListener('click', () => selectStrategy(name));
-      container.appendChild(card);
+  // ===== KPI CARDS =====
+  let bestName = '', bestReturn = -Infinity;
+  for (const name of stratNames) {
+    if (strategies[name].total_return_pct > bestReturn) {
+      bestReturn = strategies[name].total_return_pct;
+      bestName = name;
     }
   }
+  const bhReturn = strategies[stratNames[0]].buy_hold_return_pct;
+  const alpha = bestReturn - bhReturn;
 
-  function selectStrategy(name) {
-    currentStrategy = name;
-    // Update card active states
-    document.querySelectorAll('.strat-card').forEach(c => {
-      const sn = c.dataset.strategy;
-      c.classList.toggle('active', sn === name);
-      c.style.borderBottomColor = sn === name ? STRATEGY_COLORS[sn] : 'transparent';
+  document.getElementById('kpi-best-name').textContent = bestName;
+  document.getElementById('kpi-best-return').textContent = fmtPct(bestReturn) + ' OOS return';
+  document.getElementById('kpi-bh').textContent = fmtPct(bhReturn);
+  document.getElementById('kpi-bh').className = 'kpi-value ' + colorVal(bhReturn);
+  document.getElementById('kpi-alpha').textContent = fmtPct(alpha);
+  document.getElementById('kpi-count').textContent = stratNames.length;
+
+  // Count categories
+  const catCounts = { technical: 0, alternative: 0, hybrid: 0, ml: 0 };
+  for (const name of stratNames) {
+    const cat = getCategory(name);
+    if (catCounts[cat] !== undefined) catCounts[cat]++;
+  }
+  const catParts = [];
+  if (catCounts.technical) catParts.push(`${catCounts.technical} TA`);
+  if (catCounts.alternative) catParts.push(`${catCounts.alternative} Alt`);
+  if (catCounts.hybrid) catParts.push(`${catCounts.hybrid} Hybrid`);
+  if (catCounts.ml) catParts.push(`${catCounts.ml} ML`);
+  document.getElementById('kpi-categories-sub').textContent = catParts.join('  ·  ');
+
+  // ===== CATEGORY FILTER =====
+  let activeFilter = 'all';
+
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeFilter = btn.dataset.cat;
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderTable();
     });
-    updateChart();
-    updateTrades();
-    updateOptimization();
+  });
+
+  // ===== STRATEGY TABLE =====
+  let tableData = stratNames.map(name => {
+    const s = strategies[name];
+    return {
+      name,
+      category: getCategory(name),
+      return: s.total_return_pct,
+      bh: s.buy_hold_return_pct,
+      alpha: s.total_return_pct - s.buy_hold_return_pct,
+      sharpe: s.sharpe_ratio,
+      sortino: s.sortino_ratio,
+      winrate: s.win_rate_pct,
+      trades: s.num_trades,
+      dd: s.max_drawdown_pct,
+      pf: s.profit_factor,
+    };
+  });
+
+  let sortCol = 'return';
+  let sortAsc = false;
+
+  function renderTable() {
+    let filtered = tableData;
+    if (activeFilter !== 'all') {
+      filtered = tableData.filter(r => r.category === activeFilter);
+    }
+
+    const sorted = [...filtered].sort((a, b) => {
+      let va = a[sortCol], vb = b[sortCol];
+      // Handle Infinity for profit_factor
+      if (va === Infinity) va = 999999;
+      if (vb === Infinity) vb = 999999;
+      if (typeof va === 'string') {
+        return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+      }
+      return sortAsc ? va - vb : vb - va;
+    });
+
+    const tbody = document.getElementById('strategy-tbody');
+    tbody.innerHTML = '';
+
+    for (const row of sorted) {
+      const tr = document.createElement('tr');
+      tr.dataset.strategy = row.name;
+
+      const catBadge = `<span class="cat-badge cat-${row.category}">${row.category}</span>`;
+
+      // Format profit factor — handle Infinity
+      const pfDisplay = row.pf === Infinity ? '∞' : fmt(row.pf, 3);
+      const pfClass = row.pf === Infinity ? 'val-pos' : colorVal(row.pf - 1);
+
+      const cells = [
+        { val: row.name, cls: '', html: false },
+        { val: catBadge, cls: '', html: true },
+        { val: fmtPct(row.return), cls: colorVal(row.return) },
+        { val: fmtPct(row.bh), cls: colorVal(row.bh) },
+        { val: fmtPct(row.alpha), cls: colorVal(row.alpha) },
+        { val: fmt(row.sharpe, 3), cls: colorVal(row.sharpe) },
+        { val: fmt(row.sortino, 3), cls: colorVal(row.sortino) },
+        { val: fmt(row.winrate, 1) + '%', cls: colorVal(row.winrate - 50) },
+        { val: row.trades, cls: '' },
+        { val: '-' + fmt(row.dd, 2) + '%', cls: 'val-neg' },
+        { val: pfDisplay, cls: pfClass },
+      ];
+
+      for (const c of cells) {
+        const td = document.createElement('td');
+        if (c.html) {
+          td.innerHTML = c.val;
+        } else {
+          td.textContent = c.val;
+        }
+        if (c.cls) td.className = c.cls;
+        tr.appendChild(td);
+      }
+
+      tr.addEventListener('click', () => showDetail(row.name));
+      tbody.appendChild(tr);
+    }
+
+    // Highlight sorted column
+    document.querySelectorAll('#strategy-table th').forEach(th => {
+      th.classList.remove('sorted-asc', 'sorted-desc');
+    });
+    const sortedTh = document.querySelector(`#strategy-table th[data-col="${sortCol}"]`);
+    if (sortedTh) sortedTh.classList.add(sortAsc ? 'sorted-asc' : 'sorted-desc');
   }
 
-  // ===== EQUITY CHART =====
-  function updateChart() {
-    const s = strategies()[currentStrategy].best;
-    const curve = s.equity_curve;
-    const color = STRATEGY_COLORS[currentStrategy];
+  // Table sorting
+  document.querySelectorAll('#strategy-table th').forEach(th => {
+    th.addEventListener('click', () => {
+      const col = th.dataset.col;
+      if (sortCol === col) {
+        sortAsc = !sortAsc;
+      } else {
+        sortCol = col;
+        sortAsc = col === 'dd'; // default ascending for drawdown
+      }
+      renderTable();
+    });
+  });
 
-    // Prepare data
-    const labels = curve.map(p => new Date(p.time));
-    const equityData = curve.map(p => p.equity);
-    // Normalize buy & hold to start at same value as equity
-    const startPrice = curve[0].price;
-    const startEquity = curve[0].equity;
-    const bhData = curve.map(p => (p.price / startPrice) * startEquity);
+  renderTable();
 
-    // Title
-    document.getElementById('chartTitle').textContent = `${currentStrategy} — Equity Curve`;
+  // ===== STRATEGY DETAIL =====
+  let exitChartInstance = null;
 
-    // Legend
-    document.getElementById('chartLegend').innerHTML = `
-      <div class="legend-item"><span class="legend-line" style="background:${color}"></span>${STRATEGY_SHORT[currentStrategy]}</div>
-      <div class="legend-item"><span class="legend-line dashed"></span>Buy &amp; Hold</div>
-    `;
+  function showDetail(name) {
+    const s = strategies[name];
+    const section = document.getElementById('detail-section');
+    section.classList.remove('hidden');
 
-    if (equityChart) equityChart.destroy();
+    // Highlight row
+    document.querySelectorAll('#strategy-table tbody tr').forEach(tr => {
+      tr.classList.toggle('active-row', tr.dataset.strategy === name);
+    });
 
-    const ctx = document.getElementById('equityChart').getContext('2d');
-    equityChart = new Chart(ctx, {
-      type: 'line',
+    const cat = getCategory(name);
+    document.getElementById('detail-title').innerHTML =
+      `${name} <span class="cat-badge cat-${cat}">${cat}</span>`;
+
+    // Refit log table
+    const refitHead = document.getElementById('refit-thead');
+    const refitBody = document.getElementById('refit-tbody');
+
+    if (s.refit_log && s.refit_log.length > 0) {
+      const paramKeys = Object.keys(s.refit_log[0].params);
+      refitHead.innerHTML = '<th>Date</th><th>Day</th>' +
+        paramKeys.map(k => `<th>${k}</th>`).join('') +
+        '<th>Train Score</th>';
+
+      refitBody.innerHTML = '';
+      for (const r of s.refit_log) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${fmtDateShort(r.date)}</td><td style="text-align:right">${r.day}</td>` +
+          paramKeys.map(k => `<td style="text-align:right">${r.params[k]}</td>`).join('') +
+          `<td style="text-align:right">${fmt(r.train_score, 2)}</td>`;
+        refitBody.appendChild(tr);
+      }
+    } else {
+      refitHead.innerHTML = '<th>No refit data</th>';
+      refitBody.innerHTML = '';
+    }
+
+    // Exit breakdown doughnut
+    if (exitChartInstance) exitChartInstance.destroy();
+    const exitCtx = document.getElementById('exit-chart').getContext('2d');
+    const eb = s.exit_breakdown || {};
+    const exitLabels = Object.keys(eb);
+    const exitValues = Object.values(eb);
+    const exitColors = ['#ff3860', '#00ffa3', '#00d4ff', '#ffd000'];
+
+    exitChartInstance = new Chart(exitCtx, {
+      type: 'doughnut',
       data: {
-        labels: labels,
-        datasets: [
-          {
-            label: currentStrategy,
-            data: equityData,
-            borderColor: color,
-            backgroundColor: color + '18',
-            borderWidth: 2,
-            pointRadius: 0,
-            pointHoverRadius: 4,
-            pointHoverBackgroundColor: color,
-            fill: true,
-            tension: 0.1,
-            order: 1
-          },
-          {
-            label: 'Buy & Hold',
-            data: bhData,
-            borderColor: '#6e768166',
-            borderWidth: 1.5,
-            borderDash: [5, 4],
-            pointRadius: 0,
-            pointHoverRadius: 3,
-            fill: false,
-            tension: 0.1,
-            order: 2
-          }
-        ]
+        labels: exitLabels.map(l => l.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())),
+        datasets: [{
+          data: exitValues,
+          backgroundColor: exitColors.slice(0, exitLabels.length),
+          borderColor: '#06060b',
+          borderWidth: 2,
+        }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
-        animation: { duration: 500, easing: 'easeOutQuart' },
+        cutout: '55%',
+        plugins: {
+          legend: { position: 'bottom', labels: { padding: 12 } },
+          tooltip: {
+            callbacks: {
+              label: ctx => `${ctx.label}: ${ctx.raw} trade${ctx.raw !== 1 ? 's' : ''}`
+            }
+          }
+        }
+      }
+    });
+
+    // Trade log
+    const tradeBody = document.getElementById('trade-tbody');
+    tradeBody.innerHTML = '';
+    if (s.trades && s.trades.length > 0) {
+      s.trades.forEach((t, i) => {
+        const tr = document.createElement('tr');
+        const pnl = t.pnl != null ? t.pnl : '';
+        const pnlPct = t.pnl_pct != null ? t.pnl_pct : '';
+        const pnlClass = pnl !== '' ? colorVal(pnl) : '';
+        tr.innerHTML = `
+          <td>${i + 1}</td>
+          <td>${t.type}</td>
+          <td>${fmtDateShort(t.time)}</td>
+          <td>${fmtUsd(Math.round(t.price))}</td>
+          <td>${t.amount != null ? fmt(t.amount, 6) : '—'}</td>
+          <td class="${pnlClass}">${pnl !== '' ? (pnl >= 0 ? '+' : '') + fmtUsd(Math.round(pnl)) : '—'}</td>
+          <td class="${pnlClass}">${pnlPct !== '' ? fmtPct(pnlPct) : '—'}</td>
+        `;
+        tradeBody.appendChild(tr);
+      });
+    }
+
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  document.getElementById('detail-close').addEventListener('click', () => {
+    document.getElementById('detail-section').classList.add('hidden');
+    document.querySelectorAll('#strategy-table tbody tr').forEach(tr => tr.classList.remove('active-row'));
+  });
+
+  // ===== CATEGORY BREAKDOWN CHART =====
+  (function () {
+    const categories = ['technical', 'alternative', 'hybrid', 'ml'];
+    const catData = {};
+
+    for (const cat of categories) {
+      catData[cat] = {
+        names: [],
+        returns: [],
+        alphas: [],
+      };
+    }
+
+    for (const name of stratNames) {
+      const s = strategies[name];
+      const cat = getCategory(name);
+      if (catData[cat]) {
+        catData[cat].names.push(name);
+        catData[cat].returns.push(s.total_return_pct);
+        catData[cat].alphas.push(s.total_return_pct - s.buy_hold_return_pct);
+      }
+    }
+
+    // Grouped bar: each strategy, colored by category
+    const allNames = [];
+    const allReturns = [];
+    const allColors = [];
+    const allBorderColors = [];
+
+    for (const cat of categories) {
+      const cd = catData[cat];
+      if (cd.names.length === 0) continue;
+      // Sort by return descending within category
+      const indices = cd.returns.map((_, i) => i).sort((a, b) => cd.returns[b] - cd.returns[a]);
+      for (const i of indices) {
+        allNames.push(cd.names[i]);
+        allReturns.push(cd.returns[i]);
+        allColors.push(CAT_COLORS[cat] + '99'); // with transparency
+        allBorderColors.push(CAT_COLORS[cat]);
+      }
+    }
+
+    const ctx = document.getElementById('category-chart').getContext('2d');
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: allNames,
+        datasets: [{
+          label: 'OOS Return %',
+          data: allReturns,
+          backgroundColor: allColors,
+          borderColor: allBorderColors,
+          borderWidth: 1.5,
+          borderRadius: 3,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
           tooltip: {
-            backgroundColor: '#1c2128',
-            borderColor: '#30363d',
-            borderWidth: 1,
-            titleFont: { family: "'JetBrains Mono'", size: 11 },
-            bodyFont: { family: "'JetBrains Mono'", size: 11 },
-            titleColor: '#8b949e',
-            bodyColor: '#e6edf3',
-            padding: 10,
-            displayColors: true,
             callbacks: {
-              title: (items) => {
-                const d = items[0].label;
-                return d;
+              label: ctx => {
+                const name = allNames[ctx.dataIndex];
+                const cat = getCategory(name);
+                return `${name} [${cat}]: ${fmtPct(ctx.raw)}`;
+              }
+            }
+          },
+          annotation: {
+            annotations: {
+              zeroLine: {
+                type: 'line',
+                yMin: 0, yMax: 0,
+                borderColor: 'rgba(255,255,255,0.15)',
+                borderWidth: 1,
+                borderDash: [4, 4],
               },
-              label: (ctx) => {
-                return ` ${ctx.dataset.label}: $${ctx.parsed.y.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+              bhLine: {
+                type: 'line',
+                yMin: bhReturn, yMax: bhReturn,
+                borderColor: 'rgba(255,56,96,0.4)',
+                borderWidth: 1.5,
+                borderDash: [6, 4],
+                label: {
+                  display: true,
+                  content: 'Buy & Hold: ' + fmtPct(bhReturn),
+                  position: 'start',
+                  font: { family: "'JetBrains Mono', monospace", size: 9 },
+                  color: 'rgba(255,56,96,0.8)',
+                  backgroundColor: 'rgba(12,12,20,0.8)',
+                  padding: 4,
+                }
               }
             }
           }
         },
         scales: {
           x: {
-            type: 'time',
-            time: {
-              unit: currentTF === '1h' ? 'day' : 'month',
-              displayFormats: {
-                day: 'MMM d',
-                month: 'MMM yyyy'
-              }
-            },
+            grid: { display: false },
             ticks: {
-              color: '#6e7681',
-              font: { family: "'JetBrains Mono'", size: 10 },
-              maxTicksLimit: 10
-            },
-            grid: { color: '#21262d', drawBorder: false }
+              font: { family: "'JetBrains Mono', monospace", size: 9 },
+              maxRotation: 45,
+            }
           },
           y: {
-            position: 'right',
+            grid: { color: 'rgba(26,26,46,0.4)' },
             ticks: {
-              color: '#6e7681',
-              font: { family: "'JetBrains Mono'", size: 10 },
-              callback: v => '$' + v.toLocaleString()
+              callback: v => v + '%',
+              font: { family: "'JetBrains Mono', monospace", size: 10 }
             },
-            grid: { color: '#21262d', drawBorder: false }
+            title: {
+              display: true,
+              text: 'OOS Return %',
+              font: { family: "'JetBrains Mono', monospace", size: 11 },
+              color: '#6a6a88'
+            }
           }
         }
       }
     });
-  }
+  })();
 
-  // ===== TRADES TABLE =====
-  function buildTradeRows(trades) {
-    // Pair up buys and sells
-    const rows = [];
-    let idx = 0;
-    for (const t of trades) {
-      idx++;
-      rows.push({
-        idx,
-        type: t.type,
-        time: t.time,
-        price: t.price,
-        pnl: t.pnl != null ? t.pnl : null,
-        pnl_pct: t.pnl_pct != null ? t.pnl_pct : null
-      });
-    }
-    return rows;
-  }
+  // ===== VERSION COMPARISON CHART =====
+  (function () {
+    // Collect all strategies across all versions
+    const allStrats = [...new Set([
+      ...Object.keys(vc.v1_static || {}),
+      ...Object.keys(vc.v2_static || {}),
+      ...Object.keys(vc.v3_oos || {}),
+      ...Object.keys(vc.v4_oos || {}),
+      ...Object.keys(vc.v5_oos || {}),
+    ])];
 
-  function updateTrades() {
-    const s = strategies()[currentStrategy].best;
-    const trades = s.trades;
-    const rows = buildTradeRows(trades);
+    // Sort by latest version return descending
+    allStrats.sort((a, b) => {
+      const av = vc.v5_oos?.[a] ?? vc.v4_oos?.[a] ?? vc.v3_oos?.[a] ?? -999;
+      const bv = vc.v5_oos?.[b] ?? vc.v4_oos?.[b] ?? vc.v3_oos?.[b] ?? -999;
+      return bv - av;
+    });
 
-    document.getElementById('tradesTitle').textContent = `${currentStrategy} — Trade Log`;
-    document.getElementById('tradeCount').textContent = `${s.num_trades} round trips · ${trades.length} executions`;
-
-    // Sort
-    let sorted = [...rows];
-    if (sortState.col) {
-      sorted.sort((a, b) => {
-        let va = a[sortState.col], vb = b[sortState.col];
-        if (va == null) va = sortState.dir === 'asc' ? Infinity : -Infinity;
-        if (vb == null) vb = sortState.dir === 'asc' ? Infinity : -Infinity;
-        if (typeof va === 'string') return sortState.dir === 'asc' ? va.localeCompare(vb) : vb.localeCompare(va);
-        return sortState.dir === 'asc' ? va - vb : vb - va;
-      });
-    }
-
-    const tbody = document.getElementById('tradesBody');
-    tbody.innerHTML = sorted.map(r => `
-      <tr class="fade-in">
-        <td class="muted">${r.idx}</td>
-        <td class="${r.type === 'BUY' ? 'buy' : 'sell'}">${r.type}</td>
-        <td>${fmtDate(r.time)}</td>
-        <td>${fmtPrice(r.price)}</td>
-        <td class="${r.pnl != null ? valClass(r.pnl) : 'muted'}">${r.pnl != null ? fmtMoney(r.pnl) : '—'}</td>
-        <td class="${r.pnl_pct != null ? valClass(r.pnl_pct) : 'muted'}">${r.pnl_pct != null ? fmtPct(r.pnl_pct) : '—'}</td>
-      </tr>
-    `).join('');
-
-    // Header sort indicators
-    document.querySelectorAll('#tradesTable thead th').forEach(th => {
-      th.classList.remove('sort-asc', 'sort-desc');
-      if (th.dataset.sort === sortState.col) {
-        th.classList.add(sortState.dir === 'asc' ? 'sort-asc' : 'sort-desc');
+    const ctx = document.getElementById('version-chart').getContext('2d');
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: allStrats,
+        datasets: [
+          {
+            label: 'v1 (Static, Overfit)',
+            data: allStrats.map(s => vc.v1_static?.[s] ?? null),
+            backgroundColor: 'rgba(120,120,140,0.5)',
+            borderColor: 'rgba(120,120,140,0.7)',
+            borderWidth: 1,
+            borderRadius: 2,
+          },
+          {
+            label: 'v2 (Risk-Managed Static)',
+            data: allStrats.map(s => vc.v2_static?.[s] ?? null),
+            backgroundColor: 'rgba(255,208,0,0.5)',
+            borderColor: 'rgba(255,208,0,0.7)',
+            borderWidth: 1,
+            borderRadius: 2,
+          },
+          {
+            label: 'v3 (Rolling OOS)',
+            data: allStrats.map(s => vc.v3_oos?.[s] ?? null),
+            backgroundColor: 'rgba(0,255,163,0.6)',
+            borderColor: 'rgba(0,255,163,0.8)',
+            borderWidth: 1,
+            borderRadius: 2,
+          },
+          {
+            label: 'v4 (+ Alt Data)',
+            data: allStrats.map(s => vc.v4_oos?.[s] ?? null),
+            backgroundColor: 'rgba(168,85,247,0.6)',
+            borderColor: 'rgba(168,85,247,0.8)',
+            borderWidth: 1,
+            borderRadius: 2,
+          },
+          {
+            label: 'v5 (+ ML Signals)',
+            data: allStrats.map(s => vc.v5_oos?.[s] ?? null),
+            backgroundColor: 'rgba(244,63,94,0.6)',
+            borderColor: 'rgba(244,63,94,0.8)',
+            borderWidth: 1,
+            borderRadius: 2,
+          },
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top' },
+          tooltip: {
+            callbacks: {
+              label: ctx => `${ctx.dataset.label}: ${ctx.raw != null ? fmtPct(ctx.raw) : 'N/A'}`
+            }
+          },
+          annotation: {
+            annotations: {
+              zeroLine: {
+                type: 'line',
+                yMin: 0,
+                yMax: 0,
+                borderColor: 'rgba(255,255,255,0.15)',
+                borderWidth: 1,
+                borderDash: [4, 4],
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: {
+              font: { family: "'JetBrains Mono', monospace", size: 9 },
+              maxRotation: 45,
+            }
+          },
+          y: {
+            grid: { color: 'rgba(26,26,46,0.4)' },
+            ticks: {
+              callback: v => v + '%',
+              font: { family: "'JetBrains Mono', monospace", size: 10 }
+            },
+            title: {
+              display: true,
+              text: 'Return %',
+              font: { family: "'JetBrains Mono', monospace", size: 11 },
+              color: '#6a6a88'
+            }
+          }
+        }
       }
     });
-  }
+  })();
 
-  // ===== OPTIMIZATION TABLE =====
-  function updateOptimization() {
-    const s = strategies()[currentStrategy];
-    const opt = s.optimization;
+  // ===== EQUITY CURVES =====
+  (function () {
+    // Build Buy & Hold equity from price_data starting at $10,000
+    const priceData = data.price_data;
+    if (!priceData || priceData.length === 0) return;
 
-    document.getElementById('optTitle').textContent = `${currentStrategy} — Parameter Optimization`;
-    document.getElementById('optCount').textContent = `${opt.length} combinations`;
+    const startPrice = priceData[0].close;
+    const bhEquity = priceData.map(p => ({
+      time: p.time,
+      equity: 10000 * (p.close / startPrice)
+    }));
 
-    // Determine param keys
-    const paramKeys = opt.length > 0 ? Object.keys(opt[0].params) : [];
-
-    // Build header
-    const thead = document.getElementById('optHead');
-    thead.innerHTML = `<tr>
-      <th>#</th>
-      ${paramKeys.map(k => `<th>${k.replace(/_/g, ' ')}</th>`).join('')}
-      <th>Return %</th>
-      <th>Sharpe</th>
-      <th>Win Rate</th>
-      <th>Trades</th>
-      <th>Max DD</th>
-    </tr>`;
-
-    // Find best row (highest return)
-    let bestIdx = 0;
-    opt.forEach((o, i) => {
-      if (o.total_return_pct > opt[bestIdx].total_return_pct) bestIdx = i;
+    const labels = priceData.map(p => {
+      const d = new Date(p.time);
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     });
 
-    const tbody = document.getElementById('optBody');
-    tbody.innerHTML = opt.map((o, i) => `
-      <tr class="${i === bestIdx ? 'best-row' : ''} fade-in">
-        <td class="muted">${i + 1}</td>
-        ${paramKeys.map(k => `<td>${o.params[k]}</td>`).join('')}
-        <td class="${valClass(o.total_return_pct)}">${fmtPct(o.total_return_pct)}</td>
-        <td class="${valClass(o.sharpe_ratio)}">${fmt(o.sharpe_ratio, 3)}</td>
-        <td>${fmt(o.win_rate_pct, 1)}%</td>
-        <td>${o.num_trades}</td>
-        <td class="negative">-${fmt(o.max_drawdown_pct)}%</td>
-      </tr>
-    `).join('');
-  }
+    const datasets = [];
 
-  // ===== EVENT HANDLERS =====
-  function initTimeframeToggle() {
-    document.querySelectorAll('.tf-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (btn.dataset.tf === currentTF) return;
-        currentTF = btn.dataset.tf;
-        document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        currentStrategy = bestStrategyName();
-        sortState = { col: null, dir: 'asc' };
-        render();
+    // Add strategy equity curves
+    for (const name of stratNames) {
+      const s = strategies[name];
+      if (!s.equity_curve || s.equity_curve.length === 0) continue;
+
+      // Align equity curve length to labels
+      let eqData = s.equity_curve.map(e => e.equity);
+      // Pad front if needed
+      while (eqData.length < labels.length) {
+        eqData.unshift(10000);
+      }
+      // Trim if longer
+      if (eqData.length > labels.length) {
+        eqData = eqData.slice(eqData.length - labels.length);
+      }
+
+      datasets.push({
+        label: name,
+        data: eqData,
+        borderColor: getColor(name),
+        backgroundColor: 'transparent',
+        borderWidth: 1.5,
+        pointRadius: 0,
+        pointHitRadius: 4,
+        tension: 0.1,
       });
-    });
-  }
+    }
 
-  function initTableSort() {
-    document.querySelectorAll('#tradesTable thead th').forEach(th => {
-      th.addEventListener('click', () => {
-        const col = th.dataset.sort;
-        if (!col) return;
-        if (sortState.col === col) {
-          sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
-        } else {
-          sortState.col = col;
-          sortState.dir = 'asc';
+    // Add Buy & Hold
+    datasets.push({
+      label: 'Buy & Hold',
+      data: bhEquity.map(e => e.equity),
+      borderColor: 'rgba(120,120,140,0.7)',
+      backgroundColor: 'transparent',
+      borderWidth: 2,
+      borderDash: [6, 3],
+      pointRadius: 0,
+      pointHitRadius: 4,
+      tension: 0.1,
+    });
+
+    const ctx = document.getElementById('equity-chart').getContext('2d');
+    new Chart(ctx, {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false,
+        },
+        plugins: {
+          legend: {
+            position: 'top',
+            labels: {
+              font: { family: "'JetBrains Mono', monospace", size: 9 },
+            }
+          },
+          tooltip: {
+            callbacks: {
+              label: ctx => `${ctx.dataset.label}: ${fmtUsd(Math.round(ctx.raw))}`
+            }
+          },
+          annotation: {
+            annotations: {
+              startLine: {
+                type: 'line',
+                yMin: 10000,
+                yMax: 10000,
+                borderColor: 'rgba(255,255,255,0.08)',
+                borderWidth: 1,
+                borderDash: [4, 4],
+                label: {
+                  display: true,
+                  content: '$10K Start',
+                  position: 'end',
+                  font: { family: "'JetBrains Mono', monospace", size: 9 },
+                  color: 'rgba(255,255,255,0.3)',
+                  backgroundColor: 'transparent',
+                }
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: {
+              maxTicksLimit: 12,
+              font: { family: "'JetBrains Mono', monospace", size: 10 }
+            }
+          },
+          y: {
+            grid: { color: 'rgba(26,26,46,0.4)' },
+            ticks: {
+              callback: v => fmtUsd(v),
+              font: { family: "'JetBrains Mono', monospace", size: 10 }
+            },
+            title: {
+              display: true,
+              text: 'Portfolio Value',
+              font: { family: "'JetBrains Mono', monospace", size: 11 },
+              color: '#6a6a88'
+            }
+          }
         }
-        updateTrades();
-      });
+      }
     });
-  }
+  })();
 
-  // ===== RENDER ALL =====
-  function render() {
-    updateHeader();
-    updateSummary();
-    buildCards();
-    updateChart();
-    updateTrades();
-    updateOptimization();
-  }
+  // ===== RISK-RETURN SCATTER =====
+  (function () {
+    const scatterData = stratNames.map(name => {
+      const s = strategies[name];
+      return {
+        x: s.max_drawdown_pct,
+        y: s.total_return_pct,
+        label: name,
+        category: getCategory(name),
+      };
+    });
 
-  // ===== INIT =====
-  function init() {
-    currentStrategy = bestStrategyName();
-    initTimeframeToggle();
-    initTableSort();
-    render();
-  }
+    // Buy & Hold reference point
+    const priceData = data.price_data;
+    if (!priceData || priceData.length === 0) return;
 
-  // Wait for DOM
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+    const startPrice = priceData[0].close;
+    let peak = startPrice;
+    let maxDD = 0;
+    for (const p of priceData) {
+      if (p.close > peak) peak = p.close;
+      const dd = (peak - p.close) / peak * 100;
+      if (dd > maxDD) maxDD = dd;
+    }
+
+    scatterData.push({
+      x: maxDD,
+      y: bhReturn,
+      label: 'Buy & Hold',
+      category: 'benchmark',
+    });
+
+    const ctx = document.getElementById('scatter-chart').getContext('2d');
+    new Chart(ctx, {
+      type: 'scatter',
+      data: {
+        datasets: [{
+          data: scatterData.map(d => ({ x: d.x, y: d.y })),
+          backgroundColor: scatterData.map(d => {
+            if (d.label === 'Buy & Hold') return 'rgba(120,120,140,0.8)';
+            return CAT_COLORS[d.category] || '#8888a8';
+          }),
+          borderColor: scatterData.map(d => {
+            if (d.label === 'Buy & Hold') return 'rgba(120,120,140,1)';
+            return CAT_COLORS[d.category] || '#8888a8';
+          }),
+          borderWidth: 2,
+          pointRadius: scatterData.map(d => d.label === 'Buy & Hold' ? 8 : 7),
+          pointStyle: scatterData.map(d => {
+            if (d.label === 'Buy & Hold') return 'rectRot';
+            if (d.category === 'ml') return 'star';
+            if (d.category === 'alternative') return 'triangle';
+            if (d.category === 'hybrid') return 'rect';
+            return 'circle';
+          }),
+          pointHoverRadius: 10,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const d = scatterData[ctx.dataIndex];
+                return `${d.label} [${d.category}]: Return ${fmtPct(d.y)}, Max DD -${fmt(d.x)}%`;
+              }
+            }
+          },
+          annotation: {
+            annotations: {
+              zeroLine: {
+                type: 'line',
+                yMin: 0,
+                yMax: 0,
+                borderColor: 'rgba(255,255,255,0.12)',
+                borderWidth: 1,
+                borderDash: [4, 4],
+              }
+            }
+          },
+        },
+        scales: {
+          x: {
+            reverse: false,
+            grid: { color: 'rgba(26,26,46,0.4)' },
+            ticks: {
+              callback: v => '-' + v + '%',
+              font: { family: "'JetBrains Mono', monospace", size: 10 }
+            },
+            title: {
+              display: true,
+              text: 'Max Drawdown %',
+              font: { family: "'JetBrains Mono', monospace", size: 11 },
+              color: '#6a6a88'
+            }
+          },
+          y: {
+            grid: { color: 'rgba(26,26,46,0.4)' },
+            ticks: {
+              callback: v => v + '%',
+              font: { family: "'JetBrains Mono', monospace", size: 10 }
+            },
+            title: {
+              display: true,
+              text: 'OOS Return %',
+              font: { family: "'JetBrains Mono', monospace", size: 11 },
+              color: '#6a6a88'
+            }
+          }
+        }
+      },
+      plugins: [{
+        id: 'scatterLabels',
+        afterDraw(chart) {
+          const ctx = chart.ctx;
+          ctx.save();
+          ctx.font = "500 9px 'JetBrains Mono', monospace";
+          ctx.textAlign = 'center';
+
+          const meta = chart.getDatasetMeta(0);
+          const positions = [];
+
+          meta.data.forEach((point, i) => {
+            const d = scatterData[i];
+            let labelX = point.x;
+            let labelY = point.y - 14;
+
+            // Shift labels to avoid overlap
+            for (const pos of positions) {
+              const dx = Math.abs(labelX - pos.x);
+              const dy = Math.abs(labelY - pos.y);
+              if (dx < 70 && dy < 12) {
+                labelY = pos.y - 13;
+              }
+            }
+            positions.push({ x: labelX, y: labelY });
+
+            if (d.label === 'Buy & Hold') {
+              ctx.fillStyle = 'rgba(120,120,140,0.9)';
+            } else {
+              ctx.fillStyle = CAT_COLORS[d.category] || '#8888a8';
+            }
+            ctx.fillText(d.label, labelX, labelY);
+          });
+          ctx.restore();
+        }
+      }]
+    });
+  })();
+
+  // ===== ML FEATURE IMPORTANCE CHART =====
+  (function () {
+    if (!data.ml_available) return;
+
+    const featureCanvas = document.getElementById('feature-chart');
+    if (!featureCanvas) return;
+
+    // Aggregate feature importance across all ML strategies
+    const featureScores = {};
+    let sampleCount = 0;
+
+    for (const name of stratNames) {
+      const s = strategies[name];
+      if (s.category !== 'ml') continue;
+      if (!s.feature_importance || s.feature_importance.length === 0) continue;
+
+      for (const entry of s.feature_importance) {
+        if (!entry.top_features) continue;
+        sampleCount++;
+        for (const [feat, score] of Object.entries(entry.top_features)) {
+          featureScores[feat] = (featureScores[feat] || 0) + score;
+        }
+      }
+    }
+
+    if (sampleCount === 0 || Object.keys(featureScores).length === 0) {
+      // Hide the section if no data
+      const section = featureCanvas.closest('.chart-card');
+      if (section) section.style.display = 'none';
+      return;
+    }
+
+    // Normalize and sort — take top 15
+    const sorted = Object.entries(featureScores)
+      .map(([feat, score]) => ({ feat, score: score / sampleCount }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 15);
+
+    // Reverse for horizontal bar (top item at top)
+    const labels = sorted.map(d => d.feat).reverse();
+    const values = sorted.map(d => d.score).reverse();
+
+    // Color gradient from muted to bright
+    const barColors = values.map((v, i) => {
+      const t = i / (values.length - 1 || 1);
+      // Interpolate from muted rose to bright rose
+      const r = Math.round(180 + t * 64);
+      const g = Math.round(60 + t * 3);
+      const b = Math.round(80 + t * 14);
+      return `rgba(${r},${g},${b},0.8)`;
+    });
+    const borderColors = barColors.map(c => c.replace('0.8)', '1)'));
+
+    const ctx = featureCanvas.getContext('2d');
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Avg Importance',
+          data: values,
+          backgroundColor: barColors,
+          borderColor: borderColors,
+          borderWidth: 1,
+          borderRadius: 3,
+        }]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => `Importance: ${ctx.raw.toFixed(4)}`
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: 'rgba(26,26,46,0.4)' },
+            ticks: {
+              callback: v => v.toFixed(2),
+              font: { family: "'JetBrains Mono', monospace", size: 10 }
+            },
+            title: {
+              display: true,
+              text: 'Avg Feature Importance',
+              font: { family: "'JetBrains Mono', monospace", size: 11 },
+              color: '#6a6a88'
+            }
+          },
+          y: {
+            grid: { display: false },
+            ticks: {
+              font: { family: "'JetBrains Mono', monospace", size: 10 },
+              color: '#b0b0cc',
+            }
+          }
+        }
+      }
+    });
+  })();
+
 })();
