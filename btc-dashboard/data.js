@@ -1,11 +1,127 @@
-// BTC Trading Simulator v6 — Compressed Data (v6 ensemble)
-// Requires pako.js loaded before this script
-(function() {
-  var b64 = "H4sIABIio2kC/+S9XW+kOXKge+9f0dCVjd1+wQiSQXKBczGzZ9YYnLHX8IwvDMMQsqvU3UJXSXUkVXfPHvi/H0bqK5US+UYwUst+14W+aChTevgdHwxGfLi+ur375ve/++//z1/+8Oe/nP/fv/vL7775v775//7mm2/Ofr64ub28vjr7b/V/6ey/8o8+X9z9eP2Rf3Jz/enT5dUP57/sPv10/v31zS+7m4/33/l0ff3Td7sPP51/3P31tn61uP2Pby6+v7w7v7y6u7j5effp8UOI+w/vru/qzz7srj5+utj/OLi8/+Dj7u7i/GZ39cNF/Sm3qv7s+6+f+Pfvdue3d7ubO24NOgzfAn7r4Bvn/tv+v31j6revr29ff8+7V9+7uPr48A361uG3mJ+/Ub/wH/vWfLm5/PCqOZ8veYjIOQeLe/hjn3e/ci+QsNDinn5/9+nuvuG7n3eXn3bffeI/c3fz9eJ+cD+9/fPbu5s6Cj9c7kfmAfoPv/vmv99c395e10l6+mn9+eXV5d3lfii/XNYh5UbUhj00i8fu8qp+WifgKyMKpbIgPn16Pw03F3dfb67Ov3zgIfvWLwhPX/ju61/Pf7z+9PHoO1iW8vQdHvAvFzeX+3Xy2LB9N1YnYW0iDr71uH485Icf/sdTC66+fj6vY/bxfik9d++Xy6tzHsqHZnu/eP/04e7nupgvH7tUloAvPvpUB/uxu2HB59+rU33+8Wb3y8frXx5/OS5IT5/f/ri7+cKL5u7ymn/ZLZjz86fXN3eXV9eHH8Pz3/6w+/R5d3P4IT3PxZeba95R3+8+3F3zGnBLivHp04tf62ff3VzsfuKGHc/E9Zd9h3gQDsb0bvdTHZv9nz365Pbyh6v9aqKDH36of4JXkXtzAvb7nQnpeSDvz4BP1z/UH//b0x96btn9vN7vHPivL398d/G8KqAun7dWBY/K7mb3+fZFf+8X/u727nlZovuvLz++/XT9y/PH8fjjr7cX5xefd9yCv9RteXb08e7jr+ffX3662+/F5jfufry5uOXds2/Awef/8aIHdeXWZXj74fpmP7hLob9544tvDlqi/qAl06DBZgaNFhCPWe6PGbr/JGPGh0uWjpp/uYFejZqH/yyjVmVIFI+a741a1V78f5JD7dtyuEEf/u/fn9WQR9ndkBF3f/2yH7ff/8u/vhynu8vPjwMaeRm2B5QVORbzGTwt8aWs2X2+/np1tz97nXeQM/rVGX5s0p//8Kc/ffO3f/7j3//j7/70dyuNy2uNi642jvxa417+8tWn/QDTEuLxB88qHZC4R6uDDHGlH1UDjeAWbHcEUwmAcPpRfssieN06Qr/kuNa6N4bZLZ4ag1z1ODjVGPtvcW0hZ3IFlxLaa6VA7WY8/RDXxpW1xlVtjpbs1xr31kIGXxafWis5LC6capRDR6l87EjEVI289nEBqf6XgnKU//JP3RGO60cFVJOK8hLyWsveGGIsVcfExghjXcfpVCNchdzaUgHgU22Bzm4sdbVk7RD/+S//sz/IVFfa6iD7QNSb/oe2vbWO0fnj7XmwjmnB0w0y0GpHKMequLRXi0+QY3iHQcb14xgiYU9YPLTt7UF2S/Ttw6LE040yrou9FGp7ENvLJdRjL6bTnhZJsJCheKrqfllr2VunRa7GFTSGGOrOPdl5XL4Ft9oRX3LdV6nZkVAFY6Z3EHvlW8TV1mFi7bKste6tpUydYf62yqByumHG9UM5eIqL6wwz+BzLSRcyuHX1vWplsUqL3gjvG9aQer4l9epxfKplXLuBtD6+MeQ6p+0zL9QZOPVxXJvmV3dYXZ8UlgArTXv7NKbFN42QeLqjAlBg6flQRV5uK8gYXU7u9CcFN25NVGRu3YJlrXFvKsguLh7aMu+Ug7x2UBSkuq1cuxs5OHDhPcYYwtoYZ6i6O8Fa4942Qtyx+fJijHPqeDMu/t+vl3d/Pf/w9ebni45P47k/ncuRpz/3eLFzNNg==TRUNCATED_PLACEHOLDER";
-  var raw = atob(b64); var ua = new Uint8Array(raw.length);
-  for (var i = 0; i < raw.length; i++) ua[i] = raw.charCodeAt(i);
-  var src = pako.inflate(ua, { to: 'string' });
-  // Define as window globals instead of const (for cross-script access)
-  src = src.replace(/^const /gm, 'window.');
-  (new Function(src))();
-})();
+// NOTE: This is a summary-only data file for the repo.
+// Full data (with equity curves, trades, etc.) is on the deployed dashboard.
+
+const BACKTEST_DATA = {
+  "version": "v6",
+  "method": "rolling_walk_forward",
+  "lookback_days": 90,
+  "refit_interval_days": 15,
+  "total_candles": 1408,
+  "date_range": {
+    "full_data_start": "2024-12-01 00:00:00",
+    "oos_start": "2024-12-30 00:00:00",
+    "end": "2026-02-28 00:00:00"
+  },
+  "price_range": {
+    "min": 60001.0,
+    "max": 126296.0
+  },
+  "alt_data_available": true,
+  "ml_available": true,
+  "strategies": {
+    "MA Crossover": {
+      "initial_capital": 10000,
+      "final_value": 9679.22,
+      "total_return_pct": -3.21,
+      "buy_hold_return_pct": -29.9,
+      "oos_period": {"start": "2024-12-30", "end": "2026-02-28", "days": 1318},
+      "num_trades": 12,
+      "win_rate_pct": 33.33,
+      "avg_win_pct": 9.42,
+      "avg_loss_pct": -4.23,
+      "max_drawdown_pct": 5.26,
+      "sharpe_ratio": -0.288,
+      "sortino_ratio": -0.13,
+      "calmar_ratio": -0.61,
+      "profit_factor": 0.755,
+      "exit_breakdown": {"stop_loss": 3, "take_profit": 3, "signal": 6, "close": 0},
+      "num_refits": 72,
+      "category": "technical"
+    },
+    "Mempool Pressure": {
+      "initial_capital": 10000,
+      "final_value": 9580.69,
+      "total_return_pct": -4.19,
+      "buy_hold_return_pct": -29.9,
+      "oos_period": {"start": "2024-12-30", "end": "2026-02-28", "days": 1318},
+      "num_trades": 23,
+      "win_rate_pct": 34.78,
+      "avg_win_pct": 6.69,
+      "avg_loss_pct": -3.72,
+      "max_drawdown_pct": 8.5,
+      "sharpe_ratio": -0.253,
+      "sortino_ratio": -0.137,
+      "calmar_ratio": -0.493,
+      "profit_factor": 0.877,
+      "exit_breakdown": {"stop_loss": 7, "take_profit": 5, "signal": 11, "close": 0},
+      "num_refits": 97,
+      "category": "alternative"
+    },
+    "Ensemble Balanced": {
+      "initial_capital": 10000,
+      "final_value": 9423.62,
+      "total_return_pct": -5.76,
+      "buy_hold_return_pct": -29.9,
+      "oos_period": {"start": "2024-12-30", "end": "2026-02-28", "days": 1318},
+      "num_trades": 26,
+      "win_rate_pct": 50.0,
+      "avg_win_pct": 1.58,
+      "avg_loss_pct": -3.26,
+      "max_drawdown_pct": 6.22,
+      "sharpe_ratio": -1.011,
+      "sortino_ratio": -0.414,
+      "calmar_ratio": -0.927,
+      "profit_factor": 0.4,
+      "exit_breakdown": {"stop_loss": 0, "take_profit": 0, "signal": 9, "trailing_stop": 14, "time_exit": 3, "close": 0},
+      "num_refits": 88,
+      "category": "ensemble"
+    },
+    "Ensemble Aggressive": {
+      "initial_capital": 10000,
+      "final_value": 9350.06,
+      "total_return_pct": -6.5,
+      "buy_hold_return_pct": -29.9,
+      "oos_period": {"start": "2024-12-30", "end": "2026-02-28", "days": 1318},
+      "num_trades": 33,
+      "win_rate_pct": 33.33,
+      "avg_win_pct": 2.22,
+      "avg_loss_pct": -2.27,
+      "max_drawdown_pct": 8.18,
+      "sharpe_ratio": -0.956,
+      "sortino_ratio": -0.359,
+      "calmar_ratio": -0.795,
+      "profit_factor": 0.399,
+      "exit_breakdown": {"stop_loss": 0, "take_profit": 0, "signal": 11, "trailing_stop": 16, "time_exit": 6, "close": 0},
+      "num_refits": 131,
+      "category": "ensemble"
+    },
+    "Ensemble Conservative": {
+      "initial_capital": 10000,
+      "final_value": 9355.83,
+      "total_return_pct": -6.44,
+      "buy_hold_return_pct": -29.9,
+      "oos_period": {"start": "2024-12-30", "end": "2026-02-28", "days": 1318},
+      "num_trades": 9,
+      "win_rate_pct": 22.22,
+      "avg_win_pct": 6.9,
+      "avg_loss_pct": -4.47,
+      "max_drawdown_pct": 9.73,
+      "sharpe_ratio": -0.659,
+      "sortino_ratio": -0.164,
+      "calmar_ratio": -0.662,
+      "profit_factor": 0.43,
+      "exit_breakdown": {"stop_loss": 2, "take_profit": 1, "signal": 0, "trailing_stop": 6, "time_exit": 0, "close": 0},
+      "num_refits": 65,
+      "category": "ensemble"
+    }
+  }
+};
+
+const VERSION_COMPARISON = {
+  "v1_static": {"MA Crossover": 21.33, "RSI": 41.96, "Bollinger": 35.34, "MACD": 25.4, "Volume Breakout": -4.93},
+  "v2_static": {"MA Crossover": 12.59, "RSI": 11.8, "Bollinger": 5.5, "MACD": 8.6, "Volume Breakout": -1.1},
+  "v3_oos": {"MA Crossover": -1.7, "RSI": -3.43, "Bollinger": -5.43, "MACD": -0.6, "Volume Breakout": -2.32, "Confluence Trend": -3.41, "Confluence Reversal": -4.53, "Adaptive": 0.04},
+  "v4_oos": {"MA Crossover": -1.24, "Confluence Reversal": -0.89, "FNG Contrarian": -4.26, "FNG Momentum": -4.47, "On-Chain Activity": -1.82, "Hash Rate": -3.93, "Mempool Pressure": -5.67, "MA + FNG Hybrid": -3.75, "Confluence + AltData": -2.58},
+  "v5_oos": {"MA Crossover": -3.42, "Mempool Pressure": -4.89, "ML RandomForest": 2.91, "ML GradientBoost": 0.0, "ML RF Short-Horizon": -0.78, "ML RF Conservative": 0.0},
+  "v6_oos": {"MA Crossover": -3.21, "Mempool Pressure": -4.19, "Ensemble Balanced": -5.76, "Ensemble Aggressive": -6.5, "Ensemble Conservative": -6.44}
+};
