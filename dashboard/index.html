@@ -1,129 +1,222 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BTC Trading Simulator</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BTC Trading Simulator v5</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.1.0/dist/chartjs-plugin-annotation.min.js"></script>
+  <link rel="stylesheet" href="./style.css">
 </head>
 <body>
 
-<!-- HEADER -->
-<header id="header">
-  <div class="header-left">
-    <div class="header-logo">
-      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-        <rect width="28" height="28" rx="4" fill="#58a6ff" opacity="0.15"/>
-        <path d="M9 7h3c2.5 0 4 1 4 3 0 1.5-1 2.5-2 3 1.5.3 3 1.5 3 3.5 0 2.5-2 3.5-4.5 3.5H9V7zm3 5c1.5 0 2-.7 2-1.7S13.5 8.5 12 8.5h-1V12h1zm.5 6c1.5 0 2.5-.7 2.5-2s-1-2-2.5-2H11v4h1.5z" fill="#58a6ff" stroke="#58a6ff" stroke-width="0.5"/>
-        <line x1="8" y1="5" x2="8" y2="23" stroke="#58a6ff" stroke-width="1" opacity="0.3"/>
-        <line x1="15" y1="5" x2="15" y2="7" stroke="#58a6ff" stroke-width="1.5"/>
-        <line x1="15" y1="20" x2="15" y2="23" stroke="#58a6ff" stroke-width="1.5"/>
-      </svg>
+  <!-- HEADER -->
+  <header id="header">
+    <div class="header-top">
+      <div class="header-title-group">
+        <h1 class="header-title">BTC Trading Simulator <span class="version-tag">v5</span></h1>
+        <p class="header-subtitle">Rolling Walk-Forward &nbsp;|&nbsp; ML Signals &nbsp;|&nbsp; Alternative Data &nbsp;|&nbsp; 100% Out-of-Sample</p>
+      </div>
+      <div class="oos-badge">ALL RESULTS OUT-OF-SAMPLE</div>
     </div>
-    <div>
-      <h1>BTC Trading Simulator</h1>
-      <p class="header-sub" id="headerSub">Loading...</p>
+    <div class="header-meta">
+      <div class="meta-item">
+        <span class="meta-label">OOS Period</span>
+        <span class="meta-value" id="meta-oos-period"></span>
+      </div>
+      <div class="meta-divider"></div>
+      <div class="meta-item">
+        <span class="meta-label">Total Candles</span>
+        <span class="meta-value" id="meta-candles"></span>
+      </div>
+      <div class="meta-divider"></div>
+      <div class="meta-item">
+        <span class="meta-label">Price Range</span>
+        <span class="meta-value" id="meta-price-range"></span>
+      </div>
+      <div class="meta-divider"></div>
+      <div class="meta-item">
+        <span class="meta-label">Data Sources</span>
+        <span class="meta-value" id="meta-method"></span>
+      </div>
     </div>
-  </div>
-  <div class="header-right">
-    <div class="timeframe-toggle" id="timeframeToggle">
-      <button class="tf-btn active" data-tf="1h">1H</button>
-      <button class="tf-btn" data-tf="1d">1D</button>
-    </div>
-  </div>
-</header>
+  </header>
 
-<!-- SUMMARY STATS BAR -->
-<section id="summaryBar" class="summary-bar">
-  <div class="summary-item">
-    <span class="summary-label">Combinations Tested</span>
-    <span class="summary-value mono" id="sumCombinations">—</span>
-  </div>
-  <div class="summary-item">
-    <span class="summary-label">Best Strategy</span>
-    <span class="summary-value mono" id="sumBestStrategy">—</span>
-  </div>
-  <div class="summary-item">
-    <span class="summary-label">Best Return</span>
-    <span class="summary-value mono" id="sumBestReturn">—</span>
-  </div>
-  <div class="summary-item">
-    <span class="summary-label">Best Sharpe</span>
-    <span class="summary-value mono" id="sumBestSharpe">—</span>
-  </div>
-  <div class="summary-item">
-    <span class="summary-label">Worst Drawdown</span>
-    <span class="summary-value mono" id="sumWorstDD">—</span>
-  </div>
-  <div class="summary-item">
-    <span class="summary-label">Buy &amp; Hold</span>
-    <span class="summary-value mono" id="sumBuyHold">—</span>
-  </div>
-</section>
+  <main>
+    <!-- KPI CARDS -->
+    <section id="kpi-section">
+      <div class="kpi-grid">
+        <div class="kpi-card kpi-highlight">
+          <div class="kpi-label">Best Strategy</div>
+          <div class="kpi-value" id="kpi-best-name"></div>
+          <div class="kpi-sub" id="kpi-best-return"></div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Buy &amp; Hold</div>
+          <div class="kpi-value" id="kpi-bh"></div>
+          <div class="kpi-sub">Same period baseline</div>
+        </div>
+        <div class="kpi-card kpi-alpha">
+          <div class="kpi-label">Alpha Generated</div>
+          <div class="kpi-value" id="kpi-alpha"></div>
+          <div class="kpi-sub">Best strat vs B&amp;H</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Strategies Tested</div>
+          <div class="kpi-value" id="kpi-count"></div>
+          <div class="kpi-sub" id="kpi-categories-sub">Walk-forward validated</div>
+        </div>
+      </div>
+    </section>
 
-<!-- STRATEGY CARDS -->
-<section id="strategyCards" class="strategy-cards"></section>
+    <!-- CATEGORY FILTER -->
+    <section id="filter-section">
+      <div class="filter-bar">
+        <span class="filter-label">Filter by category:</span>
+        <button class="filter-btn active" data-cat="all">All</button>
+        <button class="filter-btn filter-technical" data-cat="technical">Technical</button>
+        <button class="filter-btn filter-alternative" data-cat="alternative">Alternative</button>
+        <button class="filter-btn filter-hybrid" data-cat="hybrid">Hybrid</button>
+        <button class="filter-btn filter-ml" data-cat="ml">ML</button>
+      </div>
+    </section>
 
-<!-- MAIN CONTENT: Chart + Trade Log -->
-<section class="main-grid">
-  <div class="chart-panel">
-    <div class="panel-header">
-      <h2 id="chartTitle">Equity Curve</h2>
-      <div class="chart-legend" id="chartLegend"></div>
-    </div>
-    <div class="chart-wrap">
-      <canvas id="equityChart"></canvas>
-    </div>
-  </div>
+    <!-- STRATEGY TABLE -->
+    <section id="table-section">
+      <div class="section-header">
+        <h2 class="section-title">Strategy Performance</h2>
+        <span class="section-hint">Click a row for details</span>
+      </div>
+      <div class="table-wrapper">
+        <table id="strategy-table">
+          <thead>
+            <tr>
+              <th data-col="name">Strategy</th>
+              <th data-col="category">Category</th>
+              <th data-col="return" data-sort="num">OOS Return %</th>
+              <th data-col="bh" data-sort="num">Buy &amp; Hold %</th>
+              <th data-col="alpha" data-sort="num">Alpha %</th>
+              <th data-col="sharpe" data-sort="num">Sharpe</th>
+              <th data-col="sortino" data-sort="num">Sortino</th>
+              <th data-col="winrate" data-sort="num">Win Rate %</th>
+              <th data-col="trades" data-sort="num">Trades</th>
+              <th data-col="dd" data-sort="num">Max DD %</th>
+              <th data-col="pf" data-sort="num">Profit Factor</th>
+            </tr>
+          </thead>
+          <tbody id="strategy-tbody"></tbody>
+        </table>
+      </div>
+    </section>
 
-  <div class="trades-panel">
-    <div class="panel-header">
-      <h2 id="tradesTitle">Trade Log</h2>
-      <span class="trade-count mono" id="tradeCount">0 trades</span>
-    </div>
-    <div class="trades-table-wrap" id="tradesTableWrap">
-      <table id="tradesTable">
-        <thead>
-          <tr>
-            <th data-sort="idx">#</th>
-            <th data-sort="type">Side</th>
-            <th data-sort="time">Time</th>
-            <th data-sort="price">Price</th>
-            <th data-sort="pnl">P&L ($)</th>
-            <th data-sort="pnl_pct">P&L %</th>
-          </tr>
-        </thead>
-        <tbody id="tradesBody"></tbody>
-      </table>
-    </div>
-  </div>
-</section>
+    <!-- STRATEGY DETAIL PANEL (shown on row click) -->
+    <section id="detail-section" class="hidden">
+      <div class="section-header">
+        <h2 class="section-title" id="detail-title">Strategy Details</h2>
+        <button class="close-btn" id="detail-close">&times;</button>
+      </div>
+      <div class="detail-grid">
+        <div class="detail-card">
+          <h3>Parameter Evolution (Refit Log)</h3>
+          <div class="detail-table-wrapper">
+            <table id="refit-table">
+              <thead><tr id="refit-thead"></tr></thead>
+              <tbody id="refit-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="detail-card">
+          <h3>Exit Breakdown</h3>
+          <div class="chart-container chart-sm">
+            <canvas id="exit-chart"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="detail-card detail-full">
+        <h3>Trade Log</h3>
+        <div class="detail-table-wrapper">
+          <table id="trade-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Type</th>
+                <th>Date</th>
+                <th>Price</th>
+                <th>Amount</th>
+                <th>PnL</th>
+                <th>PnL %</th>
+              </tr>
+            </thead>
+            <tbody id="trade-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
 
-<!-- OPTIMIZATION TABLE -->
-<section class="optimization-panel">
-  <div class="panel-header">
-    <h2 id="optTitle">Parameter Optimization</h2>
-    <span class="opt-count mono" id="optCount">0 combinations</span>
-  </div>
-  <div class="opt-table-wrap" id="optTableWrap">
-    <table id="optTable">
-      <thead id="optHead"></thead>
-      <tbody id="optBody"></tbody>
-    </table>
-  </div>
-</section>
+    <!-- CATEGORY BREAKDOWN -->
+    <section id="category-section">
+      <div class="section-header">
+        <h2 class="section-title">Category Breakdown</h2>
+        <span class="section-hint">Technical vs Alternative vs ML signals</span>
+      </div>
+      <div class="chart-container chart-md">
+        <canvas id="category-chart"></canvas>
+      </div>
+    </section>
 
-<footer>
-  <span class="mono">BTC TRADING SIMULATOR</span>
-  <span>Backtest results — not financial advice</span>
-</footer>
+    <!-- FEATURE IMPORTANCE -->
+    <section id="feature-section">
+      <div class="section-header">
+        <h2 class="section-title">ML Feature Importance</h2>
+        <span class="section-hint">Top features driving ML model predictions</span>
+      </div>
+      <div class="chart-container chart-md">
+        <canvas id="feature-chart"></canvas>
+      </div>
+    </section>
 
-<script src="data.js"></script>
-<script src="app.js"></script>
+    <!-- VERSION COMPARISON -->
+    <section id="version-section">
+      <div class="section-header">
+        <h2 class="section-title">Version Comparison</h2>
+        <span class="section-hint">v1: Overfit &nbsp;|&nbsp; v2: Risk-managed &nbsp;|&nbsp; v3: Rolling OOS &nbsp;|&nbsp; v4: Alt Data &nbsp;|&nbsp; v5: ML</span>
+      </div>
+      <div class="chart-container chart-md">
+        <canvas id="version-chart"></canvas>
+      </div>
+    </section>
+
+    <!-- EQUITY CURVES -->
+    <section id="equity-section">
+      <div class="section-header">
+        <h2 class="section-title">Equity Curves</h2>
+        <span class="section-hint">Toggle strategies via legend &nbsp;|&nbsp; Starting capital: $10,000</span>
+      </div>
+      <div class="chart-container chart-lg">
+        <canvas id="equity-chart"></canvas>
+      </div>
+    </section>
+
+    <!-- RISK-RETURN SCATTER -->
+    <section id="scatter-section">
+      <div class="section-header">
+        <h2 class="section-title">Risk-Return Profile</h2>
+        <span class="section-hint">X = Max Drawdown % &nbsp;|&nbsp; Y = OOS Return %</span>
+      </div>
+      <div class="chart-container chart-md">
+        <canvas id="scatter-chart"></canvas>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>BTC Trading Simulator v5 &mdash; ML Signal Generation + Walk-Forward &mdash; Data is for educational purposes only</p>
+  </footer>
+
+  <script src="./data.js"></script>
+  <script src="./app.js"></script>
 </body>
 </html>
