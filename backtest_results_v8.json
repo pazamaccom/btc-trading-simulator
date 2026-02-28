@@ -50,11 +50,82 @@
       "sharpe_ratio": -0.886,
       "sortino_ratio": -0.231,
       "calmar_ratio": -0.778,
-      "profit_factor": 0.143
+      "profit_factor": 0.143,
+      "exit_breakdown": {
+        "stop_loss": 2,
+        "take_profit": 0,
+        "signal": 2,
+        "trailing_stop": 7,
+        "close": 0
+      },
+      "num_refits": 72,
+      "refit_log": [
+        {
+          "day": 1260,
+          "date": "2026-01-12 00:00:00",
+          "params": {
+            "fast_period": 10,
+            "slow_period": 50,
+            "use_ema": "True",
+            "adx_filter": "True",
+            "adx_threshold": 20
+          },
+          "train_score": 1.5
+        },
+        {
+          "day": 1276,
+          "date": "2026-01-17 00:00:00",
+          "params": {
+            "fast_period": 10,
+            "slow_period": 50,
+            "use_ema": "True",
+            "adx_filter": "True",
+            "adx_threshold": 20
+          },
+          "train_score": 6.1
+        },
+        {
+          "day": 1286,
+          "date": "2026-01-20 00:00:00",
+          "params": {
+            "fast_period": 10,
+            "slow_period": 50,
+            "use_ema": "True",
+            "adx_filter": "True",
+            "adx_threshold": 20
+          },
+          "train_score": -0.68
+        },
+        {
+          "day": 1319,
+          "date": "2026-01-31 00:00:00",
+          "params": {
+            "fast_period": 10,
+            "slow_period": 50,
+            "use_ema": "True",
+            "adx_filter": "True",
+            "adx_threshold": 20
+          },
+          "train_score": -3.35
+        },
+        {
+          "day": 1329,
+          "date": "2026-02-03 00:00:00",
+          "params": {
+            "fast_period": 20,
+            "slow_period": 50,
+            "use_ema": "True",
+            "adx_filter": "True",
+            "adx_threshold": 20
+          },
+          "train_score": -9.1
+        }
+      ],
+      "category": "technical"
     },
     "Mempool Pressure": {
       "initial_capital": 10000,
-      "final_value": 9059.4,
+      "final_value": 9059.24,
       "total_return_pct": -9.41,
       "buy_hold_return_pct": -28.94,
       "oos_period": {
@@ -62,78 +133,628 @@
         "end": "2026-02-28 00:00:00",
         "days": 1318
       },
-      "num_trades": 18,
-      "win_rate_pct": 38.89,
-      "avg_win_pct": 1.24,
-      "avg_loss_pct": -3.47,
-      "max_drawdown_pct": 12.18,
+      "num_trades": 24,
+      "win_rate_pct": 41.67,
+      "avg_win_pct": 1.59,
+      "avg_loss_pct": -3.06,
+      "max_drawdown_pct": 10.66,
       "sharpe_ratio": -0.822,
-      "sortino_ratio": -0.198,
-      "calmar_ratio": -0.773,
-      "profit_factor": 0.228
+      "sortino_ratio": -0.33,
+      "calmar_ratio": -0.883,
+      "profit_factor": 0.388,
+      "exit_breakdown": {
+        "stop_loss": 4,
+        "take_profit": 0,
+        "signal": 7,
+        "trailing_stop": 13,
+        "close": 0
+      },
+      "num_refits": 101,
+      "refit_log": [
+        {
+          "day": 1363,
+          "date": "2026-02-14 00:00:00",
+          "params": {
+            "mempool_lookback": 7,
+            "mempool_spike_mult": 1.3,
+            "price_period": 20
+          },
+          "train_score": -5.85
+        },
+        {
+          "day": 1373,
+          "date": "2026-02-17 00:00:00",
+          "params": {
+            "mempool_lookback": 7,
+            "mempool_spike_mult": 1.3,
+            "price_period": 20
+          },
+          "train_score": -5.85
+        },
+        {
+          "day": 1385,
+          "date": "2026-02-21 00:00:00",
+          "params": {
+            "mempool_lookback": 7,
+            "mempool_spike_mult": 1.3,
+            "price_period": 20
+          },
+          "train_score": -0.2
+        },
+        {
+          "day": 1395,
+          "date": "2026-02-24 00:00:00",
+          "params": {
+            "mempool_lookback": 7,
+            "mempool_spike_mult": 1.3,
+            "price_period": 20
+          },
+          "train_score": -5.09
+        },
+        {
+          "day": 1405,
+          "date": "2026-02-27 00:00:00",
+          "params": {
+            "mempool_lookback": 7,
+            "mempool_spike_mult": 1.5,
+            "price_period": 20
+          },
+          "train_score": -2.61
+        }
+      ],
+      "category": "alternative"
     },
     "Ensemble Balanced": {
       "initial_capital": 10000,
-      "final_value": 9848.0,
+      "final_value": 9847.8,
       "total_return_pct": -1.52,
       "buy_hold_return_pct": -28.94,
-      "alpha_pct": 27.42,
       "oos_period": {
         "start": "2024-12-30 00:00:00",
         "end": "2026-02-28 00:00:00",
         "days": 1318
       },
-      "num_trades": 24,
-      "win_rate_pct": 45.83,
-      "avg_win_pct": 2.18,
-      "avg_loss_pct": -2.89,
-      "max_drawdown_pct": 9.43,
+      "num_trades": 30,
+      "win_rate_pct": 43.33,
+      "avg_win_pct": 3.57,
+      "avg_loss_pct": -2.59,
+      "max_drawdown_pct": 4.65,
       "sharpe_ratio": -0.159,
-      "sortino_ratio": 0.042,
-      "calmar_ratio": -0.161,
-      "profit_factor": 0.778
+      "sortino_ratio": -0.057,
+      "calmar_ratio": -0.327,
+      "profit_factor": 0.883,
+      "long_trades": 10,
+      "short_trades": 20,
+      "long_win_rate": 20.0,
+      "short_win_rate": 55.0,
+      "long_pnl": -493.36,
+      "short_pnl": 372.21,
+      "short_stats": {
+        "attempted": 45,
+        "entered": 20,
+        "blocked_adx": 0,
+        "blocked_regime": 25,
+        "blocked_cooldown": 2
+      },
+      "long_stats": {
+        "attempted": 39,
+        "entered": 10,
+        "blocked_regime": 29,
+        "blocked_cooldown": 0
+      },
+      "regime_counts": {
+        "bull": 514,
+        "bear": 593,
+        "sideways": 211
+      },
+      "exit_breakdown": {
+        "stop_loss": 2,
+        "take_profit": 3,
+        "signal": 1,
+        "trailing_stop": 9,
+        "time_exit": 7,
+        "close": 1,
+        "regime_exit": 7
+      },
+      "num_refits": 88,
+      "refit_log": [
+        {
+          "day": 1335,
+          "date": "2026-02-05 00:00:00",
+          "params": {
+            "models": "RF+GB",
+            "horizon": 5,
+            "threshold": 0.02,
+            "confidence": 0.45,
+            "adx": 97.9,
+            "regime": "bear",
+            "regime_conf": 1.0
+          },
+          "train_score": 0
+        },
+        {
+          "day": 1350,
+          "date": "2026-02-10 00:00:00",
+          "params": {
+            "models": "RF+GB",
+            "horizon": 5,
+            "threshold": 0.02,
+            "confidence": 0.45,
+            "adx": 92.1,
+            "regime": "bear",
+            "regime_conf": 1.0
+          },
+          "train_score": 0
+        },
+        {
+          "day": 1365,
+          "date": "2026-02-14 00:00:00",
+          "params": {
+            "models": "RF+GB",
+            "horizon": 5,
+            "threshold": 0.02,
+            "confidence": 0.45,
+            "adx": 50.4,
+            "regime": "sideways",
+            "regime_conf": 0.6
+          },
+          "train_score": 0
+        },
+        {
+          "day": 1380,
+          "date": "2026-02-19 00:00:00",
+          "params": {
+            "models": "RF+GB",
+            "horizon": 5,
+            "threshold": 0.02,
+            "confidence": 0.45,
+            "adx": 49.9,
+            "regime": "bear",
+            "regime_conf": 0.88
+          },
+          "train_score": 0
+        },
+        {
+          "day": 1395,
+          "date": "2026-02-24 00:00:00",
+          "params": {
+            "models": "RF+GB",
+            "horizon": 5,
+            "threshold": 0.02,
+            "confidence": 0.45,
+            "adx": 34.3,
+            "regime": "bear",
+            "regime_conf": 1.0
+          },
+          "train_score": 0
+        }
+      ],
+      "feature_importance": [
+        {
+          "day": 1365,
+          "date": "2026-02-14 00:00:00",
+          "top_features": {
+            "macd_hist_slope": 0.091,
+            "roc_accel_10_20": 0.0631,
+            "adx": 0.0627,
+            "dxy_ret_5d": 0.0587,
+            "roc_accel_5_10": 0.0576,
+            "btc_dxy_corr_20d": 0.0505,
+            "txvol_change_7": 0.0446,
+            "volatility_10d": 0.0416,
+            "macd_histogram": 0.0345,
+            "sp500_ret_10d": 0.0297
+          }
+        },
+        {
+          "day": 1380,
+          "date": "2026-02-19 00:00:00",
+          "top_features": {
+            "btc_sp500_corr_20d": 0.104,
+            "stoch_k": 0.0668,
+            "fng_sma5": 0.0608,
+            "fng": 0.0443,
+            "fng_change5": 0.0436,
+            "txvol_change_7": 0.0371,
+            "eth_btc_change_10d": 0.0358,
+            "rsi_21": 0.0335,
+            "sp500_ret_5d": 0.0251,
+            "volume_ratio_10": 0.0247
+          }
+        },
+        {
+          "day": 1395,
+          "date": "2026-02-24 00:00:00",
+          "top_features": {
+            "price_vs_sma50": 0.0948,
+            "fng_sma5": 0.0893,
+            "stoch_k": 0.07,
+            "fng": 0.0515,
+            "aa_ratio_14": 0.05,
+            "roc_accel_5_10": 0.0475,
+            "macd_signal": 0.0411,
+            "volatility_5d": 0.0398,
+            "vol_compression": 0.035,
+            "btc_dxy_corr_20d": 0.0341
+          }
+        }
+      ],
+      "v8_features": [
+        "regime_classifier",
+        "cross_asset_features",
+        "enhanced_feature_eng",
+        "regime_gated_entries",
+        "regime_based_exits"
+      ],
+      "category": "ensemble"
     },
     "Ensemble Aggressive": {
       "initial_capital": 10000,
-      "final_value": 8572.3,
+      "final_value": 8571.67,
       "total_return_pct": -14.28,
       "buy_hold_return_pct": -28.94,
-      "alpha_pct": 14.66,
       "oos_period": {
         "start": "2024-12-30 00:00:00",
         "end": "2026-02-28 00:00:00",
         "days": 1318
       },
-      "num_trades": 31,
-      "win_rate_pct": 35.48,
-      "avg_win_pct": 3.42,
-      "avg_loss_pct": -4.11,
-      "max_drawdown_pct": 18.92,
+      "num_trades": 56,
+      "win_rate_pct": 33.93,
+      "avg_win_pct": 2.45,
+      "avg_loss_pct": -2.36,
+      "max_drawdown_pct": 16.97,
       "sharpe_ratio": -1.189,
-      "sortino_ratio": -0.287,
-      "calmar_ratio": -0.755,
-      "profit_factor": 0.453
+      "sortino_ratio": -0.5,
+      "calmar_ratio": -0.842,
+      "profit_factor": 0.436,
+      "long_trades": 16,
+      "short_trades": 40,
+      "long_win_rate": 31.25,
+      "short_win_rate": 35.0,
+      "long_pnl": -496.23,
+      "short_pnl": -891.19,
+      "short_stats": {
+        "attempted": 69,
+        "entered": 40,
+        "blocked_adx": 0,
+        "blocked_regime": 29,
+        "blocked_cooldown": 0
+      },
+      "long_stats": {
+        "attempted": 45,
+        "entered": 16,
+        "blocked_regime": 29,
+        "blocked_cooldown": 0
+      },
+      "regime_counts": {
+        "bull": 514,
+        "bear": 593,
+        "sideways": 211
+      },
+      "exit_breakdown": {
+        "stop_loss": 5,
+        "take_profit": 1,
+        "signal": 6,
+        "trailing_stop": 14,
+        "time_exit": 18,
+        "close": 1,
+        "regime_exit": 11
+      },
+      "num_refits": 132,
+      "refit_log": [
+        {
+          "day": 1360,
+          "date": "2026-02-13 00:00:00",
+          "params": {
+            "models": "RF+GB",
+            "horizon": 3,
+            "threshold": 0.015,
+            "confidence": 0.4,
+            "adx": 69.7,
+            "regime": "bear",
+            "regime_conf": 0.88
+          },
+          "train_score": 0
+        },
+        {
+          "day": 1370,
+          "date": "2026-02-16 00:00:00",
+          "params": {
+            "models": "RF+GB",
+            "horizon": 3,
+            "threshold": 0.015,
+            "confidence": 0.4,
+            "adx": 35.2,
+            "regime": "bear",
+            "regime_conf": 0.82
+          },
+          "train_score": 0
+        },
+        {
+          "day": 1380,
+          "date": "2026-02-19 00:00:00",
+          "params": {
+            "models": "RF+GB",
+            "horizon": 3,
+            "threshold": 0.015,
+            "confidence": 0.4,
+            "adx": 49.9,
+            "regime": "bear",
+            "regime_conf": 0.88
+          },
+          "train_score": 0
+        },
+        {
+          "day": 1390,
+          "date": "2026-02-23 00:00:00",
+          "params": {
+            "models": "RF+GB",
+            "horizon": 3,
+            "threshold": 0.015,
+            "confidence": 0.4,
+            "adx": 45.1,
+            "regime": "bear",
+            "regime_conf": 1.0
+          },
+          "train_score": 0
+        },
+        {
+          "day": 1400,
+          "date": "2026-02-26 00:00:00",
+          "params": {
+            "models": "RF+GB",
+            "horizon": 3,
+            "threshold": 0.015,
+            "confidence": 0.4,
+            "adx": 33.7,
+            "regime": "sideways",
+            "regime_conf": 0.55
+          },
+          "train_score": 0
+        }
+      ],
+      "feature_importance": [
+        {
+          "day": 1380,
+          "date": "2026-02-19 00:00:00",
+          "top_features": {
+            "eth_btc_change_10d": 0.0971,
+            "fng_sma5": 0.076,
+            "rsi_7": 0.0526,
+            "stoch_k": 0.0434,
+            "btc_sp500_corr_20d": 0.0362,
+            "sp500_sma20_dist": 0.0359,
+            "rsi_21": 0.0347,
+            "ntx_ratio_14": 0.0344,
+            "txvol_change_7": 0.0278,
+            "hr_change_7": 0.0229
+          }
+        },
+        {
+          "day": 1390,
+          "date": "2026-02-23 00:00:00",
+          "top_features": {
+            "stoch_k": 0.0723,
+            "ntx_ratio_14": 0.0718,
+            "txvol_change_7": 0.0716,
+            "fng_sma5": 0.0639,
+            "rsi_7": 0.0537,
+            "fng_sma10": 0.0402,
+            "fng": 0.0317,
+            "rsi_14": 0.0302,
+            "rsi_21": 0.0275,
+            "dxy_ret_10d": 0.0231
+          }
+        },
+        {
+          "day": 1400,
+          "date": "2026-02-26 00:00:00",
+          "top_features": {
+            "fng": 0.1291,
+            "price_vs_sma10": 0.0905,
+            "hr_change_7": 0.0543,
+            "rsi_7": 0.0529,
+            "macd_hist_slope": 0.0512,
+            "fng_sma5": 0.0507,
+            "return_3d": 0.0464,
+            "aa_ratio_14": 0.0408,
+            "roc_10d": 0.0288,
+            "dxy_ret_5d": 0.0268
+          }
+        }
+      ],
+      "v8_features": [
+        "regime_classifier",
+        "cross_asset_features",
+        "enhanced_feature_eng",
+        "regime_gated_entries",
+        "regime_based_exits"
+      ],
+      "category": "ensemble"
     },
     "Ensemble Conservative": {
       "initial_capital": 10000,
-      "final_value": 10393.2,
+      "final_value": 10393.09,
       "total_return_pct": 3.93,
       "buy_hold_return_pct": -28.94,
-      "alpha_pct": 32.87,
       "oos_period": {
         "start": "2024-12-30 00:00:00",
         "end": "2026-02-28 00:00:00",
         "days": 1318
       },
-      "num_trades": 19,
-      "win_rate_pct": 52.63,
-      "avg_win_pct": 2.87,
-      "avg_loss_pct": -2.34,
-      "max_drawdown_pct": 7.24,
+      "num_trades": 14,
+      "win_rate_pct": 50.0,
+      "avg_win_pct": 3.85,
+      "avg_loss_pct": -2.83,
+      "max_drawdown_pct": 3.23,
       "sharpe_ratio": 0.543,
-      "sortino_ratio": 0.412,
-      "calmar_ratio": 0.543,
-      "profit_factor": 2.037
+      "sortino_ratio": 0.251,
+      "calmar_ratio": 1.217,
+      "profit_factor": 2.037,
+      "long_trades": 3,
+      "short_trades": 11,
+      "long_win_rate": 66.67,
+      "short_win_rate": 45.45,
+      "long_pnl": 341.78,
+      "short_pnl": 60.93,
+      "short_stats": {
+        "attempted": 22,
+        "entered": 11,
+        "blocked_adx": 0,
+        "blocked_regime": 11,
+        "blocked_cooldown": 2
+      },
+      "long_stats": {
+        "attempted": 3,
+        "entered": 3,
+        "blocked_regime": 0,
+        "blocked_cooldown": 0
+      },
+      "regime_counts": {
+        "bull": 514,
+        "bear": 593,
+        "sideways": 211
+      },
+      "exit_breakdown": {
+        "stop_loss": 1,
+        "take_profit": 1,
+        "signal": 0,
+        "trailing_stop": 1,
+        "time_exit": 7,
+        "close": 0,
+        "regime_exit": 4
+      },
+      "num_refits": 66,
+      "refit_log": [
+        {
+          "day": 1310,
+          "date": "2026-01-28 00:00:00",
+          "params": {
+            "models": "RF+GB",
+            "horizon": 5,
+            "threshold": 0.025,
+            "confidence": 0.5,
+            "adx": 49.9,
+            "regime": "bear",
+            "regime_conf": 0.88
+          },
+          "train_score": 0
+        },
+        {
+          "day": 1330,
+          "date": "2026-02-03 00:00:00",
+          "params": {
+            "models": "RF+GB",
+            "horizon": 5,
+            "threshold": 0.025,
+            "confidence": 0.5,
+            "adx": 88.5,
+            "regime": "bear",
+            "regime_conf": 1.0
+          },
+          "train_score": 0
+        },
+        {
+          "day": 1350,
+          "date": "2026-02-10 00:00:00",
+          "params": {
+            "models": "RF+GB",
+            "horizon": 5,
+            "threshold": 0.025,
+            "confidence": 0.5,
+            "adx": 92.1,
+            "regime": "bear",
+            "regime_conf": 1.0
+          },
+          "train_score": 0
+        },
+        {
+          "day": 1370,
+          "date": "2026-02-16 00:00:00",
+          "params": {
+            "models": "RF+GB",
+            "horizon": 5,
+            "threshold": 0.025,
+            "confidence": 0.5,
+            "adx": 35.2,
+            "regime": "bear",
+            "regime_conf": 0.82
+          },
+          "train_score": 0
+        },
+        {
+          "day": 1390,
+          "date": "2026-02-23 00:00:00",
+          "params": {
+            "models": "RF+GB",
+            "horizon": 5,
+            "threshold": 0.025,
+            "confidence": 0.5,
+            "adx": 45.1,
+            "regime": "bear",
+            "regime_conf": 1.0
+          },
+          "train_score": 0
+        }
+      ],
+      "feature_importance": [
+        {
+          "day": 1350,
+          "date": "2026-02-10 00:00:00",
+          "top_features": {
+            "btc_sp500_corr_20d": 0.1019,
+            "rsi_7": 0.0932,
+            "di_diff": 0.0617,
+            "macd_histogram": 0.0616,
+            "aa_ratio_14": 0.0538,
+            "roc_accel_10_20": 0.0508,
+            "rsi_21": 0.0454,
+            "rsi_14": 0.0409,
+            "ema20_slope": 0.0331,
+            "ntx_ratio_14": 0.0295
+          }
+        },
+        {
+          "day": 1370,
+          "date": "2026-02-16 00:00:00",
+          "top_features": {
+            "txvol_ratio_14": 0.1116,
+            "macd_hist_slope": 0.072,
+            "txvol_change_7": 0.0535,
+            "volatility_10d": 0.0518,
+            "price_vs_sma5": 0.0517,
+            "price_vs_sma10": 0.0446,
+            "atr_pct": 0.0441,
+            "volume_ratio_10": 0.0424,
+            "fng_change5": 0.039,
+            "return_3d": 0.0367
+          }
+        },
+        {
+          "day": 1390,
+          "date": "2026-02-23 00:00:00",
+          "top_features": {
+            "txvol_change_7": 0.0907,
+            "fng_sma5": 0.0907,
+            "fng_sma10": 0.0885,
+            "rsi_14": 0.0825,
+            "btc_dxy_corr_20d": 0.0637,
+            "volume_ratio_10": 0.0567,
+            "dxy_sma20_dist": 0.0519,
+            "fng": 0.0481,
+            "macd_histogram": 0.036,
+            "stoch_k": 0.0307
+          }
+        }
+      ],
+      "v8_features": [
+        "regime_classifier",
+        "cross_asset_features",
+        "enhanced_feature_eng",
+        "regime_gated_entries",
+        "regime_based_exits"
+      ],
+      "category": "ensemble"
     }
   }
 }
