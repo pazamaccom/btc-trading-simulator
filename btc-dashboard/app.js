@@ -1,20 +1,20 @@
-// ===== BTC Trading Simulator v10 Dashboard =====
+// ===== BTC Trading Simulator v11 Dashboard =====
 // All data from data.js globals: BACKTEST_DATA, VERSION_COMPARISON
 
 (function () {
   'use strict';
 
   // ===== UTILITIES =====
-  const fmt = (n, d = 2) => n != null ? Number(n).toFixed(d) : '\u2014';
-  const fmtPct = (n) => n != null ? (n >= 0 ? '+' : '') + fmt(n) + '%' : '\u2014';
-  const fmtUsd = (n) => n != null ? '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '\u2014';
+  const fmt = (n, d = 2) => n != null ? Number(n).toFixed(d) : '—';
+  const fmtPct = (n) => n != null ? (n >= 0 ? '+' : '') + fmt(n) + '%' : '—';
+  const fmtUsd = (n) => n != null ? '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '—';
   const fmtDate = (d) => {
-    if (!d) return '\u2014';
+    if (!d) return '—';
     const dt = new Date(d);
     return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   };
   const fmtDateShort = (d) => {
-    if (!d) return '\u2014';
+    if (!d) return '—';
     const dt = new Date(d);
     return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
@@ -51,7 +51,9 @@
   const strategies = data.strategies;
   const stratNames = Object.keys(strategies);
 
+  // Strategy colors — categorized
   const STRAT_COLORS = {
+    // Technical (cyan family)
     'MA Crossover': '#00d4ff',
     'RSI': '#00ffa3',
     'Bollinger': '#22d3ee',
@@ -60,17 +62,21 @@
     'Confluence Trend': '#2dd4bf',
     'Confluence Reversal': '#34d399',
     'Adaptive': '#5eead4',
+    // Alternative (purple family)
     'FNG Contrarian': '#a855f7',
     'FNG Momentum': '#c084fc',
     'On-Chain Activity': '#8b5cf6',
     'Hash Rate': '#7c3aed',
     'Mempool Pressure': '#d946ef',
+    // Hybrid (yellow/orange family)
     'MA + FNG Hybrid': '#ffd000',
     'Confluence + AltData': '#ff8a00',
+    // ML (rose/pink family)
     'ML RandomForest': '#f43f5e',
     'ML GradientBoost': '#fb923c',
     'ML RF Short-Horizon': '#e879f9',
     'ML RF Conservative': '#f472b6',
+    // Ensemble (green/emerald family)
     'Ensemble Balanced': '#00ffa3',
     'Ensemble Aggressive': '#22d3ee',
     'Ensemble Conservative': '#fbbf24',
@@ -88,16 +94,15 @@
   const getCategory = (name) => (strategies[name] && strategies[name].category) || 'technical';
 
   // ===== HEADER =====
-  document.getElementById('meta-oos-period').textContent = fmtDate(data.date_range.oos_start) + ' \u2192 ' + fmtDate(data.date_range.end);
+  document.getElementById('meta-oos-period').textContent = fmtDate(data.date_range.oos_start) + ' → ' + fmtDate(data.date_range.end);
   document.getElementById('meta-candles').textContent = data.total_candles.toLocaleString();
-  document.getElementById('meta-price-range').textContent = fmtUsd(data.price_range.min) + ' \u2014 ' + fmtUsd(data.price_range.max);
+  document.getElementById('meta-price-range').textContent = fmtUsd(data.price_range.min) + ' — ' + fmtUsd(data.price_range.max);
   const granLabel = data.granularity === '1h' ? '1h Candles' : 'Daily Candles';
-  const kellyLabel = data.v9_features && data.v9_features.includes('kelly_position_sizing') ? ' + Kelly Sizing' : '';
-  const confLabel = data.v10_new_features && data.v10_new_features.includes('confidence_filter') ? ' + Confidence Filter' : '';
+  const yearsLabel = data.backtest_years ? data.backtest_years + 'yr' : '1yr';
+  const fsLabel = data.n_features_selected ? ` + Feature Selection (${data.n_features_total}→${data.n_features_selected})` : '';
+  const lgbLabel = data.lightgbm_available ? ' + RF+GB+LGB' : '';
   document.getElementById('meta-method').textContent =
-    data.cross_asset_available ? granLabel + ' + Alt + Cross-Asset + Ensemble ML + Futures' + kellyLabel + confLabel :
-    data.ml_available ? granLabel + ' + Alt Data + Ensemble ML + Futures' + kellyLabel + confLabel :
-    data.alt_data_available ? granLabel + ' + Alt Data' : granLabel;
+    yearsLabel + ' ' + granLabel + ' + Alt + Cross-Asset' + lgbLabel + fsLabel;
 
   // ===== KPI CARDS =====
   let bestName = '', bestReturn = -Infinity;
@@ -117,6 +122,7 @@
   document.getElementById('kpi-alpha').textContent = fmtPct(alpha);
   document.getElementById('kpi-count').textContent = stratNames.length;
 
+  // Count categories
   const catCounts = { technical: 0, alternative: 0, hybrid: 0, ml: 0, ensemble: 0 };
   for (const name of stratNames) {
     const cat = getCategory(name);
@@ -128,7 +134,7 @@
   if (catCounts.hybrid) catParts.push(`${catCounts.hybrid} Hybrid`);
   if (catCounts.ml) catParts.push(`${catCounts.ml} ML`);
   if (catCounts.ensemble) catParts.push(`${catCounts.ensemble} Ensemble`);
-  document.getElementById('kpi-categories-sub').textContent = catParts.join('  \u00b7  ');
+  document.getElementById('kpi-categories-sub').textContent = catParts.join('  ·  ');
 
   // ===== CATEGORY FILTER =====
   let activeFilter = 'all';
@@ -189,7 +195,7 @@
       tr.dataset.strategy = row.name;
 
       const catBadge = `<span class="cat-badge cat-${row.category}">${row.category}</span>`;
-      const pfDisplay = row.pf === Infinity ? '\u221e' : fmt(row.pf, 3);
+      const pfDisplay = row.pf === Infinity ? '∞' : fmt(row.pf, 3);
       const pfClass = row.pf === Infinity ? 'val-pos' : colorVal(row.pf - 1);
 
       const cells = [
@@ -261,10 +267,12 @@
     document.getElementById('detail-title').innerHTML =
       `${name} <span class="cat-badge cat-${cat}">${cat}</span>`;
 
+    // Refit log table
     const refitHead = document.getElementById('refit-thead');
     const refitBody = document.getElementById('refit-tbody');
 
     if (s.refit_log && s.refit_log.length > 0) {
+      // v9 refit log has regime/kelly instead of params
       const firstEntry = s.refit_log[0];
       if (firstEntry.params) {
         const paramKeys = Object.keys(firstEntry.params);
@@ -280,14 +288,15 @@
           refitBody.appendChild(tr);
         }
       } else {
+        // v9-style: regime + kelly
         refitHead.innerHTML = '<th>Date</th><th>Bar</th><th>Regime</th><th>Confidence</th><th>Kelly Long</th><th>Kelly Short</th>';
         refitBody.innerHTML = '';
         for (const r of s.refit_log) {
           const tr = document.createElement('tr');
-          const kl = r.kelly && r.kelly.kelly_long != null ? fmt(r.kelly.kelly_long, 4) : '\u2014';
-          const ks = r.kelly && r.kelly.kelly_short != null ? fmt(r.kelly.kelly_short, 4) : '\u2014';
+          const kl = r.kelly && r.kelly.kelly_long != null ? fmt(r.kelly.kelly_long, 4) : '—';
+          const ks = r.kelly && r.kelly.kelly_short != null ? fmt(r.kelly.kelly_short, 4) : '—';
           tr.innerHTML = `<td>${fmtDateShort(r.date)}</td><td style="text-align:right">${r.bar}</td>` +
-            `<td>${r.regime || '\u2014'}</td><td style="text-align:right">${fmt(r.regime_conf, 2)}</td>` +
+            `<td>${r.regime || '—'}</td><td style="text-align:right">${fmt(r.regime_conf, 2)}</td>` +
             `<td style="text-align:right">${kl}</td><td style="text-align:right">${ks}</td>`;
           refitBody.appendChild(tr);
         }
@@ -297,6 +306,7 @@
       refitBody.innerHTML = '';
     }
 
+    // Exit breakdown doughnut — updated colors for v6 exit types
     if (exitChartInstance) exitChartInstance.destroy();
     const exitCtx = document.getElementById('exit-chart').getContext('2d');
     const eb = s.exit_breakdown || {};
@@ -340,6 +350,7 @@
       }
     });
 
+    // Trade log
     const tradeBody = document.getElementById('trade-tbody');
     tradeBody.innerHTML = '';
     if (s.trades && s.trades.length > 0) {
@@ -376,9 +387,11 @@
   (function () {
     const categories = ['technical', 'alternative', 'hybrid', 'ml', 'ensemble'];
     const catData = {};
+
     for (const cat of categories) {
       catData[cat] = { names: [], returns: [], alphas: [] };
     }
+
     for (const name of stratNames) {
       const s = strategies[name];
       const cat = getCategory(name);
@@ -388,10 +401,12 @@
         catData[cat].alphas.push(s.total_return_pct - s.buy_hold_return_pct);
       }
     }
+
     const allNames = [];
     const allReturns = [];
     const allColors = [];
     const allBorderColors = [];
+
     for (const cat of categories) {
       const cd = catData[cat];
       if (cd.names.length === 0) continue;
@@ -403,6 +418,7 @@
         allBorderColors.push(CAT_COLORS[cat]);
       }
     }
+
     const ctx = document.getElementById('category-chart').getContext('2d');
     new Chart(ctx, {
       type: 'bar',
@@ -433,25 +449,52 @@
           },
           annotation: {
             annotations: {
-              zeroLine: { type: 'line', yMin: 0, yMax: 0, borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1, borderDash: [4, 4] },
+              zeroLine: {
+                type: 'line',
+                yMin: 0, yMax: 0,
+                borderColor: 'rgba(255,255,255,0.15)',
+                borderWidth: 1,
+                borderDash: [4, 4],
+              },
               bhLine: {
-                type: 'line', yMin: bhReturn, yMax: bhReturn,
-                borderColor: 'rgba(255,56,96,0.4)', borderWidth: 1.5, borderDash: [6, 4],
+                type: 'line',
+                yMin: bhReturn, yMax: bhReturn,
+                borderColor: 'rgba(255,56,96,0.4)',
+                borderWidth: 1.5,
+                borderDash: [6, 4],
                 label: {
-                  display: true, content: 'Buy & Hold: ' + fmtPct(bhReturn), position: 'start',
+                  display: true,
+                  content: 'Buy & Hold: ' + fmtPct(bhReturn),
+                  position: 'start',
                   font: { family: "'JetBrains Mono', monospace", size: 9 },
-                  color: 'rgba(255,56,96,0.8)', backgroundColor: 'rgba(12,12,20,0.8)', padding: 4,
+                  color: 'rgba(255,56,96,0.8)',
+                  backgroundColor: 'rgba(12,12,20,0.8)',
+                  padding: 4,
                 }
               }
             }
           }
         },
         scales: {
-          x: { grid: { display: false }, ticks: { font: { family: "'JetBrains Mono', monospace", size: 9 }, maxRotation: 45 } },
+          x: {
+            grid: { display: false },
+            ticks: {
+              font: { family: "'JetBrains Mono', monospace", size: 9 },
+              maxRotation: 45,
+            }
+          },
           y: {
             grid: { color: 'rgba(26,26,46,0.4)' },
-            ticks: { callback: v => v + '%', font: { family: "'JetBrains Mono', monospace", size: 10 } },
-            title: { display: true, text: 'OOS Return %', font: { family: "'JetBrains Mono', monospace", size: 11 }, color: '#6a6a88' }
+            ticks: {
+              callback: v => v + '%',
+              font: { family: "'JetBrains Mono', monospace", size: 10 }
+            },
+            title: {
+              display: true,
+              text: 'OOS Return %',
+              font: { family: "'JetBrains Mono', monospace", size: 11 },
+              color: '#6a6a88'
+            }
           }
         }
       }
@@ -461,49 +504,154 @@
   // ===== VERSION COMPARISON CHART =====
   (function () {
     const allStrats = [...new Set([
-      ...Object.keys(vc.v1_static || {}), ...Object.keys(vc.v2_static || {}),
-      ...Object.keys(vc.v3_oos || {}), ...Object.keys(vc.v4_oos || {}),
-      ...Object.keys(vc.v5_oos || {}), ...Object.keys(vc.v6_oos || {}),
-      ...Object.keys(vc.v7_oos || {}), ...Object.keys(vc.v8_oos || {}),
-      ...Object.keys(vc.v9_oos || {}), ...Object.keys(vc.v10_oos || {}),
+      ...Object.keys(vc.v1_static || {}),
+      ...Object.keys(vc.v2_static || {}),
+      ...Object.keys(vc.v3_oos || {}),
+      ...Object.keys(vc.v4_oos || {}),
+      ...Object.keys(vc.v5_oos || {}),
+      ...Object.keys(vc.v6_oos || {}),
+      ...Object.keys(vc.v7_oos || {}),
+      ...Object.keys(vc.v8_oos || {}),
+      ...Object.keys(vc.v9_oos || {}),
+      ...Object.keys(vc.v10_oos || {}),
+      ...Object.keys(vc.v11_oos || {}).filter(k => k !== 'note'),
     ])];
+
     allStrats.sort((a, b) => {
-      const av = vc.v10_oos?.[a] ?? vc.v9_oos?.[a] ?? vc.v8_oos?.[a] ?? vc.v7_oos?.[a] ?? vc.v6_oos?.[a] ?? vc.v5_oos?.[a] ?? vc.v4_oos?.[a] ?? vc.v3_oos?.[a] ?? -999;
-      const bv = vc.v10_oos?.[b] ?? vc.v9_oos?.[b] ?? vc.v8_oos?.[b] ?? vc.v7_oos?.[b] ?? vc.v6_oos?.[b] ?? vc.v5_oos?.[b] ?? vc.v4_oos?.[b] ?? vc.v3_oos?.[b] ?? -999;
+      const av = vc.v11_oos?.[a] ?? vc.v10_oos?.[a] ?? vc.v9_oos?.[a] ?? vc.v8_oos?.[a] ?? vc.v7_oos?.[a] ?? vc.v6_oos?.[a] ?? vc.v5_oos?.[a] ?? vc.v4_oos?.[a] ?? vc.v3_oos?.[a] ?? -999;
+      const bv = vc.v11_oos?.[b] ?? vc.v10_oos?.[b] ?? vc.v9_oos?.[b] ?? vc.v8_oos?.[b] ?? vc.v7_oos?.[b] ?? vc.v6_oos?.[b] ?? vc.v5_oos?.[b] ?? vc.v4_oos?.[b] ?? vc.v3_oos?.[b] ?? -999;
       return bv - av;
     });
+
     if (allStrats.length === 0) return;
+
     const ctx = document.getElementById('version-chart').getContext('2d');
     new Chart(ctx, {
       type: 'bar',
       data: {
         labels: allStrats,
         datasets: [
-          { label: 'v1 (Static, Overfit)', data: allStrats.map(s => vc.v1_static?.[s] ?? null), backgroundColor: 'rgba(120,120,140,0.5)', borderColor: 'rgba(120,120,140,0.7)', borderWidth: 1, borderRadius: 2 },
-          { label: 'v2 (Risk-Managed)', data: allStrats.map(s => vc.v2_static?.[s] ?? null), backgroundColor: 'rgba(255,208,0,0.5)', borderColor: 'rgba(255,208,0,0.7)', borderWidth: 1, borderRadius: 2 },
-          { label: 'v3 (Rolling OOS)', data: allStrats.map(s => vc.v3_oos?.[s] ?? null), backgroundColor: 'rgba(0,255,163,0.6)', borderColor: 'rgba(0,255,163,0.8)', borderWidth: 1, borderRadius: 2 },
-          { label: 'v4 (+ Alt Data)', data: allStrats.map(s => vc.v4_oos?.[s] ?? null), backgroundColor: 'rgba(168,85,247,0.6)', borderColor: 'rgba(168,85,247,0.8)', borderWidth: 1, borderRadius: 2 },
-          { label: 'v5 (+ ML Signals)', data: allStrats.map(s => vc.v5_oos?.[s] ?? null), backgroundColor: 'rgba(244,63,94,0.6)', borderColor: 'rgba(244,63,94,0.8)', borderWidth: 1, borderRadius: 2 },
-          { label: 'v6 (Ensemble)', data: allStrats.map(s => vc.v6_oos?.[s] ?? null), backgroundColor: 'rgba(0,255,163,0.5)', borderColor: 'rgba(0,255,163,0.7)', borderWidth: 1, borderRadius: 2 },
-          { label: 'v7 (Shorts+DynExit)', data: allStrats.map(s => vc.v7_oos?.[s] ?? null), backgroundColor: 'rgba(34,211,238,0.5)', borderColor: 'rgba(34,211,238,0.7)', borderWidth: 1, borderRadius: 2 },
-          { label: 'v8 (Regime+CrossAsset)', data: allStrats.map(s => vc.v8_oos?.[s] ?? null), backgroundColor: 'rgba(251,191,36,0.6)', borderColor: 'rgba(251,191,36,0.8)', borderWidth: 1, borderRadius: 2 },
-          { label: 'v9 (Hourly+Kelly)', data: allStrats.map(s => vc.v9_oos?.[s] ?? null), backgroundColor: 'rgba(0,255,163,0.6)', borderColor: 'rgba(0,255,163,0.8)', borderWidth: 1, borderRadius: 2 },
-          { label: 'v10 (Confidence+SmartExits)', data: allStrats.map(s => vc.v10_oos?.[s] ?? null), backgroundColor: 'rgba(99,102,241,0.9)', borderColor: 'rgba(99,102,241,1)', borderWidth: 1.5, borderRadius: 2 },
+          {
+            label: 'v1 (Static, Overfit)',
+            data: allStrats.map(s => vc.v1_static?.[s] ?? null),
+            backgroundColor: 'rgba(120,120,140,0.5)',
+            borderColor: 'rgba(120,120,140,0.7)',
+            borderWidth: 1, borderRadius: 2,
+          },
+          {
+            label: 'v2 (Risk-Managed)',
+            data: allStrats.map(s => vc.v2_static?.[s] ?? null),
+            backgroundColor: 'rgba(255,208,0,0.5)',
+            borderColor: 'rgba(255,208,0,0.7)',
+            borderWidth: 1, borderRadius: 2,
+          },
+          {
+            label: 'v3 (Rolling OOS)',
+            data: allStrats.map(s => vc.v3_oos?.[s] ?? null),
+            backgroundColor: 'rgba(0,255,163,0.6)',
+            borderColor: 'rgba(0,255,163,0.8)',
+            borderWidth: 1, borderRadius: 2,
+          },
+          {
+            label: 'v4 (+ Alt Data)',
+            data: allStrats.map(s => vc.v4_oos?.[s] ?? null),
+            backgroundColor: 'rgba(168,85,247,0.6)',
+            borderColor: 'rgba(168,85,247,0.8)',
+            borderWidth: 1, borderRadius: 2,
+          },
+          {
+            label: 'v5 (+ ML Signals)',
+            data: allStrats.map(s => vc.v5_oos?.[s] ?? null),
+            backgroundColor: 'rgba(244,63,94,0.6)',
+            borderColor: 'rgba(244,63,94,0.8)',
+            borderWidth: 1, borderRadius: 2,
+          },
+          {
+            label: 'v6 (Ensemble)',
+            data: allStrats.map(s => vc.v6_oos?.[s] ?? null),
+            backgroundColor: 'rgba(0,255,163,0.5)',
+            borderColor: 'rgba(0,255,163,0.7)',
+            borderWidth: 1, borderRadius: 2,
+          },
+          {
+            label: 'v7 (Shorts+DynExit)',
+            data: allStrats.map(s => vc.v7_oos?.[s] ?? null),
+            backgroundColor: 'rgba(34,211,238,0.5)',
+            borderColor: 'rgba(34,211,238,0.7)',
+            borderWidth: 1, borderRadius: 2,
+          },
+          {
+            label: 'v8 (Regime+CrossAsset)',
+            data: allStrats.map(s => vc.v8_oos?.[s] ?? null),
+            backgroundColor: 'rgba(251,191,36,0.6)',
+            borderColor: 'rgba(251,191,36,0.8)',
+            borderWidth: 1, borderRadius: 2,
+          },
+          {
+            label: 'v9 (Hourly+Kelly)',
+            data: allStrats.map(s => vc.v9_oos?.[s] ?? null),
+            backgroundColor: 'rgba(0,255,163,0.6)',
+            borderColor: 'rgba(0,255,163,0.8)',
+            borderWidth: 1, borderRadius: 2,
+          },
+          {
+            label: 'v10 (Confidence+SmartExits)',
+            data: allStrats.map(s => vc.v10_oos?.[s] ?? null),
+            backgroundColor: 'rgba(99,102,241,0.7)',
+            borderColor: 'rgba(99,102,241,0.9)',
+            borderWidth: 1.5, borderRadius: 2,
+          },
+          {
+            label: 'v11 (FeatSelect+LGB+3yr)',
+            data: allStrats.map(s => typeof vc.v11_oos?.[s] === 'number' ? vc.v11_oos[s] : null),
+            backgroundColor: 'rgba(16,185,129,0.9)',
+            borderColor: 'rgba(16,185,129,1)',
+            borderWidth: 2, borderRadius: 2,
+          },
         ]
       },
       options: {
-        responsive: true, maintainAspectRatio: false,
+        responsive: true,
+        maintainAspectRatio: false,
         plugins: {
           legend: { position: 'top' },
-          tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.raw != null ? fmtPct(ctx.raw) : 'N/A'}` } },
-          annotation: { annotations: { zeroLine: { type: 'line', yMin: 0, yMax: 0, borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1, borderDash: [4, 4] } } }
+          tooltip: {
+            callbacks: {
+              label: ctx => `${ctx.dataset.label}: ${ctx.raw != null ? fmtPct(ctx.raw) : 'N/A'}`
+            }
+          },
+          annotation: {
+            annotations: {
+              zeroLine: {
+                type: 'line',
+                yMin: 0, yMax: 0,
+                borderColor: 'rgba(255,255,255,0.15)',
+                borderWidth: 1,
+                borderDash: [4, 4],
+              }
+            }
+          }
         },
         scales: {
-          x: { grid: { display: false }, ticks: { font: { family: "'JetBrains Mono', monospace", size: 9 }, maxRotation: 45 } },
+          x: {
+            grid: { display: false },
+            ticks: {
+              font: { family: "'JetBrains Mono', monospace", size: 9 },
+              maxRotation: 45,
+            }
+          },
           y: {
             grid: { color: 'rgba(26,26,46,0.4)' },
-            ticks: { callback: v => v + '%', font: { family: "'JetBrains Mono', monospace", size: 10 } },
-            title: { display: true, text: 'Return %', font: { family: "'JetBrains Mono', monospace", size: 11 }, color: '#6a6a88' }
+            ticks: {
+              callback: v => v + '%',
+              font: { family: "'JetBrains Mono', monospace", size: 10 }
+            },
+            title: {
+              display: true,
+              text: 'Return %',
+              font: { family: "'JetBrains Mono', monospace", size: 11 },
+              color: '#6a6a88'
+            }
           }
         }
       }
@@ -512,38 +660,111 @@
 
   // ===== EQUITY CURVES =====
   (function () {
-    const priceData = data.price_data;
-    if (!priceData || priceData.length === 0) return;
-    const startPrice = priceData[0].close;
-    const bhEquity = priceData.map(p => ({ time: p.time, equity: 10000 * (p.close / startPrice) }));
-    const labels = priceData.map(p => {
+    // Build labels and BH equity from the first strategy's equity curve (price data embedded)
+    const firstStrat = strategies[stratNames[0]];
+    if (!firstStrat || !firstStrat.equity_curve || firstStrat.equity_curve.length === 0) return;
+
+    const ecRef = firstStrat.equity_curve;
+    const startPrice = ecRef[0].price;
+
+    const labels = ecRef.map(p => {
       const d = new Date(p.time);
       return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
     });
+
+    const bhEquity = ecRef.map(p => 10000 * (p.price / startPrice));
+
     const datasets = [];
+
     for (const name of stratNames) {
       const s = strategies[name];
       if (!s.equity_curve || s.equity_curve.length === 0) continue;
-      let eqData = s.equity_curve.map(e => e.equity);
-      while (eqData.length < labels.length) { eqData.unshift(10000); }
-      if (eqData.length > labels.length) { eqData = eqData.slice(eqData.length - labels.length); }
-      datasets.push({ label: name, data: eqData, borderColor: getColor(name), backgroundColor: 'transparent', borderWidth: 1.5, pointRadius: 0, pointHitRadius: 4, tension: 0.1 });
+
+      const eqData = s.equity_curve.map(e => e.equity);
+
+      datasets.push({
+        label: name,
+        data: eqData,
+        borderColor: getColor(name),
+        backgroundColor: 'transparent',
+        borderWidth: 1.5,
+        pointRadius: 0,
+        pointHitRadius: 4,
+        tension: 0.1,
+      });
     }
-    datasets.push({ label: 'Buy & Hold', data: bhEquity.map(e => e.equity), borderColor: 'rgba(120,120,140,0.7)', backgroundColor: 'transparent', borderWidth: 2, borderDash: [6, 3], pointRadius: 0, pointHitRadius: 4, tension: 0.1 });
+
+    datasets.push({
+      label: 'Buy & Hold',
+      data: bhEquity,
+      borderColor: 'rgba(120,120,140,0.7)',
+      backgroundColor: 'transparent',
+      borderWidth: 2,
+      borderDash: [6, 3],
+      pointRadius: 0,
+      pointHitRadius: 4,
+      tension: 0.1,
+    });
+
     const ctx = document.getElementById('equity-chart').getContext('2d');
     new Chart(ctx, {
-      type: 'line', data: { labels, datasets },
+      type: 'line',
+      data: { labels, datasets },
       options: {
-        responsive: true, maintainAspectRatio: false,
+        responsive: true,
+        maintainAspectRatio: false,
         interaction: { mode: 'index', intersect: false },
         plugins: {
-          legend: { position: 'top', labels: { font: { family: "'JetBrains Mono', monospace", size: 9 } } },
-          tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${fmtUsd(Math.round(ctx.raw))}` } },
-          annotation: { annotations: { startLine: { type: 'line', yMin: 10000, yMax: 10000, borderColor: 'rgba(255,255,255,0.08)', borderWidth: 1, borderDash: [4, 4], label: { display: true, content: '$10K Start', position: 'end', font: { family: "'JetBrains Mono', monospace", size: 9 }, color: 'rgba(255,255,255,0.3)', backgroundColor: 'transparent' } } } }
+          legend: {
+            position: 'top',
+            labels: { font: { family: "'JetBrains Mono', monospace", size: 9 } }
+          },
+          tooltip: {
+            callbacks: {
+              label: ctx => `${ctx.dataset.label}: ${fmtUsd(Math.round(ctx.raw))}`
+            }
+          },
+          annotation: {
+            annotations: {
+              startLine: {
+                type: 'line',
+                yMin: 10000, yMax: 10000,
+                borderColor: 'rgba(255,255,255,0.08)',
+                borderWidth: 1,
+                borderDash: [4, 4],
+                label: {
+                  display: true,
+                  content: '$10K Start',
+                  position: 'end',
+                  font: { family: "'JetBrains Mono', monospace", size: 9 },
+                  color: 'rgba(255,255,255,0.3)',
+                  backgroundColor: 'transparent',
+                }
+              }
+            }
+          }
         },
         scales: {
-          x: { grid: { display: false }, ticks: { maxTicksLimit: 12, font: { family: "'JetBrains Mono', monospace", size: 10 } } },
-          y: { grid: { color: 'rgba(26,26,46,0.4)' }, ticks: { callback: v => fmtUsd(v), font: { family: "'JetBrains Mono', monospace", size: 10 } }, title: { display: true, text: 'Portfolio Value', font: { family: "'JetBrains Mono', monospace", size: 11 }, color: '#6a6a88' } }
+          x: {
+            grid: { display: false },
+            ticks: {
+              maxTicksLimit: 12,
+              font: { family: "'JetBrains Mono', monospace", size: 10 }
+            }
+          },
+          y: {
+            grid: { color: 'rgba(26,26,46,0.4)' },
+            ticks: {
+              callback: v => fmtUsd(v),
+              font: { family: "'JetBrains Mono', monospace", size: 10 }
+            },
+            title: {
+              display: true,
+              text: 'Portfolio Value',
+              font: { family: "'JetBrains Mono', monospace", size: 11 },
+              color: '#6a6a88'
+            }
+          }
         }
       }
     });
@@ -553,26 +774,49 @@
   (function () {
     const scatterData = stratNames.map(name => {
       const s = strategies[name];
-      return { x: s.max_drawdown_pct, y: s.total_return_pct, label: name, category: getCategory(name) };
+      return {
+        x: s.max_drawdown_pct,
+        y: s.total_return_pct,
+        label: name,
+        category: getCategory(name),
+      };
     });
-    const priceData = data.price_data;
-    if (!priceData || priceData.length === 0) return;
-    const startPrice = priceData[0].close;
-    let peak = startPrice; let maxDD = 0;
-    for (const p of priceData) {
-      if (p.close > peak) peak = p.close;
-      const dd = (peak - p.close) / peak * 100;
+
+    // Compute BH max drawdown from equity curve price data
+    const firstStrat2 = strategies[stratNames[0]];
+    const ecRef2 = firstStrat2 && firstStrat2.equity_curve ? firstStrat2.equity_curve : [];
+    if (ecRef2.length === 0) return;
+
+    const startPrice2 = ecRef2[0].price;
+    let peak = startPrice2;
+    let maxDD = 0;
+    for (const p of ecRef2) {
+      if (p.price > peak) peak = p.price;
+      const dd = (peak - p.price) / peak * 100;
       if (dd > maxDD) maxDD = dd;
     }
-    scatterData.push({ x: maxDD, y: bhReturn, label: 'Buy & Hold', category: 'benchmark' });
+
+    scatterData.push({
+      x: maxDD,
+      y: bhReturn,
+      label: 'Buy & Hold',
+      category: 'benchmark',
+    });
+
     const ctx = document.getElementById('scatter-chart').getContext('2d');
     new Chart(ctx, {
       type: 'scatter',
       data: {
         datasets: [{
           data: scatterData.map(d => ({ x: d.x, y: d.y })),
-          backgroundColor: scatterData.map(d => d.label === 'Buy & Hold' ? 'rgba(120,120,140,0.8)' : CAT_COLORS[d.category] || '#8888a8'),
-          borderColor: scatterData.map(d => d.label === 'Buy & Hold' ? 'rgba(120,120,140,1)' : CAT_COLORS[d.category] || '#8888a8'),
+          backgroundColor: scatterData.map(d => {
+            if (d.label === 'Buy & Hold') return 'rgba(120,120,140,0.8)';
+            return CAT_COLORS[d.category] || '#8888a8';
+          }),
+          borderColor: scatterData.map(d => {
+            if (d.label === 'Buy & Hold') return 'rgba(120,120,140,1)';
+            return CAT_COLORS[d.category] || '#8888a8';
+          }),
           borderWidth: 2,
           pointRadius: scatterData.map(d => d.label === 'Buy & Hold' ? 8 : 7),
           pointStyle: scatterData.map(d => {
@@ -587,15 +831,58 @@
         }]
       },
       options: {
-        responsive: true, maintainAspectRatio: false,
+        responsive: true,
+        maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
-          tooltip: { callbacks: { label: ctx => { const d = scatterData[ctx.dataIndex]; return `${d.label} [${d.category}]: Return ${fmtPct(d.y)}, Max DD -${fmt(d.x)}%`; } } },
-          annotation: { annotations: { zeroLine: { type: 'line', yMin: 0, yMax: 0, borderColor: 'rgba(255,255,255,0.12)', borderWidth: 1, borderDash: [4, 4] } } },
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const d = scatterData[ctx.dataIndex];
+                return `${d.label} [${d.category}]: Return ${fmtPct(d.y)}, Max DD -${fmt(d.x)}%`;
+              }
+            }
+          },
+          annotation: {
+            annotations: {
+              zeroLine: {
+                type: 'line',
+                yMin: 0, yMax: 0,
+                borderColor: 'rgba(255,255,255,0.12)',
+                borderWidth: 1,
+                borderDash: [4, 4],
+              }
+            }
+          },
         },
         scales: {
-          x: { reverse: false, grid: { color: 'rgba(26,26,46,0.4)' }, ticks: { callback: v => '-' + v + '%', font: { family: "'JetBrains Mono', monospace", size: 10 } }, title: { display: true, text: 'Max Drawdown %', font: { family: "'JetBrains Mono', monospace", size: 11 }, color: '#6a6a88' } },
-          y: { grid: { color: 'rgba(26,26,46,0.4)' }, ticks: { callback: v => v + '%', font: { family: "'JetBrains Mono', monospace", size: 10 } }, title: { display: true, text: 'OOS Return %', font: { family: "'JetBrains Mono', monospace", size: 11 }, color: '#6a6a88' } }
+          x: {
+            reverse: false,
+            grid: { color: 'rgba(26,26,46,0.4)' },
+            ticks: {
+              callback: v => '-' + v + '%',
+              font: { family: "'JetBrains Mono', monospace", size: 10 }
+            },
+            title: {
+              display: true,
+              text: 'Max Drawdown %',
+              font: { family: "'JetBrains Mono', monospace", size: 11 },
+              color: '#6a6a88'
+            }
+          },
+          y: {
+            grid: { color: 'rgba(26,26,46,0.4)' },
+            ticks: {
+              callback: v => v + '%',
+              font: { family: "'JetBrains Mono', monospace", size: 10 }
+            },
+            title: {
+              display: true,
+              text: 'OOS Return %',
+              font: { family: "'JetBrains Mono', monospace", size: 11 },
+              color: '#6a6a88'
+            }
+          }
         }
       },
       plugins: [{
@@ -605,17 +892,29 @@
           ctx.save();
           ctx.font = "500 9px 'JetBrains Mono', monospace";
           ctx.textAlign = 'center';
+
           const meta = chart.getDatasetMeta(0);
           const positions = [];
+
           meta.data.forEach((point, i) => {
             const d = scatterData[i];
-            let labelX = point.x; let labelY = point.y - 14;
+            let labelX = point.x;
+            let labelY = point.y - 14;
+
             for (const pos of positions) {
-              const dx = Math.abs(labelX - pos.x); const dy = Math.abs(labelY - pos.y);
-              if (dx < 70 && dy < 12) { labelY = pos.y - 13; }
+              const dx = Math.abs(labelX - pos.x);
+              const dy = Math.abs(labelY - pos.y);
+              if (dx < 70 && dy < 12) {
+                labelY = pos.y - 13;
+              }
             }
             positions.push({ x: labelX, y: labelY });
-            ctx.fillStyle = d.label === 'Buy & Hold' ? 'rgba(120,120,140,0.9)' : CAT_COLORS[d.category] || '#8888a8';
+
+            if (d.label === 'Buy & Hold') {
+              ctx.fillStyle = 'rgba(120,120,140,0.9)';
+            } else {
+              ctx.fillStyle = CAT_COLORS[d.category] || '#8888a8';
+            }
             ctx.fillText(d.label, labelX, labelY);
           });
           ctx.restore();
@@ -624,50 +923,85 @@
     });
   })();
 
-  // ===== ENSEMBLE FEATURE IMPORTANCE CHART =====
+  // ===== FEATURE SELECTION SCORES CHART =====
   (function () {
     const featureCanvas = document.getElementById('feature-chart');
     if (!featureCanvas) return;
-    const featureScores = {};
-    let sampleCount = 0;
-    for (const name of stratNames) {
-      const s = strategies[name];
-      if (s.category !== 'ensemble' && s.category !== 'ml') continue;
-      if (!s.feature_importance || s.feature_importance.length === 0) continue;
-      for (const entry of s.feature_importance) {
-        if (!entry.top_features) continue;
-        sampleCount++;
-        for (const [feat, score] of Object.entries(entry.top_features)) {
-          featureScores[feat] = (featureScores[feat] || 0) + score;
-        }
-      }
-    }
-    if (sampleCount === 0 || Object.keys(featureScores).length === 0) {
-      const section = featureCanvas.closest('.chart-card') || featureCanvas.closest('section');
+
+    // v11: feature_scores is at top level of BACKTEST_DATA
+    const featureScores = data.feature_scores;
+    if (!featureScores || Object.keys(featureScores).length === 0) {
+      // Fallback: try old per-strategy feature importance
+      const section = featureCanvas.closest('section');
       if (section) section.style.display = 'none';
       return;
     }
+
     const sorted = Object.entries(featureScores)
-      .map(([feat, score]) => ({ feat, score: score / sampleCount }))
-      .sort((a, b) => b.score - a.score).slice(0, 15);
+      .map(([feat, score]) => ({ feat, score }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 20);
+
     const labels = sorted.map(d => d.feat).reverse();
     const values = sorted.map(d => d.score).reverse();
+
+    // Green gradient for ensemble (instead of rose for ML)
     const barColors = values.map((v, i) => {
       const t = i / (values.length - 1 || 1);
-      const g = Math.round(160 + t * 95); const b = Math.round(100 + t * 63);
-      return `rgba(0,${g},${b},0.8)`;
+      const r = Math.round(0 + t * 0);
+      const g = Math.round(160 + t * 95);
+      const b = Math.round(100 + t * 63);
+      return `rgba(${r},${g},${b},0.8)`;
     });
     const borderColors = barColors.map(c => c.replace('0.8)', '1)'));
+
     const ctx = featureCanvas.getContext('2d');
     new Chart(ctx, {
       type: 'bar',
-      data: { labels, datasets: [{ label: 'Avg Importance', data: values, backgroundColor: barColors, borderColor: borderColors, borderWidth: 1, borderRadius: 3 }] },
+      data: {
+        labels,
+        datasets: [{
+          label: 'MI + Importance Score',
+          data: values,
+          backgroundColor: barColors,
+          borderColor: borderColors,
+          borderWidth: 1,
+          borderRadius: 3,
+        }]
+      },
       options: {
-        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => `Importance: ${ctx.raw.toFixed(4)}` } } },
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: ctx => `Score: ${ctx.raw.toFixed(4)}`
+            }
+          }
+        },
         scales: {
-          x: { grid: { color: 'rgba(26,26,46,0.4)' }, ticks: { callback: v => v.toFixed(2), font: { family: "'JetBrains Mono', monospace", size: 10 } }, title: { display: true, text: 'Avg Feature Importance', font: { family: "'JetBrains Mono', monospace", size: 11 }, color: '#6a6a88' } },
-          y: { grid: { display: false }, ticks: { font: { family: "'JetBrains Mono', monospace", size: 10 }, color: '#b0b0cc' } }
+          x: {
+            grid: { color: 'rgba(26,26,46,0.4)' },
+            ticks: {
+              callback: v => v.toFixed(2),
+              font: { family: "'JetBrains Mono', monospace", size: 10 }
+            },
+            title: {
+              display: true,
+              text: 'Combined MI + Importance Score',
+              font: { family: "'JetBrains Mono', monospace", size: 11 },
+              color: '#6a6a88'
+            }
+          },
+          y: {
+            grid: { display: false },
+            ticks: {
+              font: { family: "'JetBrains Mono', monospace", size: 10 },
+              color: '#b0b0cc',
+            }
+          }
         }
       }
     });
