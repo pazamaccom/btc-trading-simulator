@@ -1,4 +1,4 @@
-// ===== BTC Trading Simulator v11 Dashboard =====
+// ===== BTC Trading Simulator v12 Dashboard =====
 // All data from data.js globals: BACKTEST_DATA, VERSION_COMPARISON
 
 (function () {
@@ -80,6 +80,10 @@
     'Ensemble Balanced': '#00ffa3',
     'Ensemble Aggressive': '#22d3ee',
     'Ensemble Conservative': '#fbbf24',
+    // Regime (v12 — same color family)
+    'Regime Balanced': '#00ffa3',
+    'Regime Aggressive': '#22d3ee',
+    'Regime Conservative': '#fbbf24',
   };
 
   const CAT_COLORS = {
@@ -99,7 +103,7 @@
   document.getElementById('meta-price-range').textContent = fmtUsd(data.price_range.min) + ' — ' + fmtUsd(data.price_range.max);
   const granLabel = data.granularity === '1h' ? '1h Candles' : 'Daily Candles';
   const yearsLabel = data.backtest_years ? data.backtest_years + 'yr' : '1yr';
-  const fsLabel = data.n_features_selected ? ` + Feature Selection (${data.n_features_total}→${data.n_features_selected})` : '';
+  const fsLabel = data.n_features_selected ? ` + Feature Selection (${data.n_features_total}\u2192${data.n_features_selected})` : '';
   const lgbLabel = data.lightgbm_available ? ' + RF+GB+LGB' : '';
   document.getElementById('meta-method').textContent =
     yearsLabel + ' ' + granLabel + ' + Alt + Cross-Asset' + lgbLabel + fsLabel;
@@ -515,11 +519,12 @@
       ...Object.keys(vc.v9_oos || {}),
       ...Object.keys(vc.v10_oos || {}),
       ...Object.keys(vc.v11_oos || {}).filter(k => k !== 'note'),
+      ...Object.keys(vc.v12_oos || {}).filter(k => k !== 'note'),
     ])];
 
     allStrats.sort((a, b) => {
-      const av = vc.v11_oos?.[a] ?? vc.v10_oos?.[a] ?? vc.v9_oos?.[a] ?? vc.v8_oos?.[a] ?? vc.v7_oos?.[a] ?? vc.v6_oos?.[a] ?? vc.v5_oos?.[a] ?? vc.v4_oos?.[a] ?? vc.v3_oos?.[a] ?? -999;
-      const bv = vc.v11_oos?.[b] ?? vc.v10_oos?.[b] ?? vc.v9_oos?.[b] ?? vc.v8_oos?.[b] ?? vc.v7_oos?.[b] ?? vc.v6_oos?.[b] ?? vc.v5_oos?.[b] ?? vc.v4_oos?.[b] ?? vc.v3_oos?.[b] ?? -999;
+      const av = vc.v12_oos?.[a] ?? vc.v11_oos?.[a] ?? vc.v10_oos?.[a] ?? vc.v9_oos?.[a] ?? vc.v8_oos?.[a] ?? vc.v7_oos?.[a] ?? vc.v6_oos?.[a] ?? vc.v5_oos?.[a] ?? vc.v4_oos?.[a] ?? vc.v3_oos?.[a] ?? -999;
+      const bv = vc.v12_oos?.[b] ?? vc.v11_oos?.[b] ?? vc.v10_oos?.[b] ?? vc.v9_oos?.[b] ?? vc.v8_oos?.[b] ?? vc.v7_oos?.[b] ?? vc.v6_oos?.[b] ?? vc.v5_oos?.[b] ?? vc.v4_oos?.[b] ?? vc.v3_oos?.[b] ?? -999;
       return bv - av;
     });
 
@@ -604,8 +609,15 @@
           {
             label: 'v11 (FeatSelect+LGB+3yr)',
             data: allStrats.map(s => typeof vc.v11_oos?.[s] === 'number' ? vc.v11_oos[s] : null),
-            backgroundColor: 'rgba(16,185,129,0.9)',
-            borderColor: 'rgba(16,185,129,1)',
+            backgroundColor: 'rgba(16,185,129,0.7)',
+            borderColor: 'rgba(16,185,129,0.9)',
+            borderWidth: 1.5, borderRadius: 2,
+          },
+          {
+            label: 'v12 (Regime-Aware+Risk)',
+            data: allStrats.map(s => typeof vc.v12_oos?.[s] === 'number' ? vc.v12_oos[s] : null),
+            backgroundColor: 'rgba(245,158,11,0.9)',
+            borderColor: 'rgba(245,158,11,1)',
             borderWidth: 2, borderRadius: 2,
           },
         ]

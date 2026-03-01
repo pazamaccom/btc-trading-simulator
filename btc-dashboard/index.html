@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BTC Trading Simulator v11</title>
+  <title>BTC Trading Simulator v12</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -17,8 +17,8 @@
   <header id="header">
     <div class="header-top">
       <div class="header-title-group">
-        <h1 class="header-title">BTC Trading Simulator <span class="version-tag">v11</span></h1>
-        <p class="header-subtitle">3-Year Backtest &nbsp;|&nbsp; Feature Selection (89→35) &nbsp;|&nbsp; RF+GB+LightGBM Ensemble &nbsp;|&nbsp; 100% OOS</p>
+        <h1 class="header-title">BTC Trading Simulator <span class="version-tag">v12</span></h1>
+        <p class="header-subtitle">3-Year Backtest &nbsp;|&nbsp; Regime-Aware Model &nbsp;|&nbsp; RF+GB+LightGBM Ensemble &nbsp;|&nbsp; 100% OOS</p>
       </div>
       <div class="oos-badge">ALL RESULTS OUT-OF-SAMPLE</div>
     </div>
@@ -175,7 +175,7 @@
     <section id="feature-section">
       <div class="section-header">
         <h2 class="section-title">Feature Selection Scores</h2>
-        <span class="section-hint">MI + RF importance combined — 89 candidates pruned to top 35</span>
+        <span class="section-hint">Regime-aware features — MI + RF importance combined</span>
       </div>
       <div class="chart-container chart-md">
         <canvas id="feature-chart"></canvas>
@@ -186,7 +186,7 @@
     <section id="version-section">
       <div class="section-header">
         <h2 class="section-title">Version Comparison</h2>
-        <span class="section-hint">v6→v10: 1yr &nbsp;|&nbsp; v11: 3yr &nbsp;|&nbsp; v9: Hourly+Kelly &nbsp;|&nbsp; v10: Confidence+SmartExits &nbsp;|&nbsp; v11: FeatureSelect+LightGBM+3yr</span>
+        <span class="section-hint">v6→v10: 1yr &nbsp;|&nbsp; v11-v12: 3yr &nbsp;|&nbsp; v12: Regime-Aware+Regime Risk</span>
       </div>
       <div class="chart-container chart-md">
         <canvas id="version-chart"></canvas>
@@ -217,7 +217,7 @@
   </main>
 
   <footer>
-    <p>BTC Trading Simulator v11 &mdash; Feature Selection + LightGBM + 3-Year Backtest + Confidence Filter + Kelly Sizing &mdash; Data is for educational purposes only</p>
+    <p>BTC Trading Simulator v12 &mdash; Regime-Aware Unified Model + Regime-Specific Risk &mdash; 3yr Backtest &mdash; Data is for educational purposes only</p>
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
