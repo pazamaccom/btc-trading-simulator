@@ -1,1 +1,65 @@
-__FILE_CONTENT_PLACEHOLDER__
+// BTC Trading Simulator v11 — Dashboard Data (generated)
+// 3yr backtest, Feature Selection (89→35), RF+GB+LightGBM ensemble
+
+const BACKTEST_DATA = {
+  "version": "v11",
+  "method": "rolling_walk_forward",
+  "granularity": "1h",
+  "lookback_days": 90,
+  "lookback_candles": 2160,
+  "refit_interval_candles": 720,
+  "total_candles": 28432,
+  "backtest_years": 3,
+  "date_range": {
+    "full_data_start": "2022-12-02 19:00:00",
+    "oos_start": "2023-03-02 19:00:00",
+    "end": "2026-03-01 18:00:00"
+  },
+  "price_range": {
+    "min": 16273.4,
+    "max": 126296.0
+  },
+  "alt_data_available": true,
+  "cross_asset_available": true,
+  "ml_available": true,
+  "lightgbm_available": true,
+  "n_features_total": 89,
+  "n_features_selected": 35,
+  "selected_features": [
+    "eth_btc_sma20_dist",
+    "eth_btc_ratio",
+    "sp500_ret_10",
+    "btc_sp500_corr_20",
+    "eth_btc_change_10",
+    "sp500_sma20_dist",
+    "btc_dxy_corr_20",
+    "gold_ret_10",
+    "dxy_ret_10",
+    "txvol_change_7",
+    "hr_change_7",
+    "fng",
+    "fng_sma10",
+    "dxy_sma20_dist",
+    "eth_btc_change_5",
+    "aa_change_7",
+    "fng_sma5",
+    "bb_position",
+    "dxy_ret_5",
+    "gold_ret_5",
+    "session_return_12h",
+    "macd_signal",
+    "return_10d",
+    "volatility_20d",
+    "sp500_ret_5",
+    "fng_change5",
+    "ema10_slope",
+    "roc_10",
+    "stoch_d",
+    "atr_pct",
+    "price_vs_sma50",
+    "intraday_range",
+    "lower_low",
+    "rsi_21",
+    "intraday_range_sma"
+  ]
+};
