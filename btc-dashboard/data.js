@@ -1,17 +1,18 @@
-// BTC Trading Simulator v8 — Summary Data (generated, large arrays stripped)
-// Original: 532,681 bytes → Summary: 6,988 bytes
-// Stripped: trades, equity_curve, price_data, refit_log, feature_importance
+// BTC Trading Simulator v9 — Summary Data (generated, large arrays stripped)
+// Stripped: trades, equity_curve, price_data, refit_log
 
 const BACKTEST_DATA = {
-  "version": "v8",
+  "version": "v9",
   "method": "rolling_walk_forward",
+  "granularity": "1h",
   "lookback_days": 90,
-  "refit_interval_days": 15,
-  "total_candles": 1408,
+  "lookback_candles": 2160,
+  "refit_interval_candles": 720,
+  "total_candles": 10915,
   "date_range": {
-    "full_data_start": "2024-12-01 00:00:00",
-    "oos_start": "2024-12-30 00:00:00",
-    "end": "2026-02-28 00:00:00"
+    "full_data_start": "2024-12-01 09:00:00",
+    "oos_start": "2025-03-01 09:00:00",
+    "end": "2026-03-01 08:00:00"
   },
   "price_range": {
     "min": 60001.0,
@@ -19,268 +20,126 @@ const BACKTEST_DATA = {
   },
   "alt_data_available": true,
   "cross_asset_available": true,
-  "cross_asset_cols": [
-    "ca_sp500",
-    "ca_dxy",
-    "ca_gold",
-    "ca_eth",
-    "ca_eth_btc_ratio"
-  ],
   "ml_available": true,
-  "v8_features": [
+  "v9_features": [
+    "hourly_candles",
+    "kelly_position_sizing",
     "regime_classifier",
     "cross_asset_features",
-    "enhanced_feature_engineering",
-    "regime_gated_entries",
-    "regime_based_exits",
-    "risk_on_off_score"
+    "hour_of_day_cyclical"
   ],
   "strategies": {
-    "MA Crossover": {
-      "initial_capital": 10000,
-      "final_value": 9327.2,
-      "total_return_pct": -6.73,
-      "buy_hold_return_pct": -28.94,
-      "oos_period": {
-        "start": "2024-12-30 00:00:00",
-        "end": "2026-02-28 00:00:00",
-        "days": 1318
-      },
-      "num_trades": 11,
-      "win_rate_pct": 27.27,
-      "avg_win_pct": 0.98,
-      "avg_loss_pct": -3.02,
-      "max_drawdown_pct": 8.65,
-      "sharpe_ratio": -0.886,
-      "sortino_ratio": -0.231,
-      "calmar_ratio": -0.778,
-      "profit_factor": 0.143,
-      "exit_breakdown": {
-        "stop_loss": 2,
-        "take_profit": 0,
-        "signal": 2,
-        "trailing_stop": 7,
-        "close": 0
-      },
-      "num_refits": 72,
-      "category": "technical"
-    },
-    "Mempool Pressure": {
-      "initial_capital": 10000,
-      "final_value": 9059.24,
-      "total_return_pct": -9.41,
-      "buy_hold_return_pct": -28.94,
-      "oos_period": {
-        "start": "2024-12-30 00:00:00",
-        "end": "2026-02-28 00:00:00",
-        "days": 1318
-      },
-      "num_trades": 24,
-      "win_rate_pct": 41.67,
-      "avg_win_pct": 1.59,
-      "avg_loss_pct": -3.06,
-      "max_drawdown_pct": 10.66,
-      "sharpe_ratio": -0.822,
-      "sortino_ratio": -0.33,
-      "calmar_ratio": -0.883,
-      "profit_factor": 0.388,
-      "exit_breakdown": {
-        "stop_loss": 4,
-        "take_profit": 0,
-        "signal": 7,
-        "trailing_stop": 13,
-        "close": 0
-      },
-      "num_refits": 101,
-      "category": "alternative"
-    },
     "Ensemble Balanced": {
       "initial_capital": 10000,
-      "final_value": 9847.8,
-      "total_return_pct": -1.52,
-      "buy_hold_return_pct": -28.94,
-      "oos_period": {
-        "start": "2024-12-30 00:00:00",
-        "end": "2026-02-28 00:00:00",
-        "days": 1318
-      },
-      "num_trades": 30,
-      "win_rate_pct": 43.33,
-      "avg_win_pct": 3.57,
-      "avg_loss_pct": -2.59,
-      "max_drawdown_pct": 4.65,
-      "sharpe_ratio": -0.159,
-      "sortino_ratio": -0.057,
-      "calmar_ratio": -0.327,
-      "profit_factor": 0.883,
-      "long_trades": 10,
-      "short_trades": 20,
-      "long_win_rate": 20.0,
-      "short_win_rate": 55.0,
-      "long_pnl": -493.36,
-      "short_pnl": 372.21,
-      "short_stats": {
-        "attempted": 45,
-        "entered": 20,
-        "blocked_adx": 0,
-        "blocked_regime": 25,
-        "blocked_cooldown": 2
-      },
-      "long_stats": {
-        "attempted": 39,
-        "entered": 10,
-        "blocked_regime": 29,
-        "blocked_cooldown": 0
-      },
-      "regime_counts": {
-        "bull": 514,
-        "bear": 593,
-        "sideways": 211
-      },
-      "exit_breakdown": {
-        "stop_loss": 2,
-        "take_profit": 3,
-        "signal": 1,
-        "trailing_stop": 9,
-        "time_exit": 7,
-        "close": 1,
-        "regime_exit": 7
-      },
-      "num_refits": 88,
-      "v8_features": [
-        "regime_classifier",
-        "cross_asset_features",
-        "enhanced_feature_eng",
-        "regime_gated_entries",
-        "regime_based_exits"
+      "final_value": 9294.93,
+      "total_return_pct": -7.05,
+      "buy_hold_return_pct": -21.31,
+      "oos_period": {"start": "2025-03-01 09:00:00", "end": "2026-03-01 08:00:00", "days": 364, "bars": 8755},
+      "num_trades": 69,
+      "win_rate_pct": 34.78,
+      "avg_win_pct": 1.32,
+      "avg_loss_pct": -1.02,
+      "max_drawdown_pct": 14.6,
+      "sharpe_ratio": -0.484,
+      "sortino_ratio": -0.148,
+      "calmar_ratio": -0.483,
+      "profit_factor": 0.785,
+      "long_trades": 0,
+      "short_trades": 69,
+      "long_win_rate": 0,
+      "short_win_rate": 34.78,
+      "long_pnl": 0,
+      "short_pnl": -705.06,
+      "short_stats": {"attempted": 77, "entered": 69, "blocked_adx": 0, "blocked_regime": 8, "blocked_cooldown": 13},
+      "long_stats": {"attempted": 1, "entered": 0, "blocked_regime": 1, "blocked_cooldown": 0},
+      "regime_counts": {"bull": 2761, "bear": 3475, "sideways": 2519},
+      "kelly_final": {"trades": 69, "kelly_long": 0.005, "kelly_short": 0.005},
+      "exit_breakdown": {"stop_loss": 18, "take_profit": 8, "signal": 0, "trailing_stop": 43, "time_exit": 0, "close": 0, "regime_exit": 0},
+      "num_refits": 13,
+      "feature_importance": [
+        {"bar": 9360, "date": "2025-12-26 14:00:00", "top_features": {"eth_btc_ratio": 0.1204, "hour_cos": 0.0997, "sp500_sma20_dist": 0.0925, "eth_btc_sma20_dist": 0.0912, "intraday_range": 0.0423, "volume_ratio_10": 0.0387, "return_1d": 0.0321, "volatility_10d": 0.032, "txvol_ratio_14": 0.0236, "roc_accel_5_10": 0.0231}},
+        {"bar": 10080, "date": "2026-01-25 14:00:00", "top_features": {"eth_btc_ratio": 0.1565, "eth_btc_sma20_dist": 0.0737, "hour_cos": 0.0577, "intraday_range": 0.0566, "sp500_sma20_dist": 0.0505, "macd_signal": 0.0496, "volatility_10d": 0.0407, "txvol_ratio_14": 0.0374, "volatility_20d": 0.0282, "roc_accel_5_10": 0.026}},
+        {"bar": 10800, "date": "2026-02-24 14:00:00", "top_features": {"eth_btc_ratio": 0.1049, "eth_btc_sma20_dist": 0.0792, "intraday_range": 0.0708, "volatility_10d": 0.0614, "hour_cos": 0.06, "macd_signal": 0.0516, "atr_pct": 0.0468, "sp500_sma20_dist": 0.0452, "volume_ratio_10": 0.0415, "adx": 0.0218}}
       ],
+      "v9_features": ["hourly_candles", "kelly_position_sizing", "regime_classifier", "cross_asset_features", "hour_of_day_cyclical", "session_momentum"],
       "category": "ensemble"
     },
     "Ensemble Aggressive": {
       "initial_capital": 10000,
-      "final_value": 8571.67,
-      "total_return_pct": -14.28,
-      "buy_hold_return_pct": -28.94,
-      "oos_period": {
-        "start": "2024-12-30 00:00:00",
-        "end": "2026-02-28 00:00:00",
-        "days": 1318
-      },
-      "num_trades": 56,
-      "win_rate_pct": 33.93,
-      "avg_win_pct": 2.45,
-      "avg_loss_pct": -2.36,
-      "max_drawdown_pct": 16.97,
-      "sharpe_ratio": -1.189,
-      "sortino_ratio": -0.5,
-      "calmar_ratio": -0.842,
-      "profit_factor": 0.436,
-      "long_trades": 16,
-      "short_trades": 40,
-      "long_win_rate": 31.25,
-      "short_win_rate": 35.0,
-      "long_pnl": -496.23,
-      "short_pnl": -891.19,
-      "short_stats": {
-        "attempted": 69,
-        "entered": 40,
-        "blocked_adx": 0,
-        "blocked_regime": 29,
-        "blocked_cooldown": 0
-      },
-      "long_stats": {
-        "attempted": 45,
-        "entered": 16,
-        "blocked_regime": 29,
-        "blocked_cooldown": 0
-      },
-      "regime_counts": {
-        "bull": 514,
-        "bear": 593,
-        "sideways": 211
-      },
-      "exit_breakdown": {
-        "stop_loss": 5,
-        "take_profit": 1,
-        "signal": 6,
-        "trailing_stop": 14,
-        "time_exit": 18,
-        "close": 1,
-        "regime_exit": 11
-      },
-      "num_refits": 132,
-      "v8_features": [
-        "regime_classifier",
-        "cross_asset_features",
-        "enhanced_feature_eng",
-        "regime_gated_entries",
-        "regime_based_exits"
+      "final_value": 9284.57,
+      "total_return_pct": -7.15,
+      "buy_hold_return_pct": -21.31,
+      "oos_period": {"start": "2025-03-01 09:00:00", "end": "2026-03-01 08:00:00", "days": 364, "bars": 8755},
+      "num_trades": 101,
+      "win_rate_pct": 38.61,
+      "avg_win_pct": 0.91,
+      "avg_loss_pct": -0.77,
+      "max_drawdown_pct": 9.21,
+      "sharpe_ratio": -1.3,
+      "sortino_ratio": -0.564,
+      "calmar_ratio": -0.777,
+      "profit_factor": 0.744,
+      "long_trades": 8,
+      "short_trades": 93,
+      "long_win_rate": 25.0,
+      "short_win_rate": 39.78,
+      "long_pnl": -35.64,
+      "short_pnl": -639.85,
+      "short_stats": {"attempted": 93, "entered": 93, "blocked_adx": 0, "blocked_regime": 0, "blocked_cooldown": 6},
+      "long_stats": {"attempted": 12, "entered": 8, "blocked_regime": 4, "blocked_cooldown": 0},
+      "regime_counts": {"bull": 2761, "bear": 3475, "sideways": 2519},
+      "kelly_final": {"trades": 101, "kelly_long": 0.005, "kelly_short": 0.005},
+      "exit_breakdown": {"stop_loss": 9, "take_profit": 7, "signal": 1, "trailing_stop": 84, "time_exit": 0, "close": 0, "regime_exit": 0},
+      "num_refits": 37,
+      "feature_importance": [
+        {"bar": 10320, "date": "2026-02-04 14:00:00", "top_features": {"intraday_range": 0.1365, "eth_btc_ratio": 0.0782, "volume_ratio_10": 0.069, "volume_ratio_20": 0.0496, "eth_btc_sma20_dist": 0.0478, "btc_sp500_corr_20": 0.0462, "price_vs_sma10": 0.0247, "return_3d": 0.0215, "ema20_slope": 0.0194, "session_return": 0.019}},
+        {"bar": 10560, "date": "2026-02-14 14:00:00", "top_features": {"intraday_range": 0.1325, "volume_ratio_10": 0.0735, "eth_btc_ratio": 0.0634, "eth_btc_sma20_dist": 0.0419, "eth_btc_change_10": 0.0417, "volume_ratio_20": 0.036, "roc_20": 0.0269, "volatility_10d": 0.0259, "btc_sp500_corr_20": 0.023, "dxy_sma20_dist": 0.0198}},
+        {"bar": 10800, "date": "2026-02-24 14:00:00", "top_features": {"intraday_range": 0.148, "volume_ratio_10": 0.0756, "eth_btc_ratio": 0.0669, "eth_btc_sma20_dist": 0.0458, "volatility_10d": 0.039, "volume_ratio_20": 0.0388, "return_1d": 0.0234, "hour_cos": 0.0231, "price_vs_sma5": 0.0216, "intraday_range_sma": 0.0213}}
       ],
+      "v9_features": ["hourly_candles", "kelly_position_sizing", "regime_classifier", "cross_asset_features", "hour_of_day_cyclical", "session_momentum"],
       "category": "ensemble"
     },
     "Ensemble Conservative": {
       "initial_capital": 10000,
-      "final_value": 10393.09,
-      "total_return_pct": 3.93,
-      "buy_hold_return_pct": -28.94,
-      "oos_period": {
-        "start": "2024-12-30 00:00:00",
-        "end": "2026-02-28 00:00:00",
-        "days": 1318
-      },
-      "num_trades": 14,
-      "win_rate_pct": 50.0,
-      "avg_win_pct": 3.85,
-      "avg_loss_pct": -2.83,
-      "max_drawdown_pct": 3.23,
-      "sharpe_ratio": 0.543,
-      "sortino_ratio": 0.251,
-      "calmar_ratio": 1.217,
-      "profit_factor": 2.037,
-      "long_trades": 3,
-      "short_trades": 11,
-      "long_win_rate": 66.67,
-      "short_win_rate": 45.45,
-      "long_pnl": 341.78,
-      "short_pnl": 60.93,
-      "short_stats": {
-        "attempted": 22,
-        "entered": 11,
-        "blocked_adx": 0,
-        "blocked_regime": 11,
-        "blocked_cooldown": 2
-      },
-      "long_stats": {
-        "attempted": 3,
-        "entered": 3,
-        "blocked_regime": 0,
-        "blocked_cooldown": 0
-      },
-      "regime_counts": {
-        "bull": 514,
-        "bear": 593,
-        "sideways": 211
-      },
-      "exit_breakdown": {
-        "stop_loss": 1,
-        "take_profit": 1,
-        "signal": 0,
-        "trailing_stop": 1,
-        "time_exit": 7,
-        "close": 0,
-        "regime_exit": 4
-      },
-      "num_refits": 66,
-      "v8_features": [
-        "regime_classifier",
-        "cross_asset_features",
-        "enhanced_feature_eng",
-        "regime_gated_entries",
-        "regime_based_exits"
+      "final_value": 10945.06,
+      "total_return_pct": 9.45,
+      "buy_hold_return_pct": -21.31,
+      "oos_period": {"start": "2025-03-01 09:00:00", "end": "2026-03-01 08:00:00", "days": 364, "bars": 8755},
+      "num_trades": 12,
+      "win_rate_pct": 58.33,
+      "avg_win_pct": 2.63,
+      "avg_loss_pct": -0.93,
+      "max_drawdown_pct": 1.41,
+      "sharpe_ratio": 2.154,
+      "sortino_ratio": 1.027,
+      "calmar_ratio": 6.684,
+      "profit_factor": 4.516,
+      "long_trades": 0,
+      "short_trades": 12,
+      "long_win_rate": 0,
+      "short_win_rate": 58.33,
+      "long_pnl": 0,
+      "short_pnl": 945.07,
+      "short_stats": {"attempted": 12, "entered": 12, "blocked_adx": 0, "blocked_regime": 0, "blocked_cooldown": 3},
+      "long_stats": {"attempted": 0, "entered": 0, "blocked_regime": 0, "blocked_cooldown": 0},
+      "regime_counts": {"bull": 2761, "bear": 3475, "sideways": 2519},
+      "kelly_final": {"trades": 12, "kelly_long": 0.035, "kelly_short": 0.035},
+      "exit_breakdown": {"stop_loss": 2, "take_profit": 6, "signal": 0, "trailing_stop": 4, "time_exit": 0, "close": 0, "regime_exit": 0},
+      "num_refits": 19,
+      "feature_importance": [
+        {"bar": 9840, "date": "2026-01-15 14:00:00", "top_features": {"eth_btc_ratio": 0.16, "eth_btc_sma20_dist": 0.0773, "btc_sp500_corr_20": 0.0651, "volatility_10d": 0.0645, "sp500_sma20_dist": 0.0596, "intraday_range": 0.044, "fng_sma10": 0.0351, "dxy_sma20_dist": 0.0324, "fng_sma5": 0.0319, "hour_cos": 0.0294}},
+        {"bar": 10320, "date": "2026-02-04 14:00:00", "top_features": {"eth_btc_ratio": 0.1326, "eth_btc_sma20_dist": 0.1206, "hour_cos": 0.0786, "btc_sp500_corr_20": 0.0715, "intraday_range": 0.047, "volume_ratio_10": 0.0424, "sp500_sma20_dist": 0.0368, "volatility_10d": 0.0328, "fng_sma10": 0.0299, "fng_sma5": 0.0261}},
+        {"bar": 10800, "date": "2026-02-24 14:00:00", "top_features": {"eth_btc_ratio": 0.1198, "eth_btc_sma20_dist": 0.1175, "intraday_range": 0.0618, "atr_pct": 0.0543, "volatility_10d": 0.0504, "volatility_20d": 0.0467, "eth_btc_change_5": 0.0303, "eth_btc_change_10": 0.0276, "roc_accel_10_20": 0.0261, "hour_cos": 0.0251}}
       ],
+      "v9_features": ["hourly_candles", "kelly_position_sizing", "regime_classifier", "cross_asset_features", "hour_of_day_cyclical", "session_momentum"],
       "category": "ensemble"
     }
   }
 };
 
-const VERSION_COMPARISON = {};
+const VERSION_COMPARISON = {
+  "v6_oos": {"Ensemble Balanced": -7.38, "Ensemble Aggressive": -16.59, "Ensemble Conservative": -8.28},
+  "v7_oos": {"Ensemble Balanced": -10.42, "Ensemble Aggressive": -16.01, "Ensemble Conservative": -9.56},
+  "v8_oos": {"Ensemble Balanced": -1.52, "Ensemble Aggressive": -14.28, "Ensemble Conservative": 3.93},
+  "v9_oos": {"Ensemble Balanced": -7.05, "Ensemble Aggressive": -7.15, "Ensemble Conservative": 9.45}
+};
