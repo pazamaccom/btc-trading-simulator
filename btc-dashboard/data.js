@@ -1,5 +1,6 @@
 // BTC Trading Simulator v11 — Dashboard Data (generated)
 // 3yr backtest, Feature Selection (89→35), RF+GB+LightGBM ensemble
+// NOTE: equity curves downsampled to 100 pts, last 50 trades shown
 
 const BACKTEST_DATA = {
   "version": "v11",
@@ -61,5 +62,187 @@ const BACKTEST_DATA = {
     "lower_low",
     "rsi_21",
     "intraday_range_sma"
-  ]
+  ],
+  "feature_scores": {
+    "eth_btc_sma20_dist": 1.0,
+    "eth_btc_ratio": 0.4964,
+    "sp500_ret_10": 0.3963,
+    "btc_sp500_corr_20": 0.3603,
+    "eth_btc_change_10": 0.3526,
+    "sp500_sma20_dist": 0.3426,
+    "btc_dxy_corr_20": 0.3224,
+    "gold_ret_10": 0.2992,
+    "dxy_ret_10": 0.276,
+    "txvol_change_7": 0.2303,
+    "hr_change_7": 0.2074,
+    "fng": 0.2034,
+    "fng_sma10": 0.1786,
+    "dxy_sma20_dist": 0.1662,
+    "eth_btc_change_5": 0.1634,
+    "aa_change_7": 0.1584,
+    "fng_sma5": 0.1537,
+    "bb_position": 0.1278,
+    "dxy_ret_5": 0.1274,
+    "gold_ret_5": 0.1214
+  },
+  "v11_new_features": [
+    "feature_selection",
+    "lightgbm_ensemble",
+    "3yr_backtest"
+  ],
+  "strategies": {
+    "Ensemble Balanced": {
+      "initial_capital": 10000,
+      "final_value": 10131.95,
+      "total_return_pct": 1.32,
+      "buy_hold_return_pct": 182.9,
+      "oos_period": {
+        "start": "2023-03-02 19:00:00",
+        "end": "2026-03-01 18:00:00",
+        "days": 1094,
+        "bars": 26272
+      },
+      "num_trades": 88,
+      "win_rate_pct": 50.0,
+      "avg_win_pct": 1.26,
+      "avg_loss_pct": -0.98,
+      "max_drawdown_pct": 7.89,
+      "sharpe_ratio": 0.1,
+      "sortino_ratio": 0.022,
+      "calmar_ratio": 0.167,
+      "profit_factor": 1.075,
+      "long_trades": 5,
+      "short_trades": 83,
+      "long_win_rate": 20.0,
+      "short_win_rate": 51.81,
+      "long_pnl": -277.39,
+      "short_pnl": 456.62,
+      "short_stats": {"attempted": 99, "entered": 83, "blocked_adx": 0, "blocked_regime": 16, "blocked_cooldown": 21},
+      "long_stats": {"attempted": 6, "entered": 5, "blocked_regime": 1, "blocked_cooldown": 0},
+      "regime_counts": {"bull": 10527, "bear": 7816, "sideways": 7929},
+      "kelly_final": {"trades": 88, "kelly_long": 0.04, "kelly_short": 0.04},
+      "confidence_final": {"total_outcomes": 88, "rolling_win_rate": 0.45, "sizing_states": {"skipped": 0, "cold": 0, "warm": 20, "normal": 14368, "hot": 3836}},
+      "confidence_sizing_stats": {"skipped_frozen": 0, "adjusted_cold": 0, "adjusted_warm": 20, "adjusted_hot": 3836, "normal": 21875},
+      "exit_breakdown": {"stop_loss": 12, "take_profit": 8, "signal": 0, "trailing_stop": 67, "time_exit": 0, "close": 0, "regime_exit": 1},
+      "num_refits": 37,
+      "refit_log": [{"bar": 25200, "date": "2025-10-17 22:00:00", "regime": "sideways", "regime_conf": 0.57, "kelly": {"trades": 41, "kelly_long": 0.005, "kelly_short": 0.005}, "confidence": {"total_outcomes": 41, "rolling_win_rate": 0.45, "sizing_states": {"skipped": 0, "cold": 0, "warm": 20, "normal": 11605, "hot": 3693}}, "n_models": 3}, {"bar": 25920, "date": "2025-11-17 03:00:00", "regime": "bear", "regime_conf": 1.0, "kelly": {"trades": 45, "kelly_long": 0.04, "kelly_short": 0.04}, "confidence": {"total_outcomes": 45, "rolling_win_rate": 0.5, "sizing_states": {"skipped": 0, "cold": 0, "warm": 20, "normal": 12296, "hot": 3693}}, "n_models": 3}, {"bar": 26640, "date": "2025-12-17 03:00:00", "regime": "sideways", "regime_conf": 0.44, "kelly": {"trades": 55, "kelly_long": 0.0218, "kelly_short": 0.0225}, "confidence": {"total_outcomes": 55, "rolling_win_rate": 0.5, "sizing_states": {"skipped": 0, "cold": 0, "warm": 20, "normal": 12916, "hot": 3693}}, "n_models": 3}, {"bar": 27360, "date": "2026-01-16 03:00:00", "regime": "bull", "regime_conf": 0.87, "kelly": {"trades": 58, "kelly_long": 0.0122, "kelly_short": 0.0128}, "confidence": {"total_outcomes": 58, "rolling_win_rate": 0.5, "sizing_states": {"skipped": 0, "cold": 0, "warm": 20, "normal": 13630, "hot": 3693}}, "n_models": 3}, {"bar": 28080, "date": "2026-02-15 03:00:00", "regime": "bear", "regime_conf": 1.0, "kelly": {"trades": 83, "kelly_long": 0.005, "kelly_short": 0.005}, "confidence": {"total_outcomes": 83, "rolling_win_rate": 0.45, "sizing_states": {"skipped": 0, "cold": 0, "warm": 20, "normal": 14055, "hot": 3836}}, "n_models": 3}],
+      "trades": [],
+      "equity_curve": [{"time": "2023-03-02 19:00:00", "equity": 10000, "price": 23465.23}, {"time": "2023-03-12 22:00:00", "equity": 10000, "price": 21873.66}, {"time": "2023-06-09 04:00:00", "equity": 9922.69, "price": 26493.04}, {"time": "2023-09-25 04:00:00", "equity": 10028.12, "price": 26144.31}, {"time": "2023-12-22 04:00:00", "equity": 10028.12, "price": 44130.99}, {"time": "2024-03-07 04:00:00", "equity": 10018.06, "price": 65865.53}, {"time": "2024-06-15 10:00:00", "equity": 9782.14, "price": 66241.71}, {"time": "2024-08-08 10:00:00", "equity": 9607.68, "price": 57396.23}, {"time": "2024-11-04 10:00:00", "equity": 9636.21, "price": 68786.32}, {"time": "2025-02-10 10:00:00", "equity": 9398.59, "price": 97739.98}, {"time": "2025-05-09 16:00:00", "equity": 9350.0, "price": 102500.0}, {"time": "2025-08-05 16:00:00", "equity": 9350.0, "price": 113131.78}, {"time": "2025-11-12 03:00:00", "equity": 9263.33, "price": 103282.62}, {"time": "2025-11-22 09:00:00", "equity": 9670.4, "price": 83870.01}, {"time": "2026-02-09 09:00:00", "equity": 9984.89, "price": 69564.83}, {"time": "2026-02-20 03:00:00", "equity": 9722.66, "price": 67332.43}, {"time": "2026-02-28 06:00:00", "equity": 10131.95, "price": 63902.27}],
+      "feature_importance": [{"bar": 28080, "date": "2026-02-15 03:00:00", "top_features": {"eth_btc_ratio": 0.1696, "eth_btc_sma20_dist": 0.0997, "sp500_sma20_dist": 0.0866, "eth_btc_change_10": 0.071, "btc_sp500_corr_20": 0.05, "fng_sma10": 0.0472, "macd_signal": 0.0469, "bb_position": 0.0466, "eth_btc_change_5": 0.0333, "price_vs_sma50": 0.0315}, "n_models": 3}],
+      "n_features_used": 35,
+      "n_models": 3,
+      "v11_features": ["feature_selection", "lightgbm_ensemble", "3yr_backtest", "confidence_filter", "profit_scaled_exits", "atr_percentile_tpsl", "kelly_position_sizing", "regime_classifier", "cross_asset_features"],
+      "category": "ensemble"
+    },
+    "Ensemble Aggressive": {
+      "initial_capital": 10000,
+      "final_value": 8219.06,
+      "total_return_pct": -17.81,
+      "buy_hold_return_pct": 182.9,
+      "oos_period": {"start": "2023-03-02 19:00:00", "end": "2026-03-01 18:00:00", "days": 1094, "bars": 26272},
+      "num_trades": 231,
+      "win_rate_pct": 41.56,
+      "avg_win_pct": 0.87,
+      "avg_loss_pct": -0.78,
+      "max_drawdown_pct": 20.55,
+      "sharpe_ratio": -1.358,
+      "sortino_ratio": -0.51,
+      "calmar_ratio": -0.867,
+      "profit_factor": 0.695,
+      "long_trades": 87,
+      "short_trades": 144,
+      "long_win_rate": 33.33,
+      "short_win_rate": 46.53,
+      "long_pnl": -974.74,
+      "short_pnl": -443.73,
+      "short_stats": {"attempted": 156, "entered": 144, "blocked_adx": 0, "blocked_regime": 12, "blocked_cooldown": 14},
+      "long_stats": {"attempted": 107, "entered": 87, "blocked_regime": 20, "blocked_cooldown": 2},
+      "regime_counts": {"bull": 10527, "bear": 7816, "sideways": 7929},
+      "kelly_final": {"trades": 231, "kelly_long": 0.005, "kelly_short": 0.005},
+      "confidence_final": {"total_outcomes": 231, "rolling_win_rate": 0.333, "sizing_states": {"skipped": 0, "cold": 5395, "warm": 4485, "normal": 9785, "hot": 2480}},
+      "confidence_sizing_stats": {"skipped_frozen": 0, "adjusted_cold": 5395, "adjusted_warm": 4485, "adjusted_hot": 2480, "normal": 12893},
+      "exit_breakdown": {"stop_loss": 16, "take_profit": 12, "signal": 0, "trailing_stop": 203, "time_exit": 0, "close": 0, "regime_exit": 0},
+      "num_refits": 110,
+      "refit_log": [{"bar": 27360, "date": "2026-01-16 03:00:00", "regime": "bull", "regime_conf": 0.87, "kelly": {"trades": 192, "kelly_long": 0.005, "kelly_short": 0.05}, "confidence": {"total_outcomes": 192, "rolling_win_rate": 0.667, "sizing_states": {"skipped": 0, "cold": 5294, "warm": 4219, "normal": 9704, "hot": 2011}}, "n_models": 3}, {"bar": 27840, "date": "2026-02-05 03:00:00", "regime": "bear", "regime_conf": 1.0, "kelly": {"trades": 209, "kelly_long": 0.005, "kelly_short": 0.05}, "confidence": {"total_outcomes": 209, "rolling_win_rate": 0.533, "sizing_states": {"skipped": 0, "cold": 5294, "warm": 4229, "normal": 9722, "hot": 2385}}, "n_models": 3}, {"bar": 28080, "date": "2026-02-15 03:00:00", "regime": "bear", "regime_conf": 1.0, "kelly": {"trades": 224, "kelly_long": 0.005, "kelly_short": 0.005}, "confidence": {"total_outcomes": 224, "rolling_win_rate": 0.2, "sizing_states": {"skipped": 0, "cold": 5295, "warm": 4262, "normal": 9785, "hot": 2480}}, "n_models": 3}, {"bar": 28320, "date": "2026-02-25 03:00:00", "regime": "bear", "regime_conf": 1.0, "kelly": {"trades": 230, "kelly_long": 0.005, "kelly_short": 0.005}, "confidence": {"total_outcomes": 230, "rolling_win_rate": 0.267, "sizing_states": {"skipped": 0, "cold": 5395, "warm": 4382, "normal": 9785, "hot": 2480}}, "n_models": 3}],
+      "trades": [],
+      "equity_curve": [{"time": "2023-03-02 19:00:00", "equity": 10000, "price": 23465.23}, {"time": "2023-06-28 22:00:00", "equity": 9605.56, "price": 30104.2}, {"time": "2023-09-15 04:00:00", "equity": 9305.66, "price": 26646.23}, {"time": "2023-12-22 04:00:00", "equity": 9319.73, "price": 44130.99}, {"time": "2024-03-07 10:00:00", "equity": 9117.46, "price": 66957.41}, {"time": "2024-06-13 22:00:00", "equity": 8698.81, "price": 66859.44}, {"time": "2024-08-06 22:00:00", "equity": 8603.21, "price": 56227.04}, {"time": "2024-11-03 04:00:00", "equity": 8487.36, "price": 68560.97}, {"time": "2025-02-09 22:00:00", "equity": 8158.7, "price": 95839.72}, {"time": "2025-05-08 04:00:00", "equity": 8034.78, "price": 98968.74}, {"time": "2025-08-04 22:00:00", "equity": 7944.71, "price": 115349.17}, {"time": "2025-11-01 03:00:00", "equity": 8038.7, "price": 110174.08}, {"time": "2025-11-22 09:00:00", "equity": 8511.79, "price": 83870.01}, {"time": "2026-02-09 09:00:00", "equity": 8563.97, "price": 69564.83}, {"time": "2026-02-20 15:00:00", "equity": 8180.33, "price": 67578.79}, {"time": "2026-03-01 18:00:00", "equity": 8219.06, "price": 63500.0}],
+      "feature_importance": [{"bar": 28080, "date": "2026-02-15 03:00:00", "top_features": {"eth_btc_ratio": 0.129, "intraday_range": 0.0818, "eth_btc_change_10": 0.0805, "eth_btc_sma20_dist": 0.0729, "macd_signal": 0.0493, "eth_btc_change_5": 0.0479, "intraday_range_sma": 0.0429, "dxy_sma20_dist": 0.0399, "btc_sp500_corr_20": 0.0381, "sp500_sma20_dist": 0.0356}, "n_models": 3}],
+      "n_features_used": 35,
+      "n_models": 3,
+      "v11_features": ["feature_selection", "lightgbm_ensemble", "3yr_backtest", "confidence_filter", "profit_scaled_exits", "atr_percentile_tpsl", "kelly_position_sizing", "regime_classifier", "cross_asset_features"],
+      "category": "ensemble"
+    },
+    "Ensemble Conservative": {
+      "initial_capital": 10000,
+      "final_value": 11963.43,
+      "total_return_pct": 19.63,
+      "buy_hold_return_pct": 182.9,
+      "oos_period": {"start": "2023-03-02 19:00:00", "end": "2026-03-01 18:00:00", "days": 1094, "bars": 26272},
+      "num_trades": 18,
+      "win_rate_pct": 66.67,
+      "avg_win_pct": 2.22,
+      "avg_loss_pct": -0.98,
+      "max_drawdown_pct": 2.49,
+      "sharpe_ratio": 1.201,
+      "sortino_ratio": 0.442,
+      "calmar_ratio": 7.883,
+      "profit_factor": 4.659,
+      "long_trades": 2,
+      "short_trades": 16,
+      "long_win_rate": 0.0,
+      "short_win_rate": 75.0,
+      "long_pnl": -234.87,
+      "short_pnl": 2213.27,
+      "short_stats": {"attempted": 16, "entered": 16, "blocked_adx": 0, "blocked_regime": 0, "blocked_cooldown": 0},
+      "long_stats": {"attempted": 2, "entered": 2, "blocked_regime": 0, "blocked_cooldown": 0},
+      "regime_counts": {"bull": 10527, "bear": 7816, "sideways": 7929},
+      "kelly_final": {"trades": 18, "kelly_long": 0.035, "kelly_short": 0.035},
+      "confidence_final": {"total_outcomes": 18, "rolling_win_rate": 0.667, "sizing_states": {"skipped": 0, "cold": 0, "warm": 0, "normal": 8379, "hot": 227}},
+      "confidence_sizing_stats": {"skipped_frozen": 0, "adjusted_cold": 0, "adjusted_warm": 0, "adjusted_hot": 227, "normal": 25916},
+      "exit_breakdown": {"stop_loss": 1, "take_profit": 5, "signal": 0, "trailing_stop": 12, "time_exit": 0, "close": 0, "regime_exit": 0},
+      "num_refits": 55,
+      "refit_log": [{"bar": 26160, "date": "2025-11-27 03:00:00", "regime": "bear", "regime_conf": 1.0, "kelly": {"trades": 10, "kelly_long": 0.035, "kelly_short": 0.035}, "confidence": {"total_outcomes": 10, "rolling_win_rate": 0.6, "sizing_states": {"skipped": 0, "cold": 0, "warm": 0, "normal": 6410, "hot": 0}}, "n_models": 3}, {"bar": 26640, "date": "2025-12-17 03:00:00", "regime": "sideways", "regime_conf": 0.44, "kelly": {"trades": 11, "kelly_long": 0.035, "kelly_short": 0.035}, "confidence": {"total_outcomes": 11, "rolling_win_rate": 0.636, "sizing_states": {"skipped": 0, "cold": 0, "warm": 0, "normal": 6878, "hot": 0}}, "n_models": 3}, {"bar": 28080, "date": "2026-02-15 03:00:00", "regime": "bear", "regime_conf": 1.0, "kelly": {"trades": 17, "kelly_long": 0.035, "kelly_short": 0.035}, "confidence": {"total_outcomes": 17, "rolling_win_rate": 0.647, "sizing_states": {"skipped": 0, "cold": 0, "warm": 0, "normal": 8112, "hot": 156}}, "n_models": 3}],
+      "trades": [{"type": "SHORT", "side": "short", "time": "2023-03-09 10:00:00", "price": 21642.15, "amount": 0.38555544, "strength": 0.106, "regime": "sideways", "risk_pct": 0.72, "adx": 46.3, "conf_state": "insufficient", "conf_mult": 1.0}, {"type": "COVER (TRAIL)", "side": "short", "time": "2023-03-09 14:00:00", "price": 21790.78, "amount": 0.38555544, "pnl": -57.27, "pnl_pct": -0.69}, {"type": "SHORT", "side": "short", "time": "2023-08-31 12:00:00", "price": 27186.52, "amount": 0.18286136, "strength": 0.065, "regime": "bear", "risk_pct": 1.36, "adx": 38.1, "conf_state": "insufficient", "conf_mult": 1.0}, {"type": "COVER (TP)", "side": "short", "time": "2023-08-31 15:00:00", "price": 26890.91, "amount": 0.18286136, "pnl": 54.02, "pnl_pct": 1.09}, {"type": "SHORT", "side": "short", "time": "2024-04-30 05:00:00", "price": 63315.5, "amount": 0.12568872, "strength": 0.025, "regime": "bear", "risk_pct": 1.36, "adx": 26.7, "conf_state": "insufficient", "conf_mult": 1.0}, {"type": "COVER (TRAIL)", "side": "short", "time": "2024-04-30 08:00:00", "price": 63047.45, "amount": 0.12568872, "pnl": 33.67, "pnl_pct": 0.42}, {"type": "BUY", "side": "long", "time": "2024-11-21 11:00:00", "price": 98005.95, "amount": 0.07132279, "strength": 0.009, "regime": "bull", "risk_pct": 1.38, "conf_state": "insufficient", "conf_mult": 1.0}, {"type": "SELL (TRAIL)", "side": "long", "time": "2024-11-21 15:00:00", "price": 96453.35, "amount": 0.07132279, "pnl": -117.62, "pnl_pct": -1.58}, {"type": "BUY", "side": "long", "time": "2025-01-28 11:00:00", "price": 102754.41, "amount": 0.07779975, "strength": 0.001, "regime": "bull", "risk_pct": 1.38, "conf_state": "insufficient", "conf_mult": 1.0}, {"type": "SELL (TRAIL)", "side": "long", "time": "2025-01-28 20:00:00", "price": 101348.75, "amount": 0.07779975, "pnl": -117.25, "pnl_pct": -1.37}, {"type": "SHORT", "side": "short", "time": "2025-03-03 13:00:00", "price": 93562.64, "amount": 0.07067806, "strength": 0.098, "regime": "bear", "risk_pct": 1.38, "adx": 48.0, "conf_state": "insufficient", "conf_mult": 1.0}, {"type": "COVER (TRAIL)", "side": "short", "time": "2025-03-03 14:00:00", "price": 91709.38, "amount": 0.07067806, "pnl": 130.91, "pnl_pct": 1.98}, {"type": "SHORT", "side": "short", "time": "2025-04-10 12:00:00", "price": 81672.02, "amount": 0.1152884, "strength": 0.018, "regime": "bear", "risk_pct": 1.38, "adx": 50.0, "conf_state": "normal", "conf_mult": 1.0}, {"type": "COVER (TRAIL)", "side": "short", "time": "2025-04-10 15:00:00", "price": 80541.72, "amount": 0.1152884, "pnl": 130.23, "pnl_pct": 1.38}, {"type": "SHORT", "side": "short", "time": "2025-11-13 10:00:00", "price": 102966.16, "amount": 0.08742079, "strength": 0.073, "regime": "bear", "risk_pct": 1.38, "adx": 39.6, "conf_state": "normal", "conf_mult": 1.0}, {"type": "COVER (TP)", "side": "short", "time": "2025-11-13 16:00:00", "price": 100588.42, "amount": 0.08742079, "pnl": 207.74, "pnl_pct": 2.31}, {"type": "SHORT", "side": "short", "time": "2025-11-17 00:00:00", "price": 95243.47, "amount": 0.17873862, "strength": 0.129, "regime": "bear", "risk_pct": 3.5, "adx": 28.8, "conf_state": "normal", "conf_mult": 1.0}, {"type": "COVER (TRAIL)", "side": "short", "time": "2025-11-17 14:00:00", "price": 95308.33, "amount": 0.17873862, "pnl": -11.59, "pnl_pct": -0.07}, {"type": "SHORT", "side": "short", "time": "2025-11-20 10:00:00", "price": 91710.01, "amount": 0.05581654, "strength": 0.063, "regime": "bear", "risk_pct": 3.5, "adx": 30.7, "conf_state": "normal", "conf_mult": 1.0}, {"type": "COVER (TRAIL)", "side": "short", "time": "2025-11-20 16:00:00", "price": 89284.39, "amount": 0.05581654, "pnl": 135.31, "pnl_pct": 2.64}, {"type": "SHORT", "side": "short", "time": "2025-12-01 00:00:00", "price": 87002.03, "amount": 0.05961458, "strength": 0.02, "regime": "bear", "risk_pct": 3.5, "adx": 31.7, "conf_state": "normal", "conf_mult": 1.0}, {"type": "COVER (TP)", "side": "short", "time": "2025-12-01 12:00:00", "price": 84970.11, "amount": 0.05961458, "pnl": 121.06, "pnl_pct": 2.34}, {"type": "SHORT", "side": "short", "time": "2025-12-17 11:00:00", "price": 86961.86, "amount": 0.06033817, "strength": 0.104, "regime": "bear", "risk_pct": 3.5, "adx": 33.8, "conf_state": "normal", "conf_mult": 1.0}, {"type": "COVER (STOP)", "side": "short", "time": "2025-12-17 14:00:00", "price": 87958.97, "amount": 0.06033817, "pnl": -60.13, "pnl_pct": -1.15}, {"type": "SHORT", "side": "short", "time": "2026-02-03 07:00:00", "price": 78712.02, "amount": 0.06628029, "strength": 0.238, "regime": "bear", "risk_pct": 3.5, "adx": 47.2, "conf_state": "normal", "conf_mult": 1.0}, {"type": "COVER (TRAIL)", "side": "short", "time": "2026-02-03 16:00:00", "price": 78058.89, "amount": 0.06628029, "pnl": 43.26, "pnl_pct": 0.83}, {"type": "SHORT", "side": "short", "time": "2026-02-04 05:00:00", "price": 76194.37, "amount": 0.15207702, "strength": 0.003, "regime": "bear", "risk_pct": 3.5, "adx": 53.9, "conf_state": "normal", "conf_mult": 1.0}, {"type": "COVER (TP)", "side": "short", "time": "2026-02-05 02:00:00", "price": 71673.12, "amount": 0.15207702, "pnl": 687.17, "pnl_pct": 5.93}, {"type": "SHORT", "side": "short", "time": "2026-02-05 10:00:00", "price": 70719.96, "amount": 0.1852959, "strength": 0.041, "regime": "bear", "risk_pct": 3.5, "adx": 81.0, "conf_state": "normal", "conf_mult": 1.0}, {"type": "COVER (TP)", "side": "short", "time": "2026-02-05 15:00:00", "price": 66765.89, "amount": 0.1852959, "pnl": 732.23, "pnl_pct": 5.59}, {"type": "SHORT", "side": "short", "time": "2026-02-12 03:00:00", "price": 67533.13, "amount": 0.25558209, "strength": 0.018, "regime": "bear", "risk_pct": 3.85, "adx": 34.0, "conf_state": "hot", "conf_mult": 1.1}, {"type": "COVER (TRAIL)", "side": "short", "time": "2026-02-12 11:00:00", "price": 68225.51, "amount": 0.25558209, "pnl": -176.85, "pnl_pct": -1.03}, {"type": "SHORT", "side": "short", "time": "2026-02-26 05:00:00", "price": 68458.18, "amount": 0.25604191, "strength": 0.051, "regime": "bear", "risk_pct": 3.5, "adx": 56.4, "conf_state": "normal", "conf_mult": 1.0}, {"type": "COVER (TRAIL)", "side": "short", "time": "2026-02-26 19:00:00", "price": 67751.83, "amount": 0.25604191, "pnl": 180.75, "pnl_pct": 1.03}],
+      "equity_curve": [{"time": "2023-03-02 19:00:00", "equity": 10000, "price": 23465.23}, {"time": "2023-06-30 22:00:00", "equity": 9942.73, "price": 30476.21}, {"time": "2023-09-26 22:00:00", "equity": 9996.75, "price": 26142.96}, {"time": "2023-12-23 22:00:00", "equity": 9996.75, "price": 43770.53}, {"time": "2024-03-08 22:00:00", "equity": 9996.75, "price": 68317.64}, {"time": "2024-05-03 22:00:00", "equity": 10030.42, "price": 62818.4}, {"time": "2024-08-09 22:00:00", "equity": 10030.42, "price": 60797.98}, {"time": "2024-11-05 22:00:00", "equity": 10030.42, "price": 69586.45}, {"time": "2024-11-27 22:00:00", "equity": 9905.82, "price": 96148.93}, {"time": "2025-02-01 22:00:00", "equity": 9780.58, "price": 100651.44}, {"time": "2025-04-18 22:00:00", "equity": 10041.72, "price": 84521.17}, {"time": "2025-07-27 22:00:00", "equity": 10041.72, "price": 119545.01}, {"time": "2025-11-03 03:00:00", "equity": 10041.72, "price": 107934.01}, {"time": "2025-11-15 03:00:00", "equity": 10249.46, "price": 96347.93}, {"time": "2025-11-25 03:00:00", "equity": 10373.18, "price": 87786.04}, {"time": "2026-02-11 09:00:00", "equity": 11896.77, "price": 66843.93}, {"time": "2026-02-21 09:00:00", "equity": 11782.68, "price": 68126.28}, {"time": "2026-02-28 19:00:00", "equity": 11963.43, "price": 63800.0}],
+      "feature_importance": [{"bar": 28080, "date": "2026-02-15 03:00:00", "top_features": {"eth_btc_ratio": 0.1703, "eth_btc_sma20_dist": 0.1697, "eth_btc_change_5": 0.0647, "sp500_sma20_dist": 0.064, "fng_sma10": 0.0576, "intraday_range_sma": 0.0506, "macd_signal": 0.0458, "volatility_20d": 0.0346, "btc_sp500_corr_20": 0.033, "session_return_12h": 0.0298}, "n_models": 3}],
+      "n_features_used": 35,
+      "n_models": 3,
+      "v11_features": ["feature_selection", "lightgbm_ensemble", "3yr_backtest", "confidence_filter", "profit_scaled_exits", "atr_percentile_tpsl", "kelly_position_sizing", "regime_classifier", "cross_asset_features"],
+      "category": "ensemble"
+    }
+  }
+};
+
+const VERSION_COMPARISON = {
+  "v6_oos": {
+    "Ensemble Balanced": -5.76,
+    "Ensemble Aggressive": -6.5,
+    "Ensemble Conservative": -6.44
+  },
+  "v7_oos": {
+    "Ensemble Balanced": -1.2,
+    "Ensemble Aggressive": -4.83,
+    "Ensemble Conservative": -3.19
+  },
+  "v8_oos": {
+    "Ensemble Balanced": -3.39,
+    "Ensemble Aggressive": -7.12,
+    "Ensemble Conservative": 2.17
+  },
+  "v9_oos": {
+    "Ensemble Balanced": -7.05,
+    "Ensemble Aggressive": -7.15,
+    "Ensemble Conservative": 9.45
+  },
+  "v10_oos": {
+    "Ensemble Balanced": -6.26,
+    "Ensemble Aggressive": -16.2,
+    "Ensemble Conservative": 7.46
+  },
+  "v11_oos": {
+    "Ensemble Balanced": 1.32,
+    "Ensemble Aggressive": -17.81,
+    "Ensemble Conservative": 19.63,
+    "note": "3yr backtest (vs 1yr for v6-v10)"
+  }
 };
