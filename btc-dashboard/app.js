@@ -1,4 +1,4 @@
-// ===== BTC Trading Simulator v12 Dashboard =====
+// ===== BTC Trading Simulator v14 Dashboard =====
 // All data from data.js globals: BACKTEST_DATA, VERSION_COMPARISON
 
 (function () {
@@ -84,6 +84,14 @@
     'Regime Balanced': '#00ffa3',
     'Regime Aggressive': '#22d3ee',
     'Regime Conservative': '#fbbf24',
+    // v13 (Bull Market Fix)
+    'v13 Balanced': '#a78bfa',
+    'v13 Conservative': '#f59e0b',
+    // v14 (Sideways Range Trading)
+    'v14 Precision': '#06b6d4',
+    'v14 Balanced': '#00ffa3',
+    'v14 Aggressive': '#f43f5e',
+    'v14 Conservative': '#fbbf24',
   };
 
   const CAT_COLORS = {
@@ -92,6 +100,7 @@
     'hybrid': '#ffd000',
     'ml': '#f43f5e',
     'ensemble': '#00ffa3',
+    'range_trading': '#fbbf24',
   };
 
   const getColor = (name) => STRAT_COLORS[name] || '#8888a8';
@@ -105,8 +114,14 @@
   const yearsLabel = data.backtest_years ? data.backtest_years + 'yr' : '1yr';
   const fsLabel = data.n_features_selected ? ` + Feature Selection (${data.n_features_total}\u2192${data.n_features_selected})` : '';
   const lgbLabel = data.lightgbm_available ? ' + RF+GB+LGB' : '';
-  document.getElementById('meta-method').textContent =
-    yearsLabel + ' ' + granLabel + ' + Alt + Cross-Asset' + lgbLabel + fsLabel;
+  const approachLabel = data.approach ? ` | ${data.approach}` : '';
+  if (data.method === 'range_trading_sideways') {
+    document.getElementById('meta-method').textContent =
+      yearsLabel + ' ' + granLabel + ' | Range Trading (Sideways Only) | 0.1% Commission';
+  } else {
+    document.getElementById('meta-method').textContent =
+      yearsLabel + ' ' + granLabel + ' + Alt + Cross-Asset' + lgbLabel + fsLabel;
+  }
 
   // ===== KPI CARDS =====
   let bestName = '', bestReturn = -Infinity;
@@ -127,7 +142,7 @@
   document.getElementById('kpi-count').textContent = stratNames.length;
 
   // Count categories
-  const catCounts = { technical: 0, alternative: 0, hybrid: 0, ml: 0, ensemble: 0 };
+  const catCounts = { technical: 0, alternative: 0, hybrid: 0, ml: 0, ensemble: 0, range_trading: 0 };
   for (const name of stratNames) {
     const cat = getCategory(name);
     if (catCounts[cat] !== undefined) catCounts[cat]++;
@@ -138,6 +153,7 @@
   if (catCounts.hybrid) catParts.push(`${catCounts.hybrid} Hybrid`);
   if (catCounts.ml) catParts.push(`${catCounts.ml} ML`);
   if (catCounts.ensemble) catParts.push(`${catCounts.ensemble} Ensemble`);
+  if (catCounts.range_trading) catParts.push(`${catCounts.range_trading} Range`);
   document.getElementById('kpi-categories-sub').textContent = catParts.join('  ·  ');
 
   // ===== CATEGORY FILTER =====
@@ -198,7 +214,7 @@
       const tr = document.createElement('tr');
       tr.dataset.strategy = row.name;
 
-      const catBadge = `<span class="cat-badge cat-${row.category}">${row.category}</span>`;
+      const catBadge = `<span class="cat-badge cat-${row.category}">${row.category.replace(/_/g, ' ')}</span>`;
       const pfDisplay = row.pf === Infinity ? '∞' : fmt(row.pf, 3);
       const pfClass = row.pf === Infinity ? 'val-pos' : colorVal(row.pf - 1);
 
@@ -305,6 +321,20 @@
           refitBody.appendChild(tr);
         }
       }
+    } else if (s.params) {
+      // v14 range trading: show strategy parameters
+      const params = s.params;
+      const paramKeys = Object.keys(params);
+      refitHead.innerHTML = '<th>Parameter</th><th>Value</th>';
+      refitBody.innerHTML = '';
+      for (const k of paramKeys) {
+        const tr = document.createElement('tr');
+        const label = k.replace(/_/g, ' ').replace(/pct/g, '%').replace(/\b\w/g, c => c.toUpperCase());
+        let val = params[k];
+        if (typeof val === 'number' && val < 1 && val > 0) val = (val * 100).toFixed(1) + '%';
+        tr.innerHTML = `<td>${label}</td><td style="text-align:right">${val}</td>`;
+        refitBody.appendChild(tr);
+      }
     } else {
       refitHead.innerHTML = '<th>No refit data</th>';
       refitBody.innerHTML = '';
@@ -325,6 +355,14 @@
       'time_exit': '#a855f7',
       'close': '#8888a8',
       'regime_exit': '#fb923c',
+      // v14 range trading exits
+      'target': '#00ffa3',
+      'trailing': '#ffd000',
+      'stop': '#ff3860',
+      'adx_breakout': '#fb923c',
+      'regime_change': '#e879f9',
+      'time': '#a855f7',
+      'overbought_exit': '#22d3ee',
     };
     const exitColors = exitLabels.map(l => EXIT_COLORS[l] || '#8888a8');
 
@@ -389,7 +427,7 @@
 
   // ===== CATEGORY BREAKDOWN CHART =====
   (function () {
-    const categories = ['technical', 'alternative', 'hybrid', 'ml', 'ensemble'];
+    const categories = ['technical', 'alternative', 'hybrid', 'ml', 'ensemble', 'range_trading'];
     const catData = {};
 
     for (const cat of categories) {
@@ -520,11 +558,13 @@
       ...Object.keys(vc.v10_oos || {}),
       ...Object.keys(vc.v11_oos || {}).filter(k => k !== 'note'),
       ...Object.keys(vc.v12_oos || {}).filter(k => k !== 'note'),
+      ...Object.keys(vc.v13_oos || {}).filter(k => k !== 'note'),
+      ...Object.keys(vc.v14_oos || {}).filter(k => k !== 'note'),
     ])];
 
     allStrats.sort((a, b) => {
-      const av = vc.v12_oos?.[a] ?? vc.v11_oos?.[a] ?? vc.v10_oos?.[a] ?? vc.v9_oos?.[a] ?? vc.v8_oos?.[a] ?? vc.v7_oos?.[a] ?? vc.v6_oos?.[a] ?? vc.v5_oos?.[a] ?? vc.v4_oos?.[a] ?? vc.v3_oos?.[a] ?? -999;
-      const bv = vc.v12_oos?.[b] ?? vc.v11_oos?.[b] ?? vc.v10_oos?.[b] ?? vc.v9_oos?.[b] ?? vc.v8_oos?.[b] ?? vc.v7_oos?.[b] ?? vc.v6_oos?.[b] ?? vc.v5_oos?.[b] ?? vc.v4_oos?.[b] ?? vc.v3_oos?.[b] ?? -999;
+      const av = vc.v14_oos?.[a] ?? vc.v13_oos?.[a] ?? vc.v12_oos?.[a] ?? vc.v11_oos?.[a] ?? vc.v10_oos?.[a] ?? vc.v9_oos?.[a] ?? vc.v8_oos?.[a] ?? vc.v7_oos?.[a] ?? vc.v6_oos?.[a] ?? vc.v5_oos?.[a] ?? vc.v4_oos?.[a] ?? vc.v3_oos?.[a] ?? -999;
+      const bv = vc.v14_oos?.[b] ?? vc.v13_oos?.[b] ?? vc.v12_oos?.[b] ?? vc.v11_oos?.[b] ?? vc.v10_oos?.[b] ?? vc.v9_oos?.[b] ?? vc.v8_oos?.[b] ?? vc.v7_oos?.[b] ?? vc.v6_oos?.[b] ?? vc.v5_oos?.[b] ?? vc.v4_oos?.[b] ?? vc.v3_oos?.[b] ?? -999;
       return bv - av;
     });
 
@@ -618,6 +658,20 @@
             data: allStrats.map(s => typeof vc.v12_oos?.[s] === 'number' ? vc.v12_oos[s] : null),
             backgroundColor: 'rgba(245,158,11,0.9)',
             borderColor: 'rgba(245,158,11,1)',
+            borderWidth: 2, borderRadius: 2,
+          },
+          {
+            label: 'v13 (BullFix+PerRegConf)',
+            data: allStrats.map(s => typeof vc.v13_oos?.[s] === 'number' ? vc.v13_oos[s] : null),
+            backgroundColor: 'rgba(167,139,250,0.9)',
+            borderColor: 'rgba(167,139,250,1)',
+            borderWidth: 2, borderRadius: 2,
+          },
+          {
+            label: 'v14 (SidewaysRange)',
+            data: allStrats.map(s => typeof vc.v14_oos?.[s] === 'number' ? vc.v14_oos[s] : null),
+            backgroundColor: 'rgba(251,191,36,0.9)',
+            borderColor: 'rgba(251,191,36,1)',
             borderWidth: 2, borderRadius: 2,
           },
         ]

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BTC Trading Simulator v12</title>
+  <title>BTC Trading Simulator v14</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -17,8 +17,8 @@
   <header id="header">
     <div class="header-top">
       <div class="header-title-group">
-        <h1 class="header-title">BTC Trading Simulator <span class="version-tag">v12</span></h1>
-        <p class="header-subtitle">3-Year Backtest &nbsp;|&nbsp; Regime-Aware Model &nbsp;|&nbsp; RF+GB+LightGBM Ensemble &nbsp;|&nbsp; 100% OOS</p>
+        <h1 class="header-title">BTC Trading Simulator <span class="version-tag">v14</span></h1>
+        <p class="header-subtitle">3-Year Backtest &nbsp;|&nbsp; Sideways Range Trading &nbsp;|&nbsp; Buy Support / Sell Resistance &nbsp;|&nbsp; 100% OOS</p>
       </div>
       <div class="oos-badge">ALL RESULTS OUT-OF-SAMPLE</div>
     </div>
@@ -77,11 +77,7 @@
       <div class="filter-bar">
         <span class="filter-label">Filter by category:</span>
         <button class="filter-btn active" data-cat="all">All</button>
-        <button class="filter-btn filter-technical" data-cat="technical">Technical</button>
-        <button class="filter-btn filter-alternative" data-cat="alternative">Alternative</button>
-        <button class="filter-btn filter-hybrid" data-cat="hybrid">Hybrid</button>
-        <button class="filter-btn filter-ml" data-cat="ml">ML</button>
-        <button class="filter-btn filter-ensemble" data-cat="ensemble">Ensemble</button>
+        <button class="filter-btn filter-range" data-cat="range_trading">Range Trading</button>
       </div>
     </section>
 
@@ -186,7 +182,7 @@
     <section id="version-section">
       <div class="section-header">
         <h2 class="section-title">Version Comparison</h2>
-        <span class="section-hint">v6→v10: 1yr &nbsp;|&nbsp; v11-v12: 3yr &nbsp;|&nbsp; v12: Regime-Aware+Regime Risk</span>
+        <span class="section-hint">v6→v10: 1yr &nbsp;|&nbsp; v11-v14: 3yr &nbsp;|&nbsp; v14: Sideways Range Trading</span>
       </div>
       <div class="chart-container chart-md">
         <canvas id="version-chart"></canvas>
@@ -217,7 +213,7 @@
   </main>
 
   <footer>
-    <p>BTC Trading Simulator v12 &mdash; Regime-Aware Unified Model + Regime-Specific Risk &mdash; 3yr Backtest &mdash; Data is for educational purposes only</p>
+    <p>BTC Trading Simulator v14 &mdash; Sideways Range Trading &mdash; 3yr Backtest &mdash; Data is for educational purposes only</p>
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
