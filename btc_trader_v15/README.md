@@ -3,77 +3,75 @@
 Automated BTC trading program that executes trades on CME Micro Bitcoin Futures (MBT)
 through Interactive Brokers TWS, based on a human-specified market regime.
 
-## Architecture
+## Three-Stage Workflow
 
 ```
-You (human)                     Program                          IB TWS
-    │                              │                                │
-    │  "regime: choppy"            │                                │
-    │─────────────────────────────>│                                │
-    │                              │  Connect (port 7497)           │
-    │                              │───────────────────────────────>│
-    │                              │  Fetch 14 days hourly bars     │
-    │                              │<───────────────────────────────│
-    │                              │                                │
-    │                              │  Calibrate strategy            │
-    │                              │  (detect range, S/R, ADX)      │
-    │                              │                                │
-    │                              │  Subscribe real-time bars      │
-    │                              │<──────────────────────────────>│
-    │                              │                                │
-    │                              │  Signal: BUY near support      │
-    │                              │  Place market order ──────────>│
-    │                              │  Fill confirmation <───────────│
-    │                              │                                │
-    │  "status" / "pause" / "quit" │                                │
-    │─────────────────────────────>│                                │
+Stage 1: SIMULATE          Stage 2: REVIEW           Stage 3: GO LIVE
+─────────────────          ────────────────           ───────────────
+You pick a 2-week     →    Inspect trades,       →   Launch on IB paper
+calibration window         P&L, equity curve          trading with same
+and run forward on         and decide if the          strategy settings
+historical data            strategy is good
+
+python simulate.py         Review sim_results.json    python main.py
+  --regime choppy          and terminal output          --regime choppy
+  --cal-start 2026-01-15
 ```
 
 ## Quick Start
 
-### Prerequisites
-1. **Interactive Brokers TWS** or IB Gateway running
-2. **Paper trading** enabled (port 7497)
-3. API connections enabled: Edit > Global Configuration > API > Settings
-   - Enable ActiveX and Socket Clients
-   - Socket port: **7497**
-   - Check "Allow connections from localhost"
-
-### Install
+### Stage 1: Simulate
 ```bash
 cd btc_trader_v15
 pip install -r requirements.txt
+
+# Simulate: calibrate on Jan 15-29, trade forward to today
+python simulate.py --regime choppy --cal-start 2026-01-15
+
+# Simulate with specific end date and 2 contracts
+python simulate.py --regime choppy --cal-start 2026-01-15 --end 2026-03-01 --contracts 2
 ```
 
-### Run
+The simulator will:
+1. Fetch hourly BTC-USD data from Coinbase (cached locally)
+2. Calibrate the strategy on the first 14 days (detect range, S/R levels)
+3. Run bar-by-bar simulation on remaining data
+4. Print full performance report with every trade
+5. Give a VERDICT on whether to go live
+
+### Stage 2: Review
+The simulator prints a complete report:
+- Calibration range and validity
+- Every trade with entry, exit, P&L, hold time
+- Win rate, profit factor, Sharpe, drawdown
+- Comparison to buy-and-hold
+- Results saved to `sim_results.json`
+
+### Stage 3: Go Live (IB Paper Trading)
+Only after you're satisfied with simulation results:
+
+**Prerequisites:**
+1. Interactive Brokers TWS running with paper trading enabled
+2. API enabled: Edit > Global Config > API > Settings
+   - Socket port: **7497** (paper) 
+   - Allow connections from localhost
+
 ```bash
-# Interactive mode (menu)
-python main.py
-
-# Direct start in choppy regime
 python main.py --regime choppy
-
-# Check saved state
-python main.py --status
-
-# Use a different port
-python main.py --regime choppy --port 7498
 ```
 
-### Interactive Commands
+### Interactive Commands (live mode)
 | Command | Action |
 |---------|--------|
-| `s` / `status` | Show current trading status, position, P&L |
-| `p` / `pause` | Pause trading (keep connection) |
+| `s` / `status` | Show position, P&L, range |
+| `p` / `pause` | Pause trading |
 | `r` / `resume` | Resume trading |
-| `q` / `quit` | Stop trading (keep any open position) |
+| `q` / `quit` | Stop (keep position) |
 | `f` / `flatten` | Close position and stop |
-| `regime choppy` | Switch to choppy regime |
-| `h` / `help` | Show help |
 
 ## Strategy: Choppy (Sideways) Regime
 
-Based on v14 Conservative — the best-performing sideways strategy from backtesting.
+Based on v14 Conservative — best-performing sideways strategy from 3-year backtest.
 
 ### Logic
 1. **Calibrate** on 14 days of hourly data → detect support/resistance range
@@ -82,67 +80,48 @@ Based on v14 Conservative — the best-performing sideways strategy from backtes
    - RSI < 32 OR Stochastic < 22 (oversold)
    - Range has ≥4 confirmed touches of S/R
    - Range width ≥5%
-3. **Exit** (graduated, not hard cutoffs):
+3. **Exit** (graduated):
    - **Target**: Price reaches top 85% of range
    - **Trailing stop**: 3%, tightened as ADX rises
    - **Hard stop**: 2.5% below support
    - **ADX breakout**: ADX > 32 AND underwater
    - **Time**: Max 168 hours (7 days)
-   - **Overbought**: RSI > 68 near resistance
-4. **Cooldown**: 18 hours between trades (36h after stop loss)
-
-### Backtested Performance (v14 Conservative, 3 years)
-| Metric | Value |
-|--------|-------|
-| Return | +8.45% |
-| Trades | 22 |
-| Win Rate | 63.6% |
-| Avg Trade | +1.27% |
-| Profit Factor | 2.88 |
-| Sharpe | 1.068 |
-| Max Drawdown | 1.50% |
+4. **Cooldown**: 18 hours between trades
 
 ### MBT Contract Specs
-- **Size**: 0.1 BTC per contract
-- **Tick**: $5/BTC point = $0.50 per tick
-- **Margin**: ~$1,780
-- **Commission**: ~$1.25 per side
-- **Hours**: Sun 5pm – Fri 4pm CT (nearly 24h)
-- **Expiry**: Last Friday of the month
+| Spec | Value |
+|------|-------|
+| Size | 0.1 BTC per contract |
+| Tick | $5/BTC = $0.50/tick |
+| Margin | ~$1,780 |
+| Commission | ~$1.25/side |
+| Hours | Sun 5pm – Fri 4pm CT |
 
 ## File Structure
 
 ```
 btc_trader_v15/
-├── main.py           # Entry point, interactive control loop
-├── config.py         # All tuneable parameters
-├── strategy.py       # Choppy range-trading strategy engine
+├── simulate.py       # Stage 1: Historical simulation
+├── main.py           # Stage 3: Live IB paper trading
+├── strategy.py       # Strategy engine (shared by both)
 ├── indicators.py     # RSI, ADX, Stochastic, ATR, Bollinger
-├── ib_execution.py   # IB TWS connection and order execution
-├── requirements.txt  # Python dependencies
-├── README.md         # This file
+├── ib_execution.py   # IB TWS connection layer
+├── data_fetcher.py   # Coinbase hourly data fetcher
+├── config.py         # All tuneable parameters
+├── requirements.txt
+├── README.md
+├── cache/            # Cached price data (auto-created)
 ├── logs/             # Daily log files (auto-created)
 ├── state.json        # Persisted state (auto-created)
-└── trades.json       # Trade log (auto-created)
+├── trades.json       # Live trade log (auto-created)
+└── sim_results.json  # Simulation results (auto-created)
 ```
-
-## Configuration
-
-All parameters are in `config.py`. Key settings:
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `IB_PORT` | 7497 | TWS port (7497=paper, 7496=live) |
-| `MAX_CONTRACTS` | 5 | Maximum MBT contracts |
-| `DEFAULT_CONTRACTS` | 1 | Default order size |
-| `CALIBRATION_HOURS` | 336 | 14 days of data for calibration |
-| `ROLL_AVOID_DAYS` | 3 | Skip entries near expiry |
 
 ## Roadmap
 
 - [x] Choppy/sideways regime (range trading)
+- [x] Historical simulation before going live
 - [ ] Bullish regime (trend following)
 - [ ] Bearish regime (short selling / hedging)
 - [ ] Dynamic position sizing based on conviction
-- [ ] Multiple simultaneous regimes
-- [ ] Web dashboard for remote monitoring
+- [ ] Web dashboard for monitoring
