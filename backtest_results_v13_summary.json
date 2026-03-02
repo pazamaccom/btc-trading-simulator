@@ -1,0 +1,773 @@
+{
+  "version": "v13",
+  "method": "rolling_walk_forward",
+  "granularity": "1h",
+  "lookback_days": 90,
+  "lookback_candles": 2160,
+  "refit_interval_candles": 720,
+  "total_candles": 28432,
+  "backtest_years": 3,
+  "date_range": {
+    "full_data_start": "2022-12-03 10:00:00",
+    "oos_start": "2023-03-03 10:00:00",
+    "end": "2026-03-02 09:00:00"
+  },
+  "price_range": {
+    "min": 16273.4,
+    "max": 126296.0
+  },
+  "alt_data_available": true,
+  "cross_asset_available": true,
+  "ml_available": true,
+  "lightgbm_available": true,
+  "n_features_total": 115,
+  "n_features_selected": 46,
+  "selected_features": [
+    "eth_btc_sma20_dist",
+    "eth_btc_ratio",
+    "sp500_sma20_dist",
+    "range_width_48",
+    "eth_btc_change_10",
+    "sp500_ret_10",
+    "btc_sp500_corr_20",
+    "btc_dxy_corr_20",
+    "gold_ret_10",
+    "range_width_72",
+    "dxy_ret_10",
+    "range_width_24",
+    "aa_change_7",
+    "txvol_change_7",
+    "fng",
+    "hr_change_7",
+    "fng_sma5",
+    "dxy_sma20_dist",
+    "fng_sma10",
+    "eth_btc_change_5",
+    "sp500_ret_5",
+    "gold_ret_5",
+    "momentum_48h",
+    "session_return_12h",
+    "price_vs_ema50",
+    "macd_signal",
+    "dxy_ret_5",
+    "ema10_slope",
+    "roc_10",
+    "price_vs_sma50",
+    "momentum_240h",
+    "return_10d",
+    "momentum_120h",
+    "bb_position",
+    "volatility_20d",
+    "atr_pct",
+    "di_diff",
+    "bb_squeeze",
+    "price_vs_ema20",
+    "stoch_d",
+    "regime_bull",
+    "regime_bear",
+    "regime_sideways",
+    "regime_confidence",
+    "ema_trend_alignment",
+    "macd_hist"
+  ],
+  "feature_scores": {
+    "eth_btc_sma20_dist": 1.0,
+    "eth_btc_ratio": 0.5591,
+    "sp500_sma20_dist": 0.4238,
+    "range_width_48": 0.4181,
+    "eth_btc_change_10": 0.4106,
+    "sp500_ret_10": 0.3689,
+    "btc_sp500_corr_20": 0.3459,
+    "btc_dxy_corr_20": 0.3278,
+    "gold_ret_10": 0.3109,
+    "range_width_72": 0.2979,
+    "dxy_ret_10": 0.2883,
+    "range_width_24": 0.28,
+    "aa_change_7": 0.2094,
+    "txvol_change_7": 0.2049,
+    "fng": 0.2027,
+    "hr_change_7": 0.1923,
+    "fng_sma5": 0.1746,
+    "dxy_sma20_dist": 0.1621,
+    "fng_sma10": 0.1584,
+    "eth_btc_change_5": 0.1528
+  },
+  "regime_distribution": {
+    "bull": "11246",
+    "sideways": "9358",
+    "bear": "7828"
+  },
+  "v13_new_features": [
+    "bull_dual_labels",
+    "trend_following_override",
+    "momentum_entry_filter",
+    "bull_hold_through",
+    "bull_short_block",
+    "wider_bull_trailing",
+    "enhanced_momentum_features"
+  ],
+  "strategies": {
+    "v13 Balanced": {
+      "initial_capital": 10000,
+      "final_value": 9798.45,
+      "total_return_pct": -2.02,
+      "buy_hold_return_pct": 197.47,
+      "oos_period": {
+        "start": "2023-03-03 10:00:00",
+        "end": "2026-03-02 09:00:00",
+        "days": 1094,
+        "bars": 26272
+      },
+      "num_trades": 57,
+      "win_rate_pct": 45.61,
+      "avg_win_pct": 1.16,
+      "avg_loss_pct": -1.06,
+      "max_drawdown_pct": 17.22,
+      "sharpe_ratio": -0.024,
+      "sortino_ratio": -0.024,
+      "calmar_ratio": -0.117,
+      "profit_factor": 0.944,
+      "long_trades": 4,
+      "short_trades": 53,
+      "long_win_rate": 0.0,
+      "short_win_rate": 49.06,
+      "long_pnl": -489.29,
+      "short_pnl": 368.84,
+      "short_stats": {
+        "attempted": 53,
+        "entered": 53,
+        "blocked_adx": 0,
+        "blocked_regime": 0,
+        "blocked_cooldown": 35
+      },
+      "long_stats": {
+        "attempted": 18,
+        "entered": 4,
+        "blocked_regime": 14,
+        "blocked_cooldown": 5
+      },
+      "regime_counts": {
+        "bull": 10523,
+        "bear": 7828,
+        "sideways": 7921
+      },
+      "regime_trade_counts": {
+        "bull": {
+          "long": 3,
+          "short": 0
+        },
+        "bear": {
+          "long": 0,
+          "short": 44
+        },
+        "sideways": {
+          "long": 1,
+          "short": 9
+        }
+      },
+      "regime_pnl": {
+        "bull": 250.48,
+        "bear": 162.03,
+        "sideways": 154.88
+      },
+      "kelly_final": {
+        "trades": 57,
+        "kelly_long": 0.04,
+        "kelly_short": 0.04
+      },
+      "confidence_final": {
+        "total_outcomes": 57,
+        "rolling_win_rate": 0.4,
+        "bucket_counts": {
+          "bear_short": 44,
+          "sideways": 10,
+          "bull_long": 3,
+          "other": 0
+        },
+        "sizing_states": {
+          "skipped": 0,
+          "cold": 0,
+          "warm": 367,
+          "normal": 4149,
+          "hot": 89
+        }
+      },
+      "confidence_sizing_stats": {
+        "skipped_frozen": 0,
+        "adjusted_cold": 0,
+        "adjusted_warm": 367,
+        "adjusted_hot": 89,
+        "normal": 25412
+      },
+      "bull_hold_stats": {
+        "held_through_dip": 47,
+        "trend_entries": 0,
+        "shorts_blocked": 0,
+        "bull_alloc_entries": 298,
+        "bull_alloc_exits": 298,
+        "bull_alloc_pnl": 687.8563202133328
+      },
+      "exit_breakdown": {
+        "stop_loss": 12,
+        "take_profit": 5,
+        "signal": 0,
+        "trailing_stop": 40,
+        "time_exit": 0,
+        "close": 0,
+        "regime_exit": 0
+      },
+      "num_refits": 37,
+      "refit_log": [
+        {
+          "bar": 25200,
+          "date": "2025-10-18 13:00:00",
+          "regime": "sideways",
+          "regime_conf": 0.45,
+          "kelly": {
+            "trades": 18,
+            "kelly_long": 0.005,
+            "kelly_short": 0.005
+          },
+          "confidence": {
+            "total_outcomes": 18,
+            "rolling_win_rate": 0.333,
+            "bucket_counts": {
+              "bear_short": 11,
+              "sideways": 4,
+              "bull_long": 3,
+              "other": 0
+            },
+            "sizing_states": {
+              "skipped": 0,
+              "cold": 0,
+              "warm": 0,
+              "normal": 2238,
+              "hot": 25
+            }
+          },
+          "n_models": 3,
+          "bull_model": true
+        },
+        {
+          "bar": 25920,
+          "date": "2025-11-17 18:00:00",
+          "regime": "bear",
+          "regime_conf": 1.0,
+          "kelly": {
+            "trades": 19,
+            "kelly_long": 0.005,
+            "kelly_short": 0.005
+          },
+          "confidence": {
+            "total_outcomes": 19,
+            "rolling_win_rate": 0.316,
+            "bucket_counts": {
+              "bear_short": 12,
+              "sideways": 4,
+              "bull_long": 3,
+              "other": 0
+            },
+            "sizing_states": {
+              "skipped": 0,
+              "cold": 0,
+              "warm": 0,
+              "normal": 2735,
+              "hot": 25
+            }
+          },
+          "n_models": 3,
+          "bull_model": true
+        },
+        {
+          "bar": 26640,
+          "date": "2025-12-17 18:00:00",
+          "regime": "bear",
+          "regime_conf": 1.0,
+          "kelly": {
+            "trades": 33,
+            "kelly_long": 0.005,
+            "kelly_short": 0.005
+          },
+          "confidence": {
+            "total_outcomes": 33,
+            "rolling_win_rate": 0.35,
+            "bucket_counts": {
+              "bear_short": 25,
+              "sideways": 5,
+              "bull_long": 3,
+              "other": 0
+            },
+            "sizing_states": {
+              "skipped": 0,
+              "cold": 0,
+              "warm": 5,
+              "normal": 3287,
+              "hot": 25
+            }
+          },
+          "n_models": 3,
+          "bull_model": true
+        },
+        {
+          "bar": 27360,
+          "date": "2026-01-16 18:00:00",
+          "regime": "bull",
+          "regime_conf": 1.0,
+          "kelly": {
+            "trades": 33,
+            "kelly_long": 0.005,
+            "kelly_short": 0.005
+          },
+          "confidence": {
+            "total_outcomes": 33,
+            "rolling_win_rate": 0.35,
+            "bucket_counts": {
+              "bear_short": 25,
+              "sideways": 5,
+              "bull_long": 3,
+              "other": 0
+            },
+            "sizing_states": {
+              "skipped": 0,
+              "cold": 0,
+              "warm": 334,
+              "normal": 3434,
+              "hot": 25
+            }
+          },
+          "n_models": 3,
+          "bull_model": true
+        },
+        {
+          "bar": 28080,
+          "date": "2026-02-15 18:00:00",
+          "regime": "bear",
+          "regime_conf": 0.83,
+          "kelly": {
+            "trades": 55,
+            "kelly_long": 0.005,
+            "kelly_short": 0.005
+          },
+          "confidence": {
+            "total_outcomes": 55,
+            "rolling_win_rate": 0.45,
+            "bucket_counts": {
+              "bear_short": 42,
+              "sideways": 10,
+              "bull_long": 3,
+              "other": 0
+            },
+            "sizing_states": {
+              "skipped": 0,
+              "cold": 0,
+              "warm": 367,
+              "normal": 3882,
+              "hot": 30
+            }
+          },
+          "n_models": 3,
+          "bull_model": true
+        }
+      ],
+      "feature_importance": [
+        {
+          "bar": 26640,
+          "date": "2025-12-17 18:00:00",
+          "top_features": {
+            "eth_btc_ratio": 0.1709,
+            "eth_btc_sma20_dist": 0.1064,
+            "txvol_change_7": 0.0521,
+            "price_vs_ema20": 0.0496,
+            "sp500_sma20_dist": 0.0463,
+            "eth_btc_change_10": 0.0444,
+            "btc_sp500_corr_20": 0.0443,
+            "volatility_20d": 0.039,
+            "momentum_240h": 0.035,
+            "eth_btc_change_5": 0.0275
+          },
+          "n_models": 3,
+          "bull_model": true
+        },
+        {
+          "bar": 27360,
+          "date": "2026-01-16 18:00:00",
+          "top_features": {
+            "eth_btc_ratio": 0.1851,
+            "eth_btc_sma20_dist": 0.0884,
+            "eth_btc_change_10": 0.05,
+            "volatility_20d": 0.0433,
+            "txvol_change_7": 0.0382,
+            "atr_pct": 0.038,
+            "sp500_sma20_dist": 0.0377,
+            "momentum_120h": 0.0376,
+            "btc_sp500_corr_20": 0.0355,
+            "btc_dxy_corr_20": 0.0341
+          },
+          "n_models": 3,
+          "bull_model": true
+        },
+        {
+          "bar": 28080,
+          "date": "2026-02-15 18:00:00",
+          "top_features": {
+            "eth_btc_ratio": 0.1467,
+            "momentum_120h": 0.0929,
+            "eth_btc_sma20_dist": 0.0683,
+            "sp500_sma20_dist": 0.0665,
+            "momentum_240h": 0.059,
+            "macd_signal": 0.047,
+            "eth_btc_change_10": 0.0431,
+            "range_width_24": 0.0371,
+            "range_width_48": 0.0343,
+            "fng_sma10": 0.0304
+          },
+          "n_models": 3,
+          "bull_model": true
+        }
+      ],
+      "n_features_used": 46,
+      "n_models": 3,
+      "v13_features": [
+        "bull_dual_labels",
+        "trend_following_override",
+        "momentum_entry_filter",
+        "bull_hold_through",
+        "bull_short_block",
+        "wider_bull_trailing",
+        "enhanced_momentum_features"
+      ],
+      "category": "ensemble"
+    },
+    "v13 Conservative": {
+      "initial_capital": 10000,
+      "final_value": 11783.05,
+      "total_return_pct": 17.83,
+      "buy_hold_return_pct": 197.47,
+      "oos_period": {
+        "start": "2023-03-03 10:00:00",
+        "end": "2026-03-02 09:00:00",
+        "days": 1094,
+        "bars": 26272
+      },
+      "num_trades": 23,
+      "win_rate_pct": 52.17,
+      "avg_win_pct": 2.31,
+      "avg_loss_pct": -1.17,
+      "max_drawdown_pct": 14.19,
+      "sharpe_ratio": 0.574,
+      "sortino_ratio": 0.573,
+      "calmar_ratio": 1.256,
+      "profit_factor": 2.784,
+      "long_trades": 0,
+      "short_trades": 23,
+      "long_win_rate": 0,
+      "short_win_rate": 52.17,
+      "long_pnl": 0,
+      "short_pnl": 1934.12,
+      "short_stats": {
+        "attempted": 23,
+        "entered": 23,
+        "blocked_adx": 0,
+        "blocked_regime": 0,
+        "blocked_cooldown": 2
+      },
+      "long_stats": {
+        "attempted": 0,
+        "entered": 0,
+        "blocked_regime": 0,
+        "blocked_cooldown": 0
+      },
+      "regime_counts": {
+        "bull": 10523,
+        "bear": 7828,
+        "sideways": 7921
+      },
+      "regime_trade_counts": {
+        "bull": {
+          "long": 0,
+          "short": 0
+        },
+        "bear": {
+          "long": 0,
+          "short": 23
+        },
+        "sideways": {
+          "long": 0,
+          "short": 0
+        }
+      },
+      "regime_pnl": {
+        "bull": 785.71,
+        "bear": 1934.12,
+        "sideways": 0.0
+      },
+      "kelly_final": {
+        "trades": 23,
+        "kelly_long": 0.0067,
+        "kelly_short": 0.0067
+      },
+      "confidence_final": {
+        "total_outcomes": 23,
+        "rolling_win_rate": 0.522,
+        "bucket_counts": {
+          "bear_short": 23,
+          "sideways": 0,
+          "bull_long": 0,
+          "other": 0
+        },
+        "sizing_states": {
+          "skipped": 0,
+          "cold": 0,
+          "warm": 0,
+          "normal": 291,
+          "hot": 1204
+        }
+      },
+      "confidence_sizing_stats": {
+        "skipped_frozen": 0,
+        "adjusted_cold": 0,
+        "adjusted_warm": 0,
+        "adjusted_hot": 1204,
+        "normal": 24876
+      },
+      "bull_hold_stats": {
+        "held_through_dip": 0,
+        "trend_entries": 0,
+        "shorts_blocked": 0,
+        "bull_alloc_entries": 298,
+        "bull_alloc_exits": 298,
+        "bull_alloc_pnl": 785.7054990039546
+      },
+      "exit_breakdown": {
+        "stop_loss": 1,
+        "take_profit": 6,
+        "signal": 0,
+        "trailing_stop": 16,
+        "time_exit": 0,
+        "close": 0,
+        "regime_exit": 0
+      },
+      "num_refits": 55,
+      "refit_log": [
+        {
+          "bar": 26160,
+          "date": "2025-11-27 18:00:00",
+          "regime": "bear",
+          "regime_conf": 1.0,
+          "kelly": {
+            "trades": 7,
+            "kelly_long": 0.012,
+            "kelly_short": 0.012
+          },
+          "confidence": {
+            "total_outcomes": 7,
+            "rolling_win_rate": 0.714,
+            "bucket_counts": {
+              "bear_short": 7,
+              "sideways": 0,
+              "bull_long": 0,
+              "other": 0
+            },
+            "sizing_states": {
+              "skipped": 0,
+              "cold": 0,
+              "warm": 0,
+              "normal": 0,
+              "hot": 335
+            }
+          },
+          "n_models": 3,
+          "bull_model": true
+        },
+        {
+          "bar": 26640,
+          "date": "2025-12-17 18:00:00",
+          "regime": "bear",
+          "regime_conf": 1.0,
+          "kelly": {
+            "trades": 9,
+            "kelly_long": 0.035,
+            "kelly_short": 0.035
+          },
+          "confidence": {
+            "total_outcomes": 9,
+            "rolling_win_rate": 0.778,
+            "bucket_counts": {
+              "bear_short": 9,
+              "sideways": 0,
+              "bull_long": 0,
+              "other": 0
+            },
+            "sizing_states": {
+              "skipped": 0,
+              "cold": 0,
+              "warm": 0,
+              "normal": 0,
+              "hot": 654
+            }
+          },
+          "n_models": 3,
+          "bull_model": true
+        },
+        {
+          "bar": 27120,
+          "date": "2026-01-06 18:00:00",
+          "regime": "bull",
+          "regime_conf": 0.78,
+          "kelly": {
+            "trades": 9,
+            "kelly_long": 0.035,
+            "kelly_short": 0.035
+          },
+          "confidence": {
+            "total_outcomes": 9,
+            "rolling_win_rate": 0.778,
+            "bucket_counts": {
+              "bear_short": 9,
+              "sideways": 0,
+              "bull_long": 0,
+              "other": 0
+            },
+            "sizing_states": {
+              "skipped": 0,
+              "cold": 0,
+              "warm": 0,
+              "normal": 0,
+              "hot": 983
+            }
+          },
+          "n_models": 3,
+          "bull_model": true
+        },
+        {
+          "bar": 27600,
+          "date": "2026-01-26 18:00:00",
+          "regime": "sideways",
+          "regime_conf": 0.58,
+          "kelly": {
+            "trades": 9,
+            "kelly_long": 0.035,
+            "kelly_short": 0.035
+          },
+          "confidence": {
+            "total_outcomes": 9,
+            "rolling_win_rate": 0.778,
+            "bucket_counts": {
+              "bear_short": 9,
+              "sideways": 0,
+              "bull_long": 0,
+              "other": 0
+            },
+            "sizing_states": {
+              "skipped": 0,
+              "cold": 0,
+              "warm": 0,
+              "normal": 0,
+              "hot": 983
+            }
+          },
+          "n_models": 3,
+          "bull_model": true
+        },
+        {
+          "bar": 28080,
+          "date": "2026-02-15 18:00:00",
+          "regime": "bear",
+          "regime_conf": 0.83,
+          "kelly": {
+            "trades": 22,
+            "kelly_long": 0.0228,
+            "kelly_short": 0.0228
+          },
+          "confidence": {
+            "total_outcomes": 22,
+            "rolling_win_rate": 0.545,
+            "bucket_counts": {
+              "bear_short": 22,
+              "sideways": 0,
+              "bull_long": 0,
+              "other": 0
+            },
+            "sizing_states": {
+              "skipped": 0,
+              "cold": 0,
+              "warm": 0,
+              "normal": 17,
+              "hot": 1204
+            }
+          },
+          "n_models": 3,
+          "bull_model": true
+        }
+      ],
+      "feature_importance": [
+        {
+          "bar": 27120,
+          "date": "2026-01-06 18:00:00",
+          "top_features": {
+            "eth_btc_ratio": 0.1543,
+            "eth_btc_sma20_dist": 0.1224,
+            "btc_sp500_corr_20": 0.09,
+            "sp500_sma20_dist": 0.0818,
+            "eth_btc_change_10": 0.0497,
+            "txvol_change_7": 0.0408,
+            "dxy_sma20_dist": 0.0384,
+            "macd_signal": 0.0369,
+            "volatility_20d": 0.0268,
+            "fng_sma10": 0.0264
+          },
+          "n_models": 3,
+          "bull_model": true
+        },
+        {
+          "bar": 27600,
+          "date": "2026-01-26 18:00:00",
+          "top_features": {
+            "eth_btc_ratio": 0.1595,
+            "eth_btc_sma20_dist": 0.1178,
+            "btc_sp500_corr_20": 0.0893,
+            "sp500_sma20_dist": 0.0676,
+            "eth_btc_change_10": 0.0621,
+            "fng_sma10": 0.052,
+            "momentum_240h": 0.0495,
+            "range_width_24": 0.0333,
+            "range_width_48": 0.0315,
+            "fng_sma5": 0.0267
+          },
+          "n_models": 3,
+          "bull_model": true
+        },
+        {
+          "bar": 28080,
+          "date": "2026-02-15 18:00:00",
+          "top_features": {
+            "eth_btc_ratio": 0.1379,
+            "eth_btc_sma20_dist": 0.1082,
+            "momentum_240h": 0.0738,
+            "sp500_sma20_dist": 0.0526,
+            "btc_sp500_corr_20": 0.0507,
+            "btc_dxy_corr_20": 0.0389,
+            "eth_btc_change_10": 0.0377,
+            "eth_btc_change_5": 0.0376,
+            "dxy_sma20_dist": 0.0334,
+            "momentum_120h": 0.0295
+          },
+          "n_models": 3,
+          "bull_model": true
+        }
+      ],
+      "n_features_used": 46,
+      "n_models": 3,
+      "v13_features": [
+        "bull_dual_labels",
+        "trend_following_override",
+        "momentum_entry_filter",
+        "bull_hold_through",
+        "bull_short_block",
+        "wider_bull_trailing",
+        "enhanced_momentum_features"
+      ],
+      "category": "ensemble"
+    }
+  }
+}
