@@ -24,9 +24,17 @@ MAX_EXPOSURE_USD = 500_000      # Maximum notional exposure allowed ($)
 MBT_NOTIONAL_PER_CT = 6_900     # Approximate notional per MBT contract (0.1 BTC)
 
 # ── Position Sizing ────────────────────────────────────
-MAX_CONTRACTS = 3       # Hard cap on total contracts at any time
-DEFAULT_CONTRACTS = 1   # Default order size (overridden by conviction)
+MAX_CONTRACTS = 20      # Absolute safety cap (exposure ceiling is the real limit)
+DEFAULT_CONTRACTS = 1   # Default order size (fallback when exposure sizing is off)
 POSITION_LIMIT_USD = 50_000  # Hard dollar limit
+
+# ── Exposure-Based Sizing ──────────────────────────────
+# When enabled, contract count is calculated from a target dollar exposure:
+#   base_contracts = round(TARGET_EXPOSURE_USD / (price × MULTIPLIER))
+# Conviction scales up: high = 1.5×, very_high = 2× the base.
+# Final cap = min(contracts, MAX_EXPOSURE_USD / notional_per_ct, MAX_CONTRACTS)
+EXPOSURE_SIZING_ENABLED = True
+TARGET_EXPOSURE_USD = 40_000    # Target notional exposure per trade ($)
 
 # ── Conviction Sizing ──────────────────────────────────
 # Trade 2-3 contracts when range is tight and well-tested
@@ -95,7 +103,7 @@ CHOPPY = {
     "short_max_hold_hours": 168,    # 7 days max hold for shorts
 
     # ── Risk ──
-    "cooldown_hours":       3,      # hours between trades
+    "cooldown_hours":       2,      # hours between trades
     "dynamic_cooldown":     True,   # 12h cooldown after 2+ consecutive short losses
     "dynamic_cooldown_hrs": 12,     # cooldown used after repeated short losses
     "consecutive_loss_trigger": 2,  # how many consecutive short losses to trigger

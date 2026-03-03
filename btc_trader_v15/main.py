@@ -796,6 +796,9 @@ class Trader:
             # Recalibration & config
             "cooldown_hours": cfg.CHOPPY["cooldown_hours"],
             "last_recal_time": str(self._last_recal_time) if self._last_recal_time else None,
+            # Exposure sizing
+            "target_exposure": getattr(cfg, "TARGET_EXPOSURE_USD", 0),
+            "exposure_sizing_enabled": getattr(cfg, "EXPOSURE_SIZING_ENABLED", False),
         }
         with open(self.state_file, "w") as f:
             json.dump(state, f, indent=2, default=str)
@@ -998,6 +1001,10 @@ async def run_interactive(trader: Trader, regime: str):
                         old = cfg.MAX_CONTRACTS
                         cfg.MAX_CONTRACTS = int(float(updates["max_contracts"]))
                         logger.info(f"Config update: MAX_CONTRACTS {old} -> {cfg.MAX_CONTRACTS}")
+                    if "target_exposure" in updates:
+                        old = getattr(cfg, "TARGET_EXPOSURE_USD", 0)
+                        cfg.TARGET_EXPOSURE_USD = int(float(updates["target_exposure"]))
+                        logger.info(f"Config update: TARGET_EXPOSURE_USD {old:,} -> {cfg.TARGET_EXPOSURE_USD:,}")
                     trader._save_state()  # Persist immediately so dashboard sees it
                 except Exception as e:
                     logger.error(f"Config update error: {e}", exc_info=True)

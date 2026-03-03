@@ -69,9 +69,11 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 "max_contracts": state.get("max_contracts", cfg.MAX_CONTRACTS),
                 "contract_symbol": state.get("contract_symbol", ""),
                 "days_to_expiry": state.get("days_to_expiry", None),
-                "cooldown_hours": state.get("cooldown_hours", cfg.CHOPPY.get("cooldown_hours", 3)),
+                "cooldown_hours": state.get("cooldown_hours", cfg.CHOPPY.get("cooldown_hours", 2)),
                 "last_recal_time": state.get("last_recal_time"),
                 "recalibrations": state.get("recalibrations", 0),
+                "target_exposure": state.get("target_exposure", getattr(cfg, "TARGET_EXPOSURE_USD", 40000)),
+                "exposure_sizing_enabled": state.get("exposure_sizing_enabled", getattr(cfg, "EXPOSURE_SIZING_ENABLED", True)),
             })
         else:
             self.send_error(404)
@@ -497,6 +499,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     <div class="ap-item"><div class="ap-label">Paper Balance</div><div class="ap-value" id="ap-balance-wrap"><span class="ap-editable" id="ap-balance" onclick="editConfig('paper_balance', this)" title="Click to edit">—</span></div></div>
     <div class="ap-item"><div class="ap-label">Max Exposure</div><div class="ap-value" id="ap-max-exp-wrap"><span class="ap-editable" id="ap-max-exp" onclick="editConfig('max_exposure', this)" title="Click to edit">—</span></div></div>
     <div class="ap-item"><div class="ap-label">Cooldown</div><div class="ap-value" id="ap-cooldown-wrap"><span class="ap-editable" id="ap-cooldown" onclick="editConfig('cooldown_hours', this)" title="Click to edit">—</span></div></div>
+    <div class="ap-item"><div class="ap-label">Target Exposure</div><div class="ap-value" id="ap-target-exp-wrap"><span class="ap-editable" id="ap-target-exp" onclick="editConfig('target_exposure', this)" title="Click to edit">—</span></div><div class="ap-sub" style="font-size:10px;color:var(--text-dim);">Per-trade notional target</div></div>
     <div class="ap-item">
       <div class="ap-label">Contracts</div>
       <div class="ap-value"><span id="ap-cur-ct">0</span> / <span id="ap-max-ct-display">3</span></div>
@@ -568,8 +571,8 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     <div class="card-header"><span>Trade History</span><span id="trade-count" style="font-size:11px; color:var(--text-dim);"></span></div>
     <div class="card-body" style="padding:0; overflow-x:auto;">
       <table class="trade-table" id="trade-table">
-        <thead><tr><th>Time</th><th>Action</th><th>Side</th><th>Price</th><th>Entry</th><th>PnL</th><th>Reason</th></tr></thead>
-        <tbody id="trade-tbody"><tr><td colspan="7" class="empty-state">No trades yet</td></tr></tbody>
+        <thead><tr><th>Time</th><th>Action</th><th>Side</th><th>Price</th><th>Entry</th><th>Exposure</th><th>PnL</th><th>Reason</th></tr></thead>
+        <tbody id="trade-tbody"><tr><td colspan="8" class="empty-state">No trades yet</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -609,7 +612,7 @@ function actionClass(a) { return 'action-' + (a || '').toLowerCase(); }
 let toastTimer = null;
 function showToast(msg, type) { const el = document.getElementById('toast'); el.textContent = msg; el.className = 'show ' + (type || ''); if (toastTimer) clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.className = ''; }, 3000); }
 
-let currentConfigValues = { paper_balance: 1000000, max_exposure: 500000, cooldown_hours: 3, max_contracts: 3 };
+let currentConfigValues = { paper_balance: 1000000, max_exposure: 500000, cooldown_hours: 2, max_contracts: 20, target_exposure: 40000 };
 
 function editConfig(field, el) {
   if (el.querySelector('input')) return;
@@ -627,7 +630,7 @@ async function saveConfig(field) {
   if (!inp) return;
   let val = parseFloat(inp.value);
   if (isNaN(val) || val < 0) { showToast('Invalid value', 'err'); return; }
-  if (field === 'paper_balance' || field === 'max_exposure') val = Math.round(val);
+  if (field === 'paper_balance' || field === 'max_exposure' || field === 'target_exposure') val = Math.round(val);
   else if (field === 'cooldown_hours') val = Math.round(val * 4) / 4;
   else if (field === 'max_contracts') val = Math.max(1, Math.round(val));
   try {
@@ -643,6 +646,7 @@ function cancelEdit(field) {
   if (field === 'paper_balance') { const wrap = document.getElementById('ap-balance-wrap'); wrap.innerHTML = `<span class="ap-editable" id="ap-balance" onclick="editConfig('paper_balance', this)" title="Click to edit">${fmtK(val)} <span class="edit-icon">&#x270E;</span></span>`; }
   else if (field === 'max_exposure') { const wrap = document.getElementById('ap-max-exp-wrap'); wrap.innerHTML = `<span class="ap-editable" id="ap-max-exp" onclick="editConfig('max_exposure', this)" title="Click to edit">${fmtK(val)} <span class="edit-icon">&#x270E;</span></span>`; }
   else if (field === 'cooldown_hours') { const wrap = document.getElementById('ap-cooldown-wrap'); wrap.innerHTML = `<span class="ap-editable" id="ap-cooldown" onclick="editConfig('cooldown_hours', this)" title="Click to edit">${val}h <span class="edit-icon">&#x270E;</span></span>`; }
+  else if (field === 'target_exposure') { const wrap = document.getElementById('ap-target-exp-wrap'); wrap.innerHTML = `<span class="ap-editable" id="ap-target-exp" onclick="editConfig('target_exposure', this)" title="Click to edit">${fmtK(val)} <span class="edit-icon">&#x270E;</span></span>`; }
   else if (field === 'max_contracts') { const mctEl = document.getElementById('ap-max-ct'); if (mctEl) mctEl.innerHTML = 'max: ' + val + ' <span class="edit-icon">&#x270E;</span>'; document.getElementById('ap-max-ct-display').textContent = val; return; }
 }
 
@@ -719,6 +723,10 @@ function update(data) {
   if (!document.getElementById('cfg-input-max_exposure')) { const expEl = document.getElementById('ap-max-exp'); if (expEl) expEl.innerHTML = fmtK(maxExposure) + ' <span class="edit-icon">&#x270E;</span>'; }
   if (!document.getElementById('cfg-input-cooldown_hours')) { const cdEl = document.getElementById('ap-cooldown'); if (cdEl) cdEl.innerHTML = cooldownHours + 'h <span class="edit-icon">&#x270E;</span>'; }
 
+  const targetExposure = data.target_exposure ?? s.target_exposure ?? 40000;
+  currentConfigValues.target_exposure = targetExposure;
+  if (!document.getElementById('cfg-input-target_exposure')) { const teEl = document.getElementById('ap-target-exp'); if (teEl) teEl.innerHTML = fmtK(targetExposure) + ' <span class="edit-icon">&#x270E;</span>'; }
+
   document.getElementById('ap-cur-ct').textContent = curContracts;
   document.getElementById('ap-max-ct-display').textContent = maxContracts;
   currentConfigValues.max_contracts = maxContracts;
@@ -765,6 +773,8 @@ function update(data) {
     let html = '';
     html += row('Entry Price', fmtPrice(pos.entry_price));
     html += row('Current Price', fmtPrice(lastPrice));
+    const posNotional = (pos.contracts||1) * lastPrice * 0.1;
+    html += `<div class="position-row" style="background:rgba(59,130,246,0.08);border-radius:4px;padding:8px 6px;margin:4px 0;"><span class="label" style="font-weight:600;color:var(--accent);">Notional Exposure</span><span class="value" style="font-weight:700;font-size:15px;color:var(--accent);">${fmtK(posNotional)}</span></div>`;
     html += row('Unrealized PnL', `<span class="${colorClass(unrealPnl)}">${fmt(unrealPnl)} (${unrealPct >= 0 ? '+' : ''}${unrealPct.toFixed(2)}%)</span>`);
     html += row('Contracts', pos.contracts || 1);
     html += row('Target', fmtPrice(pos.target_price));
@@ -800,12 +810,14 @@ function update(data) {
     let html = '';
     for (const t of recent) {
       const isClosed = t.action === 'SELL' || t.action === 'COVER';
+      const tradeNotional = (t.filled_qty || 1) * (t.fill_price || 0) * 0.1;
       html += '<tr>';
       html += `<td>${fmtTime(t.time)}</td>`;
       html += `<td class="${actionClass(t.action)}">${t.action}</td>`;
       html += `<td>${t.side ? '<span class="side-'+(t.side||'')+'">'+( t.side||'').toUpperCase()+'</span>' : '\u2014'}</td>`;
       html += `<td>${fmtPrice(t.fill_price)}</td>`;
       html += `<td>${isClosed ? fmtPrice(t.entry_price) : '\u2014'}</td>`;
+      html += `<td style="color:var(--accent);font-weight:500;">${tradeNotional > 0 ? fmtK(tradeNotional) : '\u2014'}</td>`;
       html += `<td class="${colorClass(t.net_pnl)}">${isClosed ? fmt(t.net_pnl) : '\u2014'}</td>`;
       html += `<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font);font-size:11px;color:var(--text-dim);">${t.reason || '\u2014'}</td>`;
       html += '</tr>';

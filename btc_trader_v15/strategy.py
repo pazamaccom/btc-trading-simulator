@@ -278,38 +278,71 @@ class ChoppyStrategy:
 
         return s_t, r_t
 
-    def _conviction_contracts(self, rng_pos, side):
+    def _conviction_contracts(self, rng_pos, side, price=0.0):
         """
-        Determine contract count based on conviction level.
+        Determine contract count based on conviction level and target exposure.
+
+        When EXPOSURE_SIZING_ENABLED (config), the base contract count is
+        derived from  TARGET_EXPOSURE_USD / (price * MULTIPLIER).
+        Conviction still qualifies the trade (normal / high / very_high)
+        and can scale the base count up, always capped at MAX_CONTRACTS.
+
         Returns (contracts, conviction_label).
         """
+        # ── Exposure-based base contracts ──
+        exposure_sizing = getattr(cfg, "EXPOSURE_SIZING_ENABLED", False)
+        if exposure_sizing and price > 0:
+            notional_per_ct = price * cfg.MULTIPLIER
+            base_cts = max(1, round(
+                getattr(cfg, "TARGET_EXPOSURE_USD", 40_000) / notional_per_ct
+            )) if notional_per_ct > 0 else 1
+        else:
+            base_cts = cfg.DEFAULT_CONTRACTS
+
         if not cfg.CONVICTION_ENABLED:
-            return cfg.DEFAULT_CONTRACTS, "normal"
+            return min(base_cts, cfg.MAX_CONTRACTS), "normal"
 
         range_pct = self.range_pct * 100  # convert to percentage
         total_touches = self.support_touches + self.resistance_touches
 
-        contracts = cfg.DEFAULT_CONTRACTS
         label = "normal"
 
-        # Level 1: 2 contracts
+        # Level 1: high conviction
         if (range_pct < cfg.CONV_L1_RANGE_MAX_PCT
                 and total_touches >= cfg.CONV_L1_MIN_TOUCHES):
             if ((side == "LONG" and rng_pos <= cfg.CONV_L1_EXTREME_PCT)
                     or (side == "SHORT" and rng_pos >= (1 - cfg.CONV_L1_EXTREME_PCT))):
-                contracts = 2
                 label = "high"
 
-        # Level 2: 3 contracts (stricter)
+        # Level 2: very_high conviction (stricter)
         if (range_pct < cfg.CONV_L2_RANGE_MAX_PCT
                 and total_touches >= cfg.CONV_L2_MIN_TOUCHES):
             if ((side == "LONG" and rng_pos <= cfg.CONV_L2_EXTREME_PCT)
                     or (side == "SHORT" and rng_pos >= (1 - cfg.CONV_L2_EXTREME_PCT))):
-                contracts = 3
                 label = "very_high"
 
-        # Hard cap
-        contracts = min(contracts, cfg.MAX_CONTRACTS)
+        # ── Scale contracts by conviction ──
+        if exposure_sizing and price > 0:
+            contracts = base_cts
+            if label == "very_high":
+                contracts = max(base_cts, round(base_cts * 2))
+            elif label == "high":
+                contracts = max(base_cts, round(base_cts * 1.5))
+        else:
+            # Legacy fixed sizing
+            contracts = base_cts
+            if label == "high":
+                contracts = 2
+            elif label == "very_high":
+                contracts = 3
+
+        # Hard cap: use MAX_EXPOSURE safety ceiling when exposure sizing is on
+        if exposure_sizing and price > 0:
+            notional_per_ct = price * cfg.MULTIPLIER
+            max_from_exposure = int(cfg.MAX_EXPOSURE_USD / notional_per_ct) if notional_per_ct > 0 else cfg.MAX_CONTRACTS
+            contracts = min(contracts, max_from_exposure, cfg.MAX_CONTRACTS)
+        else:
+            contracts = min(contracts, cfg.MAX_CONTRACTS)
         return contracts, label
 
     def _check_pyramid(self, price, rng_pos, rsi_val) -> Optional[Signal]:
@@ -379,11 +412,12 @@ class ChoppyStrategy:
 
         # ── LONG entry: price near support ──
         if rng_pos <= p["long_entry_zone"] and rsi_val < p["long_rsi_max"]:
-            contracts, conviction = self._conviction_contracts(rng_pos, "LONG")
+            contracts, conviction = self._conviction_contracts(rng_pos, "LONG", price)
             target = self.support + (self.resistance - self.support) * p["long_target_zone"]
+            notional = contracts * price * cfg.MULTIPLIER
             reason = (f"LONG entry ({conviction}): price in bottom {rng_pos*100:.0f}% of "
                       f"${self.support:,.0f}-${self.resistance:,.0f} "
-                      f"(RSI={rsi_val:.1f}, {contracts}ct)")
+                      f"(RSI={rsi_val:.1f}, {contracts}ct, ${notional:,.0f} exposure)")
 
             return Signal(
                 action="BUY", reason=reason, price=price, timestamp=now,
@@ -394,12 +428,13 @@ class ChoppyStrategy:
         if (rng_pos >= p["short_entry_zone"]
                 and rsi_val > p["short_rsi_min"]
                 and adx_val < p["short_adx_max"]):
-            contracts, conviction = self._conviction_contracts(rng_pos, "SHORT")
+            contracts, conviction = self._conviction_contracts(rng_pos, "SHORT", price)
             target = self.support + (self.resistance - self.support) * p["short_target_zone"]
             stop = price * (1 + p["short_stop_pct"])
+            notional = contracts * price * cfg.MULTIPLIER
             reason = (f"SHORT entry ({conviction}): price in top {(1-rng_pos)*100:.0f}% of "
                       f"${self.support:,.0f}-${self.resistance:,.0f} "
-                      f"(RSI={rsi_val:.1f}, ADX={adx_val:.1f}, {contracts}ct)")
+                      f"(RSI={rsi_val:.1f}, ADX={adx_val:.1f}, {contracts}ct, ${notional:,.0f} exposure)")
 
             return Signal(
                 action="SHORT", reason=reason, price=price, timestamp=now,
