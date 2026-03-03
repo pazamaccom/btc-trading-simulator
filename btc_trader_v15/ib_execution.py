@@ -1,5 +1,5 @@
 """
-	v15 IB Execution Layer — Connects to TWS and executes trades
+v15 IB Execution Layer — Connects to TWS and executes trades
 =============================================================
 Uses ib_async to:
   - Connect to TWS paper trading (port 7497)
@@ -298,13 +298,16 @@ class IBExecution:
         return fill_info
 
     async def _wait_for_fill(self, trade, timeout=30) -> dict:
-        """Wait for order fill with timeout."""
+        """Wait for order fill with timeout. Robust against event loop issues."""
         start = asyncio.get_event_loop().time()
         while (asyncio.get_event_loop().time() - start) < timeout:
             await asyncio.sleep(0.5)
-            self.ib.sleep(0)  # process messages
+            try:
+                self.ib.sleep(0)  # process messages
+            except Exception:
+                pass  # Don't crash if sleep fails
 
-            if trade.orderStatus.status in ("Filled", "Inactive"):
+            if trade.orderStatus.status in ("Filled", "Inactive", "Cancelled", "ApiCancelled"):
                 break
 
         status = trade.orderStatus.status
