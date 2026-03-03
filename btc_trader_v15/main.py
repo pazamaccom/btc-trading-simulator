@@ -62,7 +62,7 @@ from strategy import ChoppyStrategy, Signal
 from ib_execution import IBExecution
 from dashboard import run_dashboard
 
-# ── Logging Setup ──────────────────────────────────────────
+# ── Logging Setup ────────────────────────────────────────────
 
 log_dir = Path(cfg.LOG_DIR)
 log_dir.mkdir(exist_ok=True)
@@ -122,7 +122,7 @@ class Trader:
         self.start_time = None
         self.recalibrations = 0
 
-    # ── Control File ─────────────────────────────────────
+    # ── Control File ───────────────────────────────────
 
     def _clear_control(self):
         """Clear any pending control commands."""
@@ -316,16 +316,16 @@ class Trader:
             side = "long" if qty > 0 else "short"
             contracts = abs(qty)
 
-            # Restore the strategy position
+            # Restore the strategy position using actual config keys
             rng = self.strategy.resistance - self.strategy.support
             if side == "long":
-                target = self.strategy.support + rng * cfg.CHOPPY["target_pct"]
+                target = self.strategy.support + rng * cfg.CHOPPY["long_target_zone"]
                 stop_loss = 0.0   # patient longs — no stop
                 trailing_stop = 0.0
             else:  # short
-                target = self.strategy.resistance - rng * cfg.CHOPPY["target_pct"]
+                target = self.strategy.support + rng * cfg.CHOPPY["short_target_zone"]
                 stop_loss = entry_price * (1 + cfg.CHOPPY["short_stop_pct"])
-                trailing_stop = entry_price * (1 + cfg.CHOPPY["short_trailing_pct"])
+                trailing_stop = entry_price * (1 + cfg.CHOPPY["short_trail_pct"])
 
             pos = self.strategy.position
             pos.side = side
@@ -528,7 +528,7 @@ class Trader:
                 side = self.strategy.position.side
                 logger.warning(f"AUTO-FLATTEN: Only {days} day(s) to expiry! "
                               f"Closing {side} position.")
-                print(f"\n  ⚠ AUTO-FLATTEN: Contract expires in {days} day(s)!")
+                print(f"\n  \u26a0 AUTO-FLATTEN: Contract expires in {days} day(s)!")
                 if side == "long":
                     await self._execute_sell("AUTO_FLATTEN_EXPIRY")
                 elif side == "short":
@@ -581,8 +581,8 @@ class Trader:
                 self.ib_exec.qualified = True
                 new_symbol = self.ib_exec.contract.localSymbol
                 new_days = self.ib_exec.days_to_expiry()
-                logger.info(f"ROLLED: {old_symbol} → {new_symbol} ({new_days} days to expiry)")
-                print(f"\n  CONTRACT ROLLED: {old_symbol} → {new_symbol} ({new_days}d to expiry)\n")
+                logger.info(f"ROLLED: {old_symbol} \u2192 {new_symbol} ({new_days} days to expiry)")
+                print(f"\n  CONTRACT ROLLED: {old_symbol} \u2192 {new_symbol} ({new_days}d to expiry)\n")
 
                 # Re-subscribe to bars on the new contract
                 if self._bar_subscription:
