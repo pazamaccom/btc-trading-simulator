@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-	v15 Main Runner — Human-Directed BTC Trading via Interactive Brokers
+v15 Main Runner — Human-Directed BTC Trading via Interactive Brokers
 =====================================================================
 Config I: Long+Short, rolling calibration, asymmetric risk
 
@@ -62,7 +62,7 @@ from strategy import ChoppyStrategy, Signal
 from ib_execution import IBExecution
 from dashboard import run_dashboard
 
-# ── Logging Setup ──────────────────────────────────────
+# ── Logging Setup ──────────────────────────────────────────
 
 log_dir = Path(cfg.LOG_DIR)
 log_dir.mkdir(exist_ok=True)
@@ -122,7 +122,7 @@ class Trader:
         self.start_time = None
         self.recalibrations = 0
 
-    # ── Control File ───────────────────────────────────
+    # ── Control File ─────────────────────────────────────
 
     def _clear_control(self):
         """Clear any pending control commands."""
@@ -203,6 +203,9 @@ class Trader:
         print(f"\n[2/3] Calibrating {regime} strategy (fetching {cal_days} "
               f"days of hourly data)...")
         await self._calibrate(regime)
+
+        # 2b. Recover any existing position from IB
+        await self._recover_position()
 
         # 3. Start live trading
         print(f"\n[3/3] Starting live trading loop...")
@@ -286,6 +289,69 @@ class Trader:
             print(f"  Range detected: ${result['support']:,.0f} - ${result['resistance']:,.0f} "
                   f"({result['range_pct']:.1f}%)")
             print(f"  Bars: {result['bars_loaded']} | Recalibrations: {self.recalibrations}")
+
+    async def _recover_position(self):
+        """
+        On restart, check IB for an existing position and restore
+        the strategy's position state so we resume managing it.
+        """
+        if not self.strategy or not self.ib_exec.connected:
+            return
+
+        try:
+            ib_pos = await self.ib_exec.get_position()
+            qty = ib_pos.get("position", 0)
+            if qty == 0:
+                logger.info("No existing IB position found — starting flat")
+                return
+
+            avg_cost = ib_pos.get("avg_cost", 0)
+            # IB avg_cost for futures is per-unit cost (price * multiplier)
+            # Recover the entry price from avg_cost
+            if cfg.MULTIPLIER > 0 and avg_cost > 0:
+                entry_price = avg_cost / cfg.MULTIPLIER
+            else:
+                entry_price = avg_cost
+
+            side = "long" if qty > 0 else "short"
+            contracts = abs(qty)
+
+            # Restore the strategy position
+            rng = self.strategy.resistance - self.strategy.support
+            if side == "long":
+                target = self.strategy.support + rng * cfg.CHOPPY["target_pct"]
+                stop_loss = 0.0   # patient longs — no stop
+                trailing_stop = 0.0
+            else:  # short
+                target = self.strategy.resistance - rng * cfg.CHOPPY["target_pct"]
+                stop_loss = entry_price * (1 + cfg.CHOPPY["short_stop_pct"])
+                trailing_stop = entry_price * (1 + cfg.CHOPPY["short_trailing_pct"])
+
+            pos = self.strategy.position
+            pos.side = side
+            pos.entry_price = entry_price
+            pos.avg_entry = entry_price
+            pos.contracts = int(contracts)
+            pos.initial_contracts = int(contracts)  # best guess
+            pos.entry_time = datetime.now()  # approximate
+            pos.target_price = target
+            pos.stop_loss = stop_loss
+            pos.trailing_stop = trailing_stop
+            pos.peak_price = entry_price  # for trailing stop tracking
+            pos.long_peak = entry_price
+            pos.support = self.strategy.support
+            pos.resistance = self.strategy.resistance
+            pos.conviction = "normal"  # can't recover this from IB
+
+            logger.info(f"RECOVERED position from IB: {side.upper()} {contracts} contracts "
+                        f"@ ${entry_price:,.2f} (avg_cost=${avg_cost:.2f})")
+            print(f"\n  RECOVERED POSITION: {side.upper()} {int(contracts)} contracts "
+                  f"@ ${entry_price:,.2f}")
+            print(f"    Target: ${target:,.2f}  Stop: ${stop_loss:,.2f}")
+
+        except Exception as e:
+            logger.error(f"Position recovery failed: {e}", exc_info=True)
+            print(f"  WARNING: Could not recover IB position: {e}")
 
     async def _maybe_recalibrate(self):
         """
