@@ -25,19 +25,21 @@ python simulate.py         Review sim_results.json    python main.py
 cd btc_trader_v15
 pip install -r requirements.txt
 
-# Simulate: calibrate on Jan 15-29, trade forward to today
-python simulate.py --regime choppy --cal-start 2026-01-15
+# Simulate: calibrate on Feb 6-20, trade forward to today
+python simulate.py --regime choppy --cal-start 2026-02-06
 
 # Simulate with specific end date and 2 contracts
-python simulate.py --regime choppy --cal-start 2026-01-15 --end 2026-03-01 --contracts 2
+python simulate.py --regime choppy --cal-start 2026-02-06 --end 2026-03-03 --contracts 2
 ```
 
 The simulator will:
-1. Fetch hourly BTC-USD data from Coinbase (cached locally)
+1. Connect to IB TWS and fetch hourly MBT bars (cached locally)
 2. Calibrate the strategy on the first 14 days (detect range, S/R levels)
 3. Run bar-by-bar simulation on remaining data
 4. Print full performance report with every trade
 5. Give a VERDICT on whether to go live
+
+**Note:** TWS or IB Gateway must be running on localhost:7497 for data fetching.
 
 ### Stage 2: Review
 The simulator prints a complete report:
@@ -106,7 +108,7 @@ btc_trader_v15/
 ├── strategy.py       # Strategy engine (shared by both)
 ├── indicators.py     # RSI, ADX, Stochastic, ATR, Bollinger
 ├── ib_execution.py   # IB TWS connection layer
-├── data_fetcher.py   # Coinbase hourly data fetcher
+├── data_fetcher.py   # IB historical data fetcher (hourly MBT bars)
 ├── config.py         # All tuneable parameters
 ├── requirements.txt
 ├── README.md
@@ -121,6 +123,7 @@ btc_trader_v15/
 
 - [x] Choppy/sideways regime (range trading)
 - [x] Historical simulation before going live
+- [x] IB API for all data (no external API dependencies)
 - [ ] Bullish regime (trend following)
 - [ ] Bearish regime (short selling / hedging)
 - [ ] Dynamic position sizing based on conviction

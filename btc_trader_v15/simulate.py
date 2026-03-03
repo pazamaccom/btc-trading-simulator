@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-	v15 Simulator — Backtest the strategy on historical data before going live
+v15 Simulator — Backtest the strategy on historical data before going live
 ==========================================================================
 
 Three-stage workflow:
@@ -8,13 +8,16 @@ Three-stage workflow:
   Stage 2: REVIEW    — Inspect trades, P&L, equity curve
   Stage 3: GO LIVE   — Launch on IB paper trading (via main.py)
 
+Requires TWS or IB Gateway running on localhost:7497 (paper trading).
+Data is fetched from IB historical data API and cached locally.
+
 Usage:
-  python simulate.py --regime choppy --cal-start 2026-01-15
-  python simulate.py --regime choppy --cal-start 2026-01-15 --end 2026-03-01
-  python simulate.py --regime choppy --cal-start 2026-01-15 --contracts 2
+  python simulate.py --regime choppy --cal-start 2026-02-06
+  python simulate.py --regime choppy --cal-start 2026-02-06 --end 2026-03-03
+  python simulate.py --regime choppy --cal-start 2026-02-06 --contracts 2
 
 The program will:
-  1. Fetch all hourly BTC data from cal-start to end (default: today)
+  1. Connect to TWS and fetch hourly MBT bars from cal-start to end (default: today)
   2. Use the first 14 days as the calibration window
   3. Simulate bar-by-bar trading on the remaining data
   4. Print a full performance report
@@ -72,7 +75,7 @@ def run_simulation(regime: str, cal_start: str, end_date: str = None,
 
     # ── Fetch data ──────────────────────────────────────
     if verbose:
-        print(f"\n[1/4] Fetching hourly BTC data...")
+        print(f"\n[1/4] Fetching hourly MBT data from IB...")
 
     df = fetch_hourly_btc(cal_start, end_dt.strftime("%Y-%m-%d"))
 
