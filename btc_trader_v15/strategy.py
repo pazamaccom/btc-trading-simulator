@@ -20,7 +20,7 @@ from indicators import calc_rsi, calc_adx, calc_stochastic
 import config as cfg
 
 
-# ── Signal types ───────────────────────────────────────
+# ── Signal types ─────────────────────────────────────
 
 @dataclass
 class Signal:
@@ -117,7 +117,10 @@ class ChoppyStrategy:
         self._rsi = np.array([50])
         self._adx = np.array([20])
 
-    # ── Calibration ────────────────────────────────────
+        # Last signal reason (for dashboard display)
+        self._last_signal_reason = ""
+
+    # ── Calibration ───────────────────────────────────
 
     def calibrate(self, bars_df: pd.DataFrame):
         """
@@ -185,14 +188,19 @@ class ChoppyStrategy:
         # ══════════ EXIT LOGIC ══════════
         if not self.position.is_flat:
             if self.position.side == "long":
-                return self._check_long_exit(price, high_val, low_val, now, adx_val, rsi_val)
+                sig = self._check_long_exit(price, high_val, low_val, now, adx_val, rsi_val)
+            elif self.position.side == "short":
+                sig = self._check_short_exit(price, high_val, low_val, now, adx_val, rsi_val)
             else:
-                return self._check_short_exit(price, high_val, low_val, now, adx_val, rsi_val)
+                sig = Signal("HOLD", "Unknown position side", price, now)
+        else:
+            # ══════════ ENTRY LOGIC ══════════
+            sig = self._check_entry(price, now, adx_val, rsi_val)
 
-        # ══════════ ENTRY LOGIC ══════════
-        return self._check_entry(price, now, adx_val, rsi_val)
+        self._last_signal_reason = sig.reason if sig else ""
+        return sig
 
-    # ── Range Detection (percentile-based) ─────────────
+    # ── Range Detection (percentile-based) ───────────────
 
     def _update_range(self):
         """Detect support/resistance using percentiles and count S/R touches."""
@@ -242,7 +250,7 @@ class ChoppyStrategy:
             return 0.5
         return (price - self.support) / (self.resistance - self.support)
 
-    # ── Conviction & Pyramid Helpers ───────────────────
+    # ── Conviction & Pyramid Helpers ─────────────────────
 
     @staticmethod
     def _count_touches(lows, highs, support, resistance,
@@ -445,7 +453,7 @@ class ChoppyStrategy:
                        f"LONG {bars_held}h, {pos.contracts}ct, PnL={pnl_pct:+.2f}%, RSI={rsi_val:.1f}",
                        price, now)
 
-    # ── Short Exit Logic (defensive) ───────────────────
+    # ── Short Exit Logic (defensive) ─────────────────────
 
     def _check_short_exit(self, price, high_val, low_val, now, adx_val, rsi_val) -> Signal:
         """Check if we should exit a short position. Defensive — tight stops."""
@@ -661,4 +669,8 @@ class ChoppyStrategy:
             "cooldown_until": str(self.cooldown_until) if self.cooldown_until else None,
             "bars_in_window": len(self.bars),
             "consecutive_short_losses": self.consecutive_short_losses,
+            "rsi": round(float(self._rsi[-1]), 2) if len(self._rsi) > 0 else 50.0,
+            "adx": round(float(self._adx[-1]), 2) if len(self._adx) > 0 else 20.0,
+            "range_position": round(self._range_position(float(self.bars[-1]["close"])), 4) if self.bars and self.support > 0 and self.resistance > self.support else 0.5,
+            "last_signal_reason": self._last_signal_reason if hasattr(self, '_last_signal_reason') else "",
         }
