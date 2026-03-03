@@ -230,24 +230,28 @@ class IBExecution:
         asyncio.ensure_future(self._streaming_watchdog())
 
     def _on_bar_update(self, bars, hasNewBar):
-        """Called by ib_async when a new bar arrives via streaming."""
+        """Called by ib_async when a bar updates or a new bar arrives."""
         if not bars or not self.on_bar_callback:
             return
 
-        self._last_bar_time = pd.Timestamp("now")  # reset watchdog
+        self._last_bar_time = pd.Timestamp.now(tz="UTC")  # reset watchdog
 
-        if hasNewBar and len(bars) > 0:
-            b = bars[-1]
-            bar_dict = {
-                "time": pd.Timestamp(b.date),
-                "open": b.open,
-                "high": b.high,
-                "low": b.low,
-                "close": b.close,
-                "volume": int(b.volume) if hasattr(b, 'volume') else 0,
-            }
-            logger.info(f"Live bar: {bar_dict['time']} close=${b.close:,.2f}")
-            self.on_bar_callback(bar_dict)
+        # Always process the latest bar — IB updates the last bar in-place
+        # as trades occur, and fires hasNewBar=True when a new period starts.
+        b = bars[-1]
+        bar_dict = {
+            "time": pd.Timestamp(b.date),
+            "open": b.open,
+            "high": b.high,
+            "low": b.low,
+            "close": b.close,
+            "volume": int(b.volume) if hasattr(b, 'volume') else 0,
+        }
+        if hasNewBar:
+            logger.info(f"New bar: {bar_dict['time']} close=${b.close:,.2f}")
+        else:
+            logger.debug(f"Bar update: {bar_dict['time']} close=${b.close:,.2f}")
+        self.on_bar_callback(bar_dict)
 
     async def _streaming_watchdog(self):
         """If no streaming update arrives within 90s, fall back to polling."""
@@ -297,7 +301,14 @@ class IBExecution:
             if bar_time is None:
                 continue
 
-            if self._last_bar_time and bar_time <= self._last_bar_time:
+            # Normalize both to tz-naive UTC for comparison
+            bt_naive = bar_time.tz_localize(None) if bar_time.tzinfo else bar_time
+            lt_naive = (self._last_bar_time.tz_localize(None)
+                        if self._last_bar_time is not None
+                        and getattr(self._last_bar_time, 'tzinfo', None)
+                        else self._last_bar_time)
+
+            if lt_naive is not None and bt_naive <= lt_naive:
                 continue
 
             bar_dict = {
