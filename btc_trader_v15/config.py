@@ -1,5 +1,5 @@
 """
-v15 Configuration — Human-Directed BTC Trading via IB
+	v15 Configuration — Human-Directed BTC Trading via IB
 =====================================================
 Config I: Long+Short, rolling calibration, asymmetric risk
 """
@@ -17,6 +17,11 @@ MULTIPLIER = 0.1        # 0.1 BTC per contract
 TICK_SIZE = 5.0         # $5 per BTC point
 TICK_VALUE = 0.50       # $0.50 per tick
 COMMISSION_PER_SIDE = 1.25  # ~$1.25 per contract per side
+
+# ── Account / Exposure ─────────────────────────────────
+PAPER_BALANCE = 1_000_000       # Paper trading account balance ($)
+MAX_EXPOSURE_USD = 500_000      # Maximum notional exposure allowed ($)
+MBT_NOTIONAL_PER_CT = 6_900     # Approximate notional per MBT contract (0.1 BTC)
 
 # ── Position Sizing ────────────────────────────────────
 MAX_CONTRACTS = 3       # Hard cap on total contracts at any time
@@ -46,8 +51,10 @@ PYRAMID_PULLBACK_ZONE = 0.30        # Price must pull back to bottom 30% of rang
 PYRAMID_RSI_MAX = 45                # RSI must have reset (not overbought)
 PYRAMID_MIN_PEAK_GAIN = 0.005       # Price must have risen >=0.5% from entry before pullback
 
-# ── Contract Roll ──────────────────────────────────────
+# ── Contract Roll / Expiry ─────────────────────────────
 ROLL_AVOID_DAYS = 3     # Avoid entering within N days of expiry
+AUTO_FLATTEN_DAYS = 1   # Auto-flatten all positions N days before expiry
+AUTO_ROLL_DAYS = 5      # Switch to next contract N days before expiry
 
 # ── Data ───────────────────────────────────────────────
 BAR_SIZE = "1 hour"         # IB bar size for historical data
@@ -108,6 +115,7 @@ BEARISH = {
 LOG_DIR = "logs"
 TRADE_LOG = "trades.json"
 STATE_FILE = "state.json"
+CONTROL_FILE = "control.json"   # Dashboard → Engine commands
 
 # ── Dashboard ──────────────────────────────────────────
 DASHBOARD_PORT = 8080

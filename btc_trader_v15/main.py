@@ -87,6 +87,10 @@ class Trader:
         self._last_recal_date = None  # date of last recalibration
         self._calibration_start_date = None  # first date of calibration data
 
+        # Control file: dashboard can send commands
+        self._control_file = Path(cfg.CONTROL_FILE)
+        self._clear_control()  # start clean
+
         # State persistence
         self.state_file = Path(cfg.STATE_FILE)
         self.trade_file = Path(cfg.TRADE_LOG)
@@ -98,6 +102,46 @@ class Trader:
         self.orders_placed = 0
         self.start_time = None
         self.recalibrations = 0
+
+    # ── Control File ───────────────────────────────────
+
+    def _clear_control(self):
+        """Clear any pending control commands."""
+        try:
+            if self._control_file.exists():
+                self._control_file.unlink()
+        except:
+            pass
+
+    def _read_control(self) -> Optional[dict]:
+        """Read and consume a control command from the dashboard."""
+        try:
+            if self._control_file.exists():
+                data = json.loads(self._control_file.read_text())
+                self._control_file.unlink()  # consume it
+                return data
+        except:
+            pass
+        return None
+
+    def _check_exposure(self, proposed_contracts: int) -> bool:
+        """Check if adding proposed contracts would exceed max exposure."""
+        current_contracts = 0
+        if self.strategy and not self.strategy.position.is_flat:
+            current_contracts = self.strategy.position.contracts
+
+        total = current_contracts + proposed_contracts
+        # Use live price for notional calculation
+        price = self._last_price if self._last_price > 0 else 69000  # fallback
+        notional = total * price * cfg.MULTIPLIER  # 0.1 BTC per contract
+        
+        if notional > cfg.MAX_EXPOSURE_USD:
+            logger.warning(f"Exposure check FAILED: {total} contracts × ${price:,.0f} × {cfg.MULTIPLIER} "
+                          f"= ${notional:,.0f} > max ${cfg.MAX_EXPOSURE_USD:,.0f}")
+            return False
+        
+        logger.debug(f"Exposure check OK: ${notional:,.0f} / ${cfg.MAX_EXPOSURE_USD:,.0f}")
+        return True
 
     # ── Lifecycle ──────────────────────────────────────
 
@@ -321,6 +365,8 @@ class Trader:
 
         # Check for daily recalibration (async — schedule it)
         asyncio.ensure_future(self._maybe_recalibrate())
+        # Check for auto-flatten / contract roll near expiry
+        asyncio.ensure_future(self._check_expiry_actions())
 
         signal = self.strategy.on_bar(bar)
         self.signals_generated += 1
@@ -383,10 +429,97 @@ class Trader:
 
     # ── Order Execution ────────────────────────────────
 
+    async def _check_expiry_actions(self):
+        """Check if we need to auto-flatten or roll the contract."""
+        days = self.ib_exec.days_to_expiry()
+        if days is None:
+            return
+
+        # Auto-flatten before expiry
+        if days <= cfg.AUTO_FLATTEN_DAYS:
+            if self.strategy and not self.strategy.position.is_flat:
+                side = self.strategy.position.side
+                logger.warning(f"AUTO-FLATTEN: Only {days} day(s) to expiry! "
+                              f"Closing {side} position.")
+                print(f"\n  ⚠ AUTO-FLATTEN: Contract expires in {days} day(s)!")
+                if side == "long":
+                    await self._execute_sell("AUTO_FLATTEN_EXPIRY")
+                elif side == "short":
+                    await self._execute_cover("AUTO_FLATTEN_EXPIRY")
+
+        # Auto-roll: switch to next contract month
+        if days <= cfg.AUTO_ROLL_DAYS:
+            await self._maybe_roll_contract()
+
+    async def _maybe_roll_contract(self):
+        """Roll to the next quarterly contract if near expiry."""
+        if not self.ib_exec.connected:
+            return
+
+        days = self.ib_exec.days_to_expiry()
+        if days is None or days > cfg.AUTO_ROLL_DAYS:
+            return
+
+        # Only roll if flat
+        if self.strategy and not self.strategy.position.is_flat:
+            logger.info("Cannot roll contract — position still open")
+            return
+
+        logger.info(f"Attempting contract roll ({days} days to expiry)...")
+        try:
+            # Determine next quarterly month
+            # MBT uses quarterly cycle: H(Mar), M(Jun), U(Sep), Z(Dec)
+            expiry_str = self.ib_exec.contract.lastTradeDateOrContractMonth
+            if len(expiry_str) == 8:
+                current_expiry = datetime.strptime(expiry_str, "%Y%m%d")
+            else:
+                current_expiry = datetime.strptime(expiry_str, "%Y%m")
+
+            # Jump 3 months ahead for next quarterly
+            month = current_expiry.month
+            year = current_expiry.year
+            next_month = month + 3
+            if next_month > 12:
+                next_month -= 12
+                year += 1
+            next_str = f"{year}{next_month:02d}"
+
+            from ib_async import Future
+            next_contract = Future(cfg.SYMBOL, next_str, cfg.EXCHANGE, currency=cfg.CURRENCY)
+            qualified = await self.ib_exec.ib.qualifyContractsAsync(next_contract)
+
+            if qualified:
+                old_symbol = self.ib_exec.contract.localSymbol
+                self.ib_exec.contract = qualified[0]
+                self.ib_exec.qualified = True
+                new_symbol = self.ib_exec.contract.localSymbol
+                new_days = self.ib_exec.days_to_expiry()
+                logger.info(f"ROLLED: {old_symbol} → {new_symbol} ({new_days} days to expiry)")
+                print(f"\n  CONTRACT ROLLED: {old_symbol} → {new_symbol} ({new_days}d to expiry)\n")
+
+                # Re-subscribe to bars on the new contract
+                if self._bar_subscription:
+                    self.ib_exec.ib.cancelRealTimeBars(self.ib_exec._bar_subscription)
+                await self.ib_exec.subscribe_bars(self._on_live_bar)
+
+                # Recalibrate with new contract data
+                await self._calibrate(self.regime)
+            else:
+                logger.error(f"Could not qualify next contract {next_str}")
+
+        except Exception as e:
+            logger.error(f"Contract roll failed: {e}", exc_info=True)
+
+    # ── Order Execution ────────────────────────────────
+
     async def _execute_buy(self, signal: Signal, is_pyramid: bool = False):
         """Execute a BUY order (open long or pyramid add) via IB."""
         try:
             contracts = signal.contracts or cfg.DEFAULT_CONTRACTS
+            # Exposure check
+            if not self._check_exposure(contracts):
+                logger.warning("BUY blocked — would exceed max exposure")
+                return
             # Enforce max contracts cap
             if is_pyramid:
                 current = self.strategy.position.contracts
@@ -467,6 +600,10 @@ class Trader:
         """Execute a SHORT order (sell-to-open) via IB."""
         try:
             contracts = signal.contracts or cfg.DEFAULT_CONTRACTS
+            # Exposure check
+            if not self._check_exposure(contracts):
+                logger.warning("SHORT blocked — would exceed max exposure")
+                return
             fill = await self.ib_exec.place_short(contracts)
 
             if fill["status"] == "Filled":
@@ -531,7 +668,14 @@ class Trader:
     # ── State Persistence ──────────────────────────────
 
     def _save_state(self):
-        """Save current state to disk."""
+        """Save current state to disk (read by dashboard)."""
+        # Calculate current exposure
+        current_contracts = 0
+        if self.strategy and not self.strategy.position.is_flat:
+            current_contracts = self.strategy.position.contracts
+        price = self._last_price if self._last_price > 0 else 0
+        current_exposure = current_contracts * price * cfg.MULTIPLIER
+
         state = {
             "regime": self.regime,
             "running": self.running,
@@ -544,6 +688,15 @@ class Trader:
             "last_price": self._last_price,
             "strategy_status": self.strategy.get_status() if self.strategy else None,
             "saved_at": str(datetime.now()),
+            # Account & exposure
+            "paper_balance": cfg.PAPER_BALANCE,
+            "max_exposure": cfg.MAX_EXPOSURE_USD,
+            "current_exposure": round(current_exposure, 2),
+            "current_contracts": current_contracts,
+            "max_contracts": cfg.MAX_CONTRACTS,
+            # Contract info
+            "contract_symbol": self.ib_exec.contract.localSymbol if self.ib_exec.contract else None,
+            "days_to_expiry": self.ib_exec.days_to_expiry() if self.ib_exec.qualified else None,
         }
         with open(self.state_file, "w") as f:
             json.dump(state, f, indent=2, default=str)
@@ -680,6 +833,41 @@ async def run_interactive(trader: Trader, regime: str):
         while trader.running:
             # Process IB messages
             trader.ib_exec.ib.sleep(0.1)
+
+            # Check for dashboard commands (control file)
+            ctrl = trader._read_control()
+            if ctrl:
+                cmd_type = ctrl.get("command", "")
+                if cmd_type == "stop":
+                    logger.info("STOP command received from dashboard")
+                    print("\n  STOP received from dashboard — stopping (keeping positions)...")
+                    await trader.stop(flatten=False)
+                    break
+                elif cmd_type == "flatten_stop":
+                    logger.info("FLATTEN & STOP command received from dashboard")
+                    print("\n  FLATTEN & STOP received — closing all positions and stopping...")
+                    await trader.stop(flatten=True)
+                    break
+                elif cmd_type == "pause":
+                    trader.paused = True
+                    logger.info("PAUSE command received from dashboard")
+                    print("  Trading PAUSED via dashboard.")
+                elif cmd_type == "resume":
+                    trader.paused = False
+                    logger.info("RESUME command received from dashboard")
+                    print("  Trading RESUMED via dashboard.")
+                elif cmd_type == "flatten":
+                    # Flatten but keep running
+                    logger.info("FLATTEN command received from dashboard (keep running)")
+                    if trader.strategy and not trader.strategy.position.is_flat:
+                        side = trader.strategy.position.side
+                        print(f"\n  Flattening {side} position (keeping engine running)...")
+                        if side == "long":
+                            await trader._execute_sell("DASHBOARD_FLATTEN")
+                        elif side == "short":
+                            await trader._execute_cover("DASHBOARD_FLATTEN")
+                    else:
+                        print("  No position to flatten.")
 
             # Check for user input (non-blocking)
             cmd = await asyncio.get_event_loop().run_in_executor(
