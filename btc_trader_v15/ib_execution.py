@@ -54,6 +54,9 @@ class IBExecution:
 
         # State
         self._bar_subscription = None
+        self._polling = False
+        self._last_bar_time = None
+        self._poll_interval = 30
         self._position_contracts = 0   # positive = long, negative = short
 
     # ── Connection ─────────────────────────────────────
@@ -74,11 +77,11 @@ class IBExecution:
             # Set up error handler
             self.ib.errorEvent += self._on_ib_error
 
-            # Request delayed-frozen data (type 4) so we don't need
-            # real-time market data subscriptions.  Falls back to:
+            # Request live market data (type 1).  Falls back to:
             #   1 = live, 2 = frozen, 3 = delayed, 4 = delayed-frozen
-            self.ib.reqMarketDataType(4)
-            logger.info("Market data type set to 4 (delayed-frozen)")
+            # Requires CME real-time subscription in IB Client Portal.
+            self.ib.reqMarketDataType(1)
+            logger.info("Market data type set to 1 (live)")
 
             # Qualify the MBT contract
             await self._qualify_contract()
@@ -91,6 +94,7 @@ class IBExecution:
 
     async def disconnect(self):
         """Disconnect from TWS."""
+        self._polling = False  # stop the bar polling loop
         if self._bar_subscription:
             try:
                 self.ib.cancelHistoricalData(self._bar_subscription)
@@ -179,64 +183,139 @@ class IBExecution:
 
     async def subscribe_bars(self, callback: Callable):
         """
-        Subscribe to streaming bars via reqHistoricalData + keepUpToDate.
+        Subscribe to live 5-second bar updates via keepUpToDate streaming.
 
-        This does NOT require a real-time market data subscription.
-        IB returns historical bars and then pushes incremental updates
-        as the current bar evolves.  The last bar in the list is the
-        "live" (possibly delayed) bar that keeps updating.
-
-        We use 1-minute bars so the callback fires frequently enough
-        for the strategy's hourly aggregation.
+        With live market data (type 1), keepUpToDate=True streams
+        real-time bar updates via barUpdateEvent.  Falls back to
+        polling if streaming doesn't fire within 60 seconds.
         """
         if not self.connected or not self.qualified:
             raise RuntimeError("Not connected or contract not qualified")
 
         self.on_bar_callback = callback
-        self._last_bar_count = 0  # track bar list length to detect new bars
+        self._polling = False
 
-        # reqHistoricalData with keepUpToDate=True streams new bars
-        # as they complete, and continuously updates the last bar.
-        self._bar_subscription = self.ib.reqHistoricalData(
-            self.contract,
-            endDateTime="",
-            durationStr="1 D",          # seed with 1 day of history
-            barSizeSetting="1 min",     # 1-minute bars for granularity
-            whatToShow="TRADES",
-            useRTH=False,
-            formatDate=1,
-            keepUpToDate=True,          # KEY: keep streaming updates
-        )
+        logger.info("Subscribing to live bar updates (keepUpToDate)...")
 
-        # Register the barUpdateEvent handler
-        self.ib.barUpdateEvent += self._on_bar_update
-        logger.info("Subscribed to streaming bars (reqHistoricalData + keepUpToDate)")
+        try:
+            bars = await self.ib.reqHistoricalDataAsync(
+                self.contract,
+                endDateTime="",
+                durationStr="3600 S",
+                barSizeSetting=cfg.BAR_SIZE,
+                whatToShow="TRADES",
+                useRTH=False,
+                formatDate=1,
+                keepUpToDate=True,
+            )
+        except Exception as e:
+            logger.error(f"reqHistoricalData with keepUpToDate failed: {e}")
+            logger.info("Falling back to polling mode...")
+            await self._start_polling()
+            return
+
+        if bars is None:
+            logger.warning("No bars returned — falling back to polling")
+            await self._start_polling()
+            return
+
+        self._bar_subscription = bars
+        logger.info(f"Got {len(bars)} initial bars, streaming updates...")
+
+        # Wire up the barUpdateEvent for real-time updates
+        bars.updateEvent += self._on_bar_update
+
+        # Also start a watchdog: if no update arrives within 90s,
+        # fall back to polling (means live data isn't flowing)
+        asyncio.ensure_future(self._streaming_watchdog())
 
     def _on_bar_update(self, bars, hasNewBar):
-        """
-        Handle streaming bar updates from reqHistoricalData(keepUpToDate).
-
-        'hasNewBar' is True when a completed bar is appended (a new
-        minute finished).  We fire the callback on every new completed bar.
-        We also fire on periodic updates (~every 5 sec) of the in-progress
-        bar so the dashboard shows a fresh price.
-        """
+        """Called by ib_async when a new bar arrives via streaming."""
         if not bars or not self.on_bar_callback:
             return
 
-        b = bars[-1]
-        bar_dict = {
-            "time": pd.Timestamp(b.date) if hasattr(b, 'date') else pd.Timestamp.now(),
-            "open": b.open,
-            "high": b.high,
-            "low": b.low,
-            "close": b.close,
-            "volume": int(b.volume) if hasattr(b, 'volume') else 0,
-        }
+        self._last_bar_time = pd.Timestamp("now")  # reset watchdog
 
-        # Always fire — main.py aggregates into hourly bars and only
-        # acts when a full hour completes.
-        self.on_bar_callback(bar_dict)
+        if hasNewBar and len(bars) > 0:
+            b = bars[-1]
+            bar_dict = {
+                "time": pd.Timestamp(b.date),
+                "open": b.open,
+                "high": b.high,
+                "low": b.low,
+                "close": b.close,
+                "volume": int(b.volume) if hasattr(b, 'volume') else 0,
+            }
+            logger.info(f"Live bar: {bar_dict['time']} close=${b.close:,.2f}")
+            self.on_bar_callback(bar_dict)
+
+    async def _streaming_watchdog(self):
+        """If no streaming update arrives within 90s, fall back to polling."""
+        await asyncio.sleep(90)
+        if self._last_bar_time is None and not self._polling:
+            logger.warning("No streaming updates received in 90s — "
+                           "falling back to polling mode")
+            await self._start_polling()
+
+    async def _start_polling(self):
+        """Start polling fallback for when streaming isn't available."""
+        self._polling = True
+        self._last_bar_time = None
+        self._poll_interval = 30
+        logger.info(f"Starting bar polling (every {self._poll_interval}s)")
+        asyncio.ensure_future(self._poll_bars_loop())
+
+    async def _poll_bars_loop(self):
+        """Background loop that polls IB for the latest bars."""
+        while self._polling and self.connected:
+            try:
+                await self._poll_once()
+            except Exception as e:
+                logger.warning(f"Bar poll error: {e}")
+            await asyncio.sleep(self._poll_interval)
+
+    async def _poll_once(self):
+        """Request the latest bars from IB and fire callback with new ones."""
+        if not self.on_bar_callback or not self.connected:
+            return
+
+        bars = await self.ib.reqHistoricalDataAsync(
+            self.contract,
+            endDateTime="",
+            durationStr="3600 S",
+            barSizeSetting="1 min",
+            whatToShow="TRADES",
+            useRTH=False,
+            formatDate=1,
+        )
+
+        if not bars:
+            return
+
+        for b in bars:
+            bar_time = pd.Timestamp(b.date) if hasattr(b, 'date') else None
+            if bar_time is None:
+                continue
+
+            if self._last_bar_time and bar_time <= self._last_bar_time:
+                continue
+
+            bar_dict = {
+                "time": bar_time,
+                "open": b.open,
+                "high": b.high,
+                "low": b.low,
+                "close": b.close,
+                "volume": int(b.volume) if hasattr(b, 'volume') else 0,
+            }
+            self.on_bar_callback(bar_dict)
+
+        last_b = bars[-1]
+        last_time = pd.Timestamp(last_b.date) if hasattr(last_b, 'date') else None
+        if last_time:
+            self._last_bar_time = last_time
+            logger.debug(f"Polled {len(bars)} bars, latest: {last_time} "
+                         f"close=${last_b.close:,.2f}")
 
     # ── Order Execution ────────────────────────────────
 
