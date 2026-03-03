@@ -1,5 +1,5 @@
 """
-v15 IB Execution Layer — Connects to TWS and executes trades
+	v15 IB Execution Layer — Connects to TWS and executes trades
 =============================================================
 Uses ib_async to:
   - Connect to TWS paper trading (port 7497)
@@ -74,6 +74,12 @@ class IBExecution:
             # Set up error handler
             self.ib.errorEvent += self._on_ib_error
 
+            # Request delayed-frozen data (type 4) so we don't need
+            # real-time market data subscriptions.  Falls back to:
+            #   1 = live, 2 = frozen, 3 = delayed, 4 = delayed-frozen
+            self.ib.reqMarketDataType(4)
+            logger.info("Market data type set to 4 (delayed-frozen)")
+
             # Qualify the MBT contract
             await self._qualify_contract()
 
@@ -86,7 +92,10 @@ class IBExecution:
     async def disconnect(self):
         """Disconnect from TWS."""
         if self._bar_subscription:
-            self.ib.cancelRealTimeBars(self._bar_subscription)
+            try:
+                self.ib.cancelHistoricalData(self._bar_subscription)
+            except Exception:
+                pass
             self._bar_subscription = None
         if self.connected:
             self.ib.disconnect()
@@ -170,39 +179,64 @@ class IBExecution:
 
     async def subscribe_bars(self, callback: Callable):
         """
-        Subscribe to real-time 5-second bars.
-        callback(bar_dict) will be called with each new bar.
+        Subscribe to streaming bars via reqHistoricalData + keepUpToDate.
+
+        This does NOT require a real-time market data subscription.
+        IB returns historical bars and then pushes incremental updates
+        as the current bar evolves.  The last bar in the list is the
+        "live" (possibly delayed) bar that keeps updating.
+
+        We use 1-minute bars so the callback fires frequently enough
+        for the strategy's hourly aggregation.
         """
         if not self.connected or not self.qualified:
             raise RuntimeError("Not connected or contract not qualified")
 
         self.on_bar_callback = callback
+        self._last_bar_count = 0  # track bar list length to detect new bars
 
-        # Request real-time 5-second bars
-        self._bar_subscription = self.ib.reqRealTimeBars(
+        # reqHistoricalData with keepUpToDate=True streams new bars
+        # as they complete, and continuously updates the last bar.
+        self._bar_subscription = self.ib.reqHistoricalData(
             self.contract,
-            barSize=5,  # 5-second bars (only option for reqRealTimeBars)
+            endDateTime="",
+            durationStr="1 D",          # seed with 1 day of history
+            barSizeSetting="1 min",     # 1-minute bars for granularity
             whatToShow="TRADES",
             useRTH=False,
+            formatDate=1,
+            keepUpToDate=True,          # KEY: keep streaming updates
         )
 
-        # Register handler
-        self.ib.barUpdateEvent += self._on_realtime_bar
-        logger.info("Subscribed to real-time 5-second bars")
+        # Register the barUpdateEvent handler
+        self.ib.barUpdateEvent += self._on_bar_update
+        logger.info("Subscribed to streaming bars (reqHistoricalData + keepUpToDate)")
 
-    def _on_realtime_bar(self, bars, hasNewBar):
-        """Handle incoming real-time bars."""
-        if hasNewBar and bars and self.on_bar_callback:
-            b = bars[-1]
-            bar_dict = {
-                "time": pd.Timestamp(b.date) if hasattr(b, 'date') else pd.Timestamp.now(),
-                "open": b.open,
-                "high": b.high,
-                "low": b.low,
-                "close": b.close,
-                "volume": b.volume if hasattr(b, 'volume') else 0,
-            }
-            self.on_bar_callback(bar_dict)
+    def _on_bar_update(self, bars, hasNewBar):
+        """
+        Handle streaming bar updates from reqHistoricalData(keepUpToDate).
+
+        'hasNewBar' is True when a completed bar is appended (a new
+        minute finished).  We fire the callback on every new completed bar.
+        We also fire on periodic updates (~every 5 sec) of the in-progress
+        bar so the dashboard shows a fresh price.
+        """
+        if not bars or not self.on_bar_callback:
+            return
+
+        b = bars[-1]
+        bar_dict = {
+            "time": pd.Timestamp(b.date) if hasattr(b, 'date') else pd.Timestamp.now(),
+            "open": b.open,
+            "high": b.high,
+            "low": b.low,
+            "close": b.close,
+            "volume": int(b.volume) if hasattr(b, 'volume') else 0,
+        }
+
+        # Always fire — main.py aggregates into hourly bars and only
+        # acts when a full hour completes.
+        self.on_bar_callback(bar_dict)
 
     # ── Order Execution ────────────────────────────────
 

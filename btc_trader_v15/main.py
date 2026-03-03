@@ -513,7 +513,7 @@ class Trader:
 
                 # Re-subscribe to bars on the new contract
                 if self._bar_subscription:
-                    self.ib_exec.ib.cancelRealTimeBars(self.ib_exec._bar_subscription)
+                    self.ib_exec.ib.cancelHistoricalData(self.ib_exec._bar_subscription)
                 await self.ib_exec.subscribe_bars(self._on_live_bar)
 
                 # Recalibrate with new contract data
