@@ -32,6 +32,20 @@ import config as cfg
 logger = logging.getLogger("ib_exec")
 
 
+def _to_naive(ts):
+    """Convert any timestamp to tz-naive for safe comparisons."""
+    if ts is None:
+        return None
+    if isinstance(ts, pd.Timestamp):
+        if ts.tzinfo is not None:
+            return ts.tz_convert("UTC").tz_localize(None)
+        return ts
+    # datetime objects
+    if hasattr(ts, 'tzinfo') and ts.tzinfo is not None:
+        return ts.replace(tzinfo=None)
+    return ts
+
+
 class IBExecution:
     """
     Manages the IB TWS connection and order execution for MBT futures.
@@ -176,7 +190,7 @@ class IBExecution:
 
         df = pd.DataFrame(records)
         df = df.sort_values("time").reset_index(drop=True)
-        logger.info(f"Fetched {len(df)} hourly bars: {df['time'].iloc[0]} → {df['time'].iloc[-1]}")
+        logger.info(f"Fetched {len(df)} hourly bars: {df['time'].iloc[0]} \u2192 {df['time'].iloc[-1]}")
         return df
 
     # ── Live Data ──────────────────────────────────────
@@ -215,7 +229,7 @@ class IBExecution:
             return
 
         if bars is None:
-            logger.warning("No bars returned — falling back to polling")
+            logger.warning("No bars returned \u2014 falling back to polling")
             await self._start_polling()
             return
 
@@ -236,7 +250,7 @@ class IBExecution:
 
         self._last_bar_time = pd.Timestamp.now(tz="UTC")  # reset watchdog
 
-        # Always process the latest bar — IB updates the last bar in-place
+        # Always process the latest bar \u2014 IB updates the last bar in-place
         # as trades occur, and fires hasNewBar=True when a new period starts.
         b = bars[-1]
         bar_dict = {
@@ -257,7 +271,7 @@ class IBExecution:
         """If no streaming update arrives within 90s, fall back to polling."""
         await asyncio.sleep(90)
         if self._last_bar_time is None and not self._polling:
-            logger.warning("No streaming updates received in 90s — "
+            logger.warning("No streaming updates received in 90s \u2014 "
                            "falling back to polling mode")
             await self._start_polling()
 
@@ -301,12 +315,9 @@ class IBExecution:
             if bar_time is None:
                 continue
 
-            # Normalize both to tz-naive UTC for comparison
-            bt_naive = bar_time.tz_localize(None) if bar_time.tzinfo else bar_time
-            lt_naive = (self._last_bar_time.tz_localize(None)
-                        if self._last_bar_time is not None
-                        and getattr(self._last_bar_time, 'tzinfo', None)
-                        else self._last_bar_time)
+            # Normalize both to tz-naive for safe comparison
+            bt_naive = _to_naive(bar_time)
+            lt_naive = _to_naive(self._last_bar_time)
 
             if lt_naive is not None and bt_naive <= lt_naive:
                 continue
@@ -442,7 +453,7 @@ class IBExecution:
             positions = self.ib.positions()
 
         for pos in positions:
-            # Match by symbol — works for both ContFuture and specific month
+            # Match by symbol \u2014 works for both ContFuture and specific month
             if pos.contract.symbol == cfg.SYMBOL:
                 self._position_contracts = int(pos.position)
                 logger.info(f"Found IB position: {pos.contract.localSymbol} "
@@ -508,6 +519,6 @@ class IBExecution:
         """Return True if we're too close to contract expiry."""
         days = self.days_to_expiry()
         if days is not None and days <= cfg.ROLL_AVOID_DAYS:
-            logger.warning(f"Only {days} days to expiry — avoiding new entries")
+            logger.warning(f"Only {days} days to expiry \u2014 avoiding new entries")
             return True
         return False
