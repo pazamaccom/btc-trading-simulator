@@ -183,20 +183,36 @@ async def _fetch_bars_async(start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFr
 
 
 async def _qualify_contract(ib: "IB"):
-    """Qualify the MBT futures contract (same logic as ib_execution.py)."""
-    # Try continuous future first
+    """
+    Qualify the MBT futures contract for historical data.
+    
+    NOTE: We use a specific Future contract (not ContFuture) because IB
+    does not allow setting endDateTime on continuous futures (error 10339).
+    For historical data fetching we need the specific front-month contract.
+    """
+    # Determine front-month contract: MBT expires last Friday of the month.
+    # Try current month first, then next month if we're past expiry.
+    now = datetime.now()
+    candidates = []
+    
+    # Current month
+    candidates.append(now.strftime("%Y%m"))
+    # Next month
+    next_month = (now.replace(day=1) + timedelta(days=32)).replace(day=1)
+    candidates.append(next_month.strftime("%Y%m"))
+    # Month after (in case we need further out)
+    month_after = (next_month + timedelta(days=32)).replace(day=1)
+    candidates.append(month_after.strftime("%Y%m"))
+
+    for month_str in candidates:
+        specific = Future(cfg.SYMBOL, month_str, cfg.EXCHANGE, currency=cfg.CURRENCY)
+        qualified = await ib.qualifyContractsAsync(specific)
+        if qualified:
+            return qualified[0]
+
+    # Last resort: try ContFuture (works for live data, not historical with endDateTime)
     cont = ContFuture(cfg.SYMBOL, exchange=cfg.EXCHANGE, currency=cfg.CURRENCY)
     qualified = await ib.qualifyContractsAsync(cont)
-
-    if qualified:
-        return qualified[0]
-
-    # Fall back to specific front-month
-    print("  ContFuture failed, trying specific month contract...")
-    now = datetime.now()
-    month_str = now.strftime("%Y%m")
-    specific = Future(cfg.SYMBOL, month_str, cfg.EXCHANGE, currency=cfg.CURRENCY)
-    qualified = await ib.qualifyContractsAsync(specific)
     if qualified:
         return qualified[0]
 
