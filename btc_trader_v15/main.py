@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-v15 Main Runner — Human-Directed BTC Trading via Interactive Brokers
+	v15 Main Runner — Human-Directed BTC Trading via Interactive Brokers
 =====================================================================
 Config I: Long+Short, rolling calibration, asymmetric risk
 
@@ -50,15 +50,19 @@ except ImportError:
     except Exception:
         pass
 
-# Add project to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add project to path and ensure CWD is the project directory
+# (so state.json, trades.json, control.json, config_update.json
+#  all land in the right place regardless of where the user launches from)
+_PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, _PROJECT_DIR)
+os.chdir(_PROJECT_DIR)
 
 import config as cfg
 from strategy import ChoppyStrategy, Signal
 from ib_execution import IBExecution
 from dashboard import run_dashboard
 
-# ── Logging Setup ────────────────────────────────────
+# ── Logging Setup ──────────────────────────────────────
 
 log_dir = Path(cfg.LOG_DIR)
 log_dir.mkdir(exist_ok=True)
@@ -158,7 +162,7 @@ class Trader:
         logger.debug(f"Exposure check OK: ${notional:,.0f} / ${cfg.MAX_EXPOSURE_USD:,.0f}")
         return True
 
-    # ── Lifecycle ───────────────────────────────────────
+    # ── Lifecycle ──────────────────────────────────────
 
     async def start(self, regime: str = "choppy"):
         """Full startup sequence: connect → calibrate → trade."""
@@ -458,7 +462,7 @@ class Trader:
                 side = self.strategy.position.side
                 logger.warning(f"AUTO-FLATTEN: Only {days} day(s) to expiry! "
                               f"Closing {side} position.")
-                print(f"\n  \u26a0 AUTO-FLATTEN: Contract expires in {days} day(s)!")
+                print(f"\n  ⚠ AUTO-FLATTEN: Contract expires in {days} day(s)!")
                 if side == "long":
                     await self._execute_sell("AUTO_FLATTEN_EXPIRY")
                 elif side == "short":
@@ -511,8 +515,8 @@ class Trader:
                 self.ib_exec.qualified = True
                 new_symbol = self.ib_exec.contract.localSymbol
                 new_days = self.ib_exec.days_to_expiry()
-                logger.info(f"ROLLED: {old_symbol} \u2192 {new_symbol} ({new_days} days to expiry)")
-                print(f"\n  CONTRACT ROLLED: {old_symbol} \u2192 {new_symbol} ({new_days}d to expiry)\n")
+                logger.info(f"ROLLED: {old_symbol} → {new_symbol} ({new_days} days to expiry)")
+                print(f"\n  CONTRACT ROLLED: {old_symbol} → {new_symbol} ({new_days}d to expiry)\n")
 
                 # Re-subscribe to bars on the new contract
                 if self._bar_subscription:
@@ -864,7 +868,10 @@ async def run_interactive(trader: Trader, regime: str):
         while trader.running:
             # Process IB network messages (nest_asyncio allows this
             # nested run_until_complete call inside our async context)
-            trader.ib_exec.ib.sleep(0.1)
+            try:
+                trader.ib_exec.ib.sleep(0.1)
+            except Exception as e:
+                logger.warning(f"IB sleep error (usually harmless): {e}")
 
             # Check for dashboard commands (control file)
             ctrl = trader._read_control()
@@ -905,27 +912,29 @@ async def run_interactive(trader: Trader, regime: str):
             config_update_file = Path("config_update.json")
             if config_update_file.exists():
                 try:
-                    updates = json.loads(config_update_file.read_text())
+                    raw = config_update_file.read_text()
                     config_update_file.unlink()
+                    updates = json.loads(raw)
+                    logger.info(f"Config update received: {updates}")
                     if "paper_balance" in updates:
                         old = cfg.PAPER_BALANCE
-                        cfg.PAPER_BALANCE = int(updates["paper_balance"])
-                        logger.info(f"Config update: PAPER_BALANCE {old:,} \u2192 {cfg.PAPER_BALANCE:,}")
+                        cfg.PAPER_BALANCE = int(float(updates["paper_balance"]))
+                        logger.info(f"Config update: PAPER_BALANCE {old:,} -> {cfg.PAPER_BALANCE:,}")
                     if "max_exposure" in updates:
                         old = cfg.MAX_EXPOSURE_USD
-                        cfg.MAX_EXPOSURE_USD = int(updates["max_exposure"])
-                        logger.info(f"Config update: MAX_EXPOSURE_USD {old:,} \u2192 {cfg.MAX_EXPOSURE_USD:,}")
+                        cfg.MAX_EXPOSURE_USD = int(float(updates["max_exposure"]))
+                        logger.info(f"Config update: MAX_EXPOSURE_USD {old:,} -> {cfg.MAX_EXPOSURE_USD:,}")
                     if "cooldown_hours" in updates:
                         old = cfg.CHOPPY["cooldown_hours"]
                         cfg.CHOPPY["cooldown_hours"] = float(updates["cooldown_hours"])
-                        logger.info(f"Config update: cooldown_hours {old} \u2192 {cfg.CHOPPY['cooldown_hours']}")
+                        logger.info(f"Config update: cooldown_hours {old} -> {cfg.CHOPPY['cooldown_hours']}")
                     if "max_contracts" in updates:
                         old = cfg.MAX_CONTRACTS
-                        cfg.MAX_CONTRACTS = int(updates["max_contracts"])
-                        logger.info(f"Config update: MAX_CONTRACTS {old} \u2192 {cfg.MAX_CONTRACTS}")
+                        cfg.MAX_CONTRACTS = int(float(updates["max_contracts"]))
+                        logger.info(f"Config update: MAX_CONTRACTS {old} -> {cfg.MAX_CONTRACTS}")
                     trader._save_state()  # Persist immediately so dashboard sees it
                 except Exception as e:
-                    logger.error(f"Config update error: {e}")
+                    logger.error(f"Config update error: {e}", exc_info=True)
 
             # Check for user input (non-blocking)
             cmd = await loop.run_in_executor(
