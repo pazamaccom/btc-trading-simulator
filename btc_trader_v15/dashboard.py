@@ -69,6 +69,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 "max_contracts": state.get("max_contracts", cfg.MAX_CONTRACTS),
                 "contract_symbol": state.get("contract_symbol", ""),
                 "days_to_expiry": state.get("days_to_expiry", None),
+                "cooldown_hours": state.get("cooldown_hours", cfg.CHOPPY.get("cooldown_hours", 3)),
+                "last_recal_time": state.get("last_recal_time"),
+                "recalibrations": state.get("recalibrations", 0),
             })
         else:
             self.send_error(404)
@@ -97,6 +100,17 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 control_path = Path(cfg.CONTROL_FILE)
                 control_path.write_text(json.dumps(data))
                 self._serve_json({"ok": True, "command": cmd})
+            except Exception as e:
+                self._serve_json({"ok": False, "error": str(e)})
+        elif path == "/api/config":
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body = self.rfile.read(length)
+                data = json.loads(body)
+                # Write config update file for engine to consume
+                config_path = Path("config_update.json")
+                config_path.write_text(json.dumps(data))
+                self._serve_json({"ok": True, "updated": data})
             except Exception as e:
                 self._serve_json({"ok": False, "error": str(e)})
         else:
@@ -284,6 +298,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     -webkit-font-smoothing: antialiased;
   }
 
+  /* ── Header ─────────────────────────────────────── */
   .header {
     position: sticky;
     top: 0;
@@ -345,6 +360,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     50% { opacity: 0.4; }
   }
 
+  /* ── Control Bar ─────────────────────────────────── */
   .control-bar {
     padding: 10px 24px 12px;
     border-top: 1px solid rgba(45, 49, 65, 0.6);
@@ -371,6 +387,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     margin: 0 4px;
   }
 
+  /* Buttons */
   .btn {
     display: inline-flex;
     align-items: center;
@@ -436,14 +453,17 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     filter: none;
   }
 
+  /* Pause/Resume toggle wrapper */
   .btn-toggle-wrap { display: contents; }
 
+  /* ── Main Container ──────────────────────────────── */
   .container {
     max-width: 1200px;
     margin: 0 auto;
     padding: 20px 24px;
   }
 
+  /* ── KPI Cards ───────────────────────────────────── */
   .kpi-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -483,6 +503,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   .pos { color: var(--green); }
   .neg { color: var(--red); }
 
+  /* ── Account & Exposure Panel ────────────────────── */
   .account-panel {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -519,6 +540,55 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     margin-top: 1px;
   }
 
+  /* Editable config fields */
+  .ap-editable {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    position: relative;
+  }
+  .ap-editable:hover { opacity: 0.8; }
+  .ap-editable .edit-icon {
+    font-size: 10px;
+    color: var(--text-dim);
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .ap-editable:hover .edit-icon { opacity: 1; }
+  .config-input {
+    background: var(--surface2);
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    padding: 2px 6px;
+    width: 110px;
+    outline: none;
+  }
+  .config-save {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 3px;
+    font-size: 11px;
+    padding: 2px 8px;
+    cursor: pointer;
+    font-weight: 600;
+  }
+  .config-save:hover { opacity: 0.85; }
+  .config-cancel {
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-size: 11px;
+    padding: 2px 6px;
+    cursor: pointer;
+  }
+
+  /* Exposure gauge column — wider */
   .ap-gauge-col {
     grid-column: span 2;
   }
@@ -568,10 +638,12 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   .gauge-pct.amber { color: var(--amber); }
   .gauge-pct.red   { color: var(--red); }
 
+  /* Expiry coloring */
   .expiry-green { color: var(--green); }
   .expiry-amber { color: var(--amber); }
   .expiry-red   { color: var(--red); }
 
+  /* ── Two-column layout ───────────────────────────── */
   .grid-2 {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -586,6 +658,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     .ctrl-divider { display: none; }
   }
 
+  /* ── Card ────────────────────────────────────────── */
   .card {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -605,6 +678,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 
   .card-body { padding: 16px; }
 
+  /* ── Position card ───────────────────────────────── */
   .position-row {
     display: flex;
     justify-content: space-between;
@@ -647,12 +721,14 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     font-weight: 600;
   }
 
+  /* ── Chart ───────────────────────────────────────── */
   .chart-container {
     position: relative;
     height: 220px;
     padding: 12px 16px 16px;
   }
 
+  /* ── Trade table ─────────────────────────────────── */
   .trade-table {
     width: 100%;
     border-collapse: collapse;
@@ -684,6 +760,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   .trade-table .action-short { color: var(--red); font-weight: 600; }
   .trade-table .action-cover { color: var(--accent); font-weight: 600; }
 
+  /* ── Long/Short breakdown ────────────────────────── */
   .breakdown {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -726,6 +803,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     margin-top: 2px;
   }
 
+  /* ── Range bar ───────────────────────────────────── */
   .range-bar {
     height: 6px;
     background: var(--surface2);
@@ -753,6 +831,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     transition: left 0.5s ease;
   }
 
+  /* ── Footer ──────────────────────────────────────── */
   .footer {
     text-align: center;
     padding: 16px;
@@ -767,6 +846,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     font-size: 13px;
   }
 
+  /* ── Toast notification ──────────────────────────── */
   #toast {
     position: fixed;
     bottom: 24px;
@@ -797,6 +877,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 </head>
 <body>
 
+<!-- ── Header + Control Bar ───────────────────────── -->
 <div class="header">
   <div class="header-top">
     <h1>BTC Trader <span>v15</span> — Config I</h1>
@@ -809,39 +890,46 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   <div class="control-bar">
     <span class="ctrl-label">Controls</span>
 
+    <!-- START (visual only — engine starts from CLI) -->
     <button class="btn btn-start" id="btn-start" disabled title="Start the engine from the command line">
-      ▶ START
+      &#9654; START
     </button>
 
     <div class="ctrl-divider"></div>
 
+    <!-- STOP -->
     <button class="btn btn-stop" id="btn-stop" onclick="sendCommand('stop', true)">
-      ■ STOP
+      &#9632; STOP
     </button>
 
+    <!-- FLATTEN & STOP -->
     <button class="btn btn-flatten-stop" id="btn-flatten-stop" onclick="sendCommand('flatten_stop', true)">
-      ⬛ FLATTEN &amp; STOP
+      &#11035; FLATTEN &amp; STOP
     </button>
 
     <div class="ctrl-divider"></div>
 
+    <!-- PAUSE / RESUME toggle -->
     <button class="btn btn-pause" id="btn-pause" onclick="sendCommand('pause', false)">
-      ⏸ PAUSE
+      &#9208; PAUSE
     </button>
     <button class="btn btn-resume" id="btn-resume" onclick="sendCommand('resume', false)" style="display:none;">
-      ▶ RESUME
+      &#9654; RESUME
     </button>
 
     <div class="ctrl-divider"></div>
 
+    <!-- FLATTEN (keep running) -->
     <button class="btn btn-flatten" id="btn-flatten" onclick="sendCommand('flatten', false)">
-      ↩ FLATTEN
+      &#8617; FLATTEN
     </button>
   </div>
 </div>
 
+<!-- ── Main Content ────────────────────────────────── -->
 <div class="container">
 
+  <!-- KPI Row -->
   <div class="kpi-grid">
     <div class="kpi">
       <div class="kpi-label">Cumulative PnL</div>
@@ -861,7 +949,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     <div class="kpi">
       <div class="kpi-label">Avg Trade</div>
       <div class="kpi-value" id="kpi-avg">$0.00</div>
-      <div class="kpi-sub" id="kpi-pf">PF: —</div>
+      <div class="kpi-sub" id="kpi-pf">PF: &mdash;</div>
     </div>
     <div class="kpi">
       <div class="kpi-label">Best Trade</div>
@@ -875,30 +963,49 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- Account & Exposure Panel -->
   <div class="account-panel" id="account-panel">
 
     <div class="ap-item">
       <div class="ap-label">Paper Balance</div>
-      <div class="ap-value" id="ap-balance">—</div>
+      <div class="ap-value" id="ap-balance-wrap">
+        <span class="ap-editable" id="ap-balance" onclick="editConfig('paper_balance', this)" title="Click to edit">&mdash;</span>
+      </div>
     </div>
 
     <div class="ap-item">
       <div class="ap-label">Max Exposure</div>
-      <div class="ap-value" id="ap-max-exp">—</div>
+      <div class="ap-value" id="ap-max-exp-wrap">
+        <span class="ap-editable" id="ap-max-exp" onclick="editConfig('max_exposure', this)" title="Click to edit">&mdash;</span>
+      </div>
+    </div>
+
+    <div class="ap-item">
+      <div class="ap-label">Cooldown</div>
+      <div class="ap-value" id="ap-cooldown-wrap">
+        <span class="ap-editable" id="ap-cooldown" onclick="editConfig('cooldown_hours', this)" title="Click to edit">&mdash;</span>
+      </div>
     </div>
 
     <div class="ap-item">
       <div class="ap-label">Contracts</div>
-      <div class="ap-value" id="ap-contracts">— / —</div>
-      <div class="ap-sub" id="ap-symbol">—</div>
+      <div class="ap-value" id="ap-contracts">&mdash; / &mdash;</div>
+      <div class="ap-sub" id="ap-symbol">&mdash;</div>
     </div>
 
     <div class="ap-item">
       <div class="ap-label">Expiry</div>
-      <div class="ap-value" id="ap-expiry">—</div>
+      <div class="ap-value" id="ap-expiry">&mdash;</div>
       <div class="ap-sub" id="ap-expiry-sub"></div>
     </div>
 
+    <div class="ap-item">
+      <div class="ap-label">Recalibration</div>
+      <div class="ap-value" id="ap-recal-count">&mdash;</div>
+      <div class="ap-sub" id="ap-recal-time">&mdash;</div>
+    </div>
+
+    <!-- Exposure gauge spans 2 columns -->
     <div class="ap-item ap-gauge-col">
       <div class="ap-label">Current Exposure</div>
       <div class="gauge-wrap">
@@ -915,6 +1022,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 
   </div>
 
+  <!-- Equity Curve -->
   <div class="card" style="margin-bottom: 16px;">
     <div class="card-header">
       <span>Equity Curve</span>
@@ -925,8 +1033,10 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- Two-column: Position + Breakdown -->
   <div class="grid-2">
 
+    <!-- Current Position -->
     <div class="card">
       <div class="card-header">
         <span>Current Position</span>
@@ -937,6 +1047,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       </div>
     </div>
 
+    <!-- Long vs Short -->
     <div class="card">
       <div class="card-header">Long vs Short Breakdown</div>
       <div class="card-body">
@@ -956,6 +1067,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- Recent Trades -->
   <div class="card">
     <div class="card-header">
       <span>Trade History</span>
@@ -983,11 +1095,13 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 
 </div>
 
-<div class="footer" id="footer">Last updated: —</div>
+<div class="footer" id="footer">Last updated: &mdash;</div>
 
+<!-- Toast -->
 <div id="toast"></div>
 
 <script>
+// ── Chart setup ──────────────────────────────────────
 const ctx = document.getElementById('equityChart').getContext('2d');
 const chart = new Chart(ctx, {
   type: 'line',
@@ -1045,26 +1159,27 @@ const chart = new Chart(ctx, {
   }
 });
 
+// ── Formatters ───────────────────────────────────────
 function fmt(n) {
-  if (n === undefined || n === null) return '—';
+  if (n === undefined || n === null) return '\u2014';
   const s = Math.abs(n).toFixed(2);
   return (n < 0 ? '-$' : '$') + s.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
 
 function fmtK(n) {
-  if (n === undefined || n === null) return '—';
+  if (n === undefined || n === null) return '\u2014';
   if (Math.abs(n) >= 1000000) return '$' + (n/1000000).toFixed(2) + 'M';
   if (Math.abs(n) >= 1000) return '$' + (n/1000).toFixed(0) + 'K';
   return '$' + n.toFixed(0);
 }
 
 function fmtPrice(n) {
-  if (!n) return '—';
+  if (!n) return '\u2014';
   return '$' + Number(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
 }
 
 function fmtTime(t) {
-  if (!t) return '—';
+  if (!t) return '\u2014';
   const d = new Date(t);
   return d.toLocaleDateString('en-US', {month:'short', day:'numeric'}) + ' '
        + d.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', hour12:false});
@@ -1086,6 +1201,7 @@ function actionClass(a) {
   return 'action-' + (a || '').toLowerCase();
 }
 
+// ── Toast ─────────────────────────────────────────────
 let toastTimer = null;
 function showToast(msg, type) {
   const el = document.getElementById('toast');
@@ -1095,6 +1211,103 @@ function showToast(msg, type) {
   toastTimer = setTimeout(() => { el.className = ''; }, 3000);
 }
 
+// ── Config editing ───────────────────────────────────
+// Track current raw values for editing
+let currentConfigValues = {
+  paper_balance: 1000000,
+  max_exposure: 500000,
+  cooldown_hours: 3
+};
+
+function editConfig(field, el) {
+  // Don't open if already editing
+  if (el.querySelector('input')) return;
+
+  const raw = currentConfigValues[field];
+  const parentEl = el.parentElement;
+
+  // Format label for display
+  let unit = '';
+  let step = '1';
+  let displayVal = raw;
+  if (field === 'paper_balance' || field === 'max_exposure') {
+    displayVal = raw;
+    unit = ' USD';
+  } else if (field === 'cooldown_hours') {
+    displayVal = raw;
+    unit = ' hrs';
+    step = '0.25';
+  }
+
+  parentEl.innerHTML = `
+    <input type="number" class="config-input" id="cfg-input-${field}" 
+           value="${displayVal}" step="${step}" min="0"
+           onkeydown="if(event.key==='Enter')saveConfig('${field}');if(event.key==='Escape')cancelEdit('${field}')">
+    <button class="config-save" onclick="saveConfig('${field}')">&#x2713;</button>
+    <button class="config-cancel" onclick="cancelEdit('${field}')">&#x2715;</button>
+  `;
+  const inp = document.getElementById('cfg-input-' + field);
+  inp.focus();
+  inp.select();
+}
+
+async function saveConfig(field) {
+  const inp = document.getElementById('cfg-input-' + field);
+  if (!inp) return;
+  
+  let val = parseFloat(inp.value);
+  if (isNaN(val) || val < 0) {
+    showToast('Invalid value', 'err');
+    return;
+  }
+
+  // Round appropriately
+  if (field === 'paper_balance' || field === 'max_exposure') {
+    val = Math.round(val);
+  } else if (field === 'cooldown_hours') {
+    val = Math.round(val * 4) / 4; // round to nearest 0.25
+  }
+
+  try {
+    const res = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ [field]: val }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      currentConfigValues[field] = val;
+      showToast('Updated ' + field.replace(/_/g, ' ') + ' \u2192 ' + val, 'ok');
+      cancelEdit(field);
+      poll(); // refresh display immediately
+    } else {
+      showToast('Error: ' + (data.error || 'unknown'), 'err');
+    }
+  } catch (e) {
+    showToast('Request failed: ' + e.message, 'err');
+  }
+}
+
+function cancelEdit(field) {
+  // Rebuild the display span
+  const val = currentConfigValues[field];
+  let displayText = '';
+  if (field === 'paper_balance') {
+    displayText = fmtK(val);
+    const wrap = document.getElementById('ap-balance-wrap');
+    wrap.innerHTML = `<span class="ap-editable" id="ap-balance" onclick="editConfig('paper_balance', this)" title="Click to edit">${displayText} <span class="edit-icon">&#x270E;</span></span>`;
+  } else if (field === 'max_exposure') {
+    displayText = fmtK(val);
+    const wrap = document.getElementById('ap-max-exp-wrap');
+    wrap.innerHTML = `<span class="ap-editable" id="ap-max-exp" onclick="editConfig('max_exposure', this)" title="Click to edit">${displayText} <span class="edit-icon">&#x270E;</span></span>`;
+  } else if (field === 'cooldown_hours') {
+    displayText = val + 'h';
+    const wrap = document.getElementById('ap-cooldown-wrap');
+    wrap.innerHTML = `<span class="ap-editable" id="ap-cooldown" onclick="editConfig('cooldown_hours', this)" title="Click to edit">${displayText} <span class="edit-icon">&#x270E;</span></span>`;
+  }
+}
+
+// ── Control commands ──────────────────────────────────
 async function sendCommand(command, requireConfirm) {
   if (requireConfirm) {
     if (!confirm('Are you sure you want to send: ' + command.toUpperCase().replace('_', ' & ') + '?')) return;
@@ -1116,6 +1329,7 @@ async function sendCommand(command, requireConfirm) {
   }
 }
 
+// ── Gauge helpers ─────────────────────────────────────
 function updateGauge(currentExposure, maxExposure) {
   const pct = maxExposure > 0 ? Math.min(100, (currentExposure / maxExposure) * 100) : 0;
   const fill = document.getElementById('gauge-fill');
@@ -1130,6 +1344,7 @@ function updateGauge(currentExposure, maxExposure) {
   pctLabel.textContent = pct.toFixed(1) + '% used';
 }
 
+// ── Update UI ─────────────────────────────────────────
 function update(data) {
   const m = data.metrics || {};
   const s = data.state || {};
@@ -1137,6 +1352,7 @@ function update(data) {
   const ss = s.strategy_status || {};
   const pos = ss.position || {};
 
+  // ── Status badge ──
   const badge = document.getElementById('status-badge');
   const statusText = document.getElementById('status-text');
   if (s.running && !s.paused) {
@@ -1150,6 +1366,7 @@ function update(data) {
     statusText.textContent = s.regime ? 'Stopped' : 'Waiting...';
   }
 
+  // ── Pause/Resume toggle ──
   const btnPause  = document.getElementById('btn-pause');
   const btnResume = document.getElementById('btn-resume');
   if (s.paused) {
@@ -1160,6 +1377,7 @@ function update(data) {
     btnResume.style.display = 'none';
   }
 
+  // ── KPIs ──
   const pnlEl = document.getElementById('kpi-pnl');
   pnlEl.textContent = fmt(m.cumulative_pnl);
   pnlEl.className = 'kpi-value ' + colorClass(m.cumulative_pnl);
@@ -1177,11 +1395,12 @@ function update(data) {
   avgEl.className = 'kpi-value ' + colorClass(m.avg_pnl);
 
   const pf = m.profit_factor;
-  document.getElementById('kpi-pf').textContent = 'PF: ' + (pf === Infinity ? '∞' : (pf||0).toFixed(2));
+  document.getElementById('kpi-pf').textContent = 'PF: ' + (pf === Infinity ? '\u221e' : (pf||0).toFixed(2));
 
   document.getElementById('kpi-best').textContent = fmt(m.best_trade);
   document.getElementById('kpi-worst').textContent = fmt(m.worst_trade);
 
+  // ── Account & Exposure Panel ──
   const paperBalance   = data.paper_balance   ?? s.paper_balance   ?? 1000000;
   const maxExposure    = data.max_exposure    ?? s.max_exposure    ?? 500000;
   const curExposure    = data.current_exposure ?? s.current_exposure ?? 0;
@@ -1190,12 +1409,31 @@ function update(data) {
   const contractSymbol = data.contract_symbol ?? s.contract_symbol ?? '';
   const daysToExpiry   = data.days_to_expiry  ?? s.days_to_expiry;
 
-  document.getElementById('ap-balance').textContent = fmtK(paperBalance);
-  document.getElementById('ap-max-exp').textContent = fmtK(maxExposure);
+  // Update stored raw values for editing
+  currentConfigValues.paper_balance = paperBalance;
+  currentConfigValues.max_exposure = maxExposure;
+  const cooldownHours = data.cooldown_hours ?? 3;
+  currentConfigValues.cooldown_hours = cooldownHours;
+
+  // Only update display if NOT currently being edited (no input visible)
+  if (!document.getElementById('cfg-input-paper_balance')) {
+    const balEl = document.getElementById('ap-balance');
+    if (balEl) balEl.innerHTML = fmtK(paperBalance) + ' <span class="edit-icon">&#x270E;</span>';
+  }
+  if (!document.getElementById('cfg-input-max_exposure')) {
+    const expEl = document.getElementById('ap-max-exp');
+    if (expEl) expEl.innerHTML = fmtK(maxExposure) + ' <span class="edit-icon">&#x270E;</span>';
+  }
+  if (!document.getElementById('cfg-input-cooldown_hours')) {
+    const cdEl = document.getElementById('ap-cooldown');
+    if (cdEl) cdEl.innerHTML = cooldownHours + 'h <span class="edit-icon">&#x270E;</span>';
+  }
+
   document.getElementById('ap-contracts').textContent = curContracts + ' / ' + maxContracts;
-  document.getElementById('ap-symbol').textContent = contractSymbol || '—';
+  document.getElementById('ap-symbol').textContent = contractSymbol || '\u2014';
   document.getElementById('ap-cur-exp').textContent = fmtK(curExposure);
 
+  // Expiry display
   const expiryEl    = document.getElementById('ap-expiry');
   const expirySub   = document.getElementById('ap-expiry-sub');
   if (daysToExpiry !== null && daysToExpiry !== undefined) {
@@ -1203,15 +1441,27 @@ function update(data) {
     const cls = d <= 3 ? 'expiry-red' : d <= 10 ? 'expiry-amber' : 'expiry-green';
     expiryEl.textContent = d + 'd';
     expiryEl.className = 'ap-value ' + cls;
-    expirySub.textContent = d <= 3 ? '⚠ Expiring soon' : d <= 10 ? 'Rolling soon' : 'Until expiry';
+    expirySub.textContent = d <= 3 ? '\u26a0 Expiring soon' : d <= 10 ? 'Rolling soon' : 'Until expiry';
   } else {
-    expiryEl.textContent = '—';
+    expiryEl.textContent = '\u2014';
     expiryEl.className = 'ap-value';
     expirySub.textContent = '';
   }
 
+  // Recalibration info
+  const recalCount = data.recalibrations ?? s.recalibrations ?? 0;
+  const recalTime = data.last_recal_time ?? s.last_recal_time;
+  document.getElementById('ap-recal-count').textContent = recalCount + ' done';
+  if (recalTime) {
+    document.getElementById('ap-recal-time').textContent = 'Last: ' + fmtTime(recalTime);
+  } else {
+    document.getElementById('ap-recal-time').textContent = 'Pending first calibration';
+  }
+
+  // Gauge
   updateGauge(curExposure, maxExposure);
 
+  // ── Equity curve ──
   const eq = m.equity_curve || [];
   if (eq.length > 0) {
     chart.data.labels = eq.map(e => fmtShort(e.time));
@@ -1227,6 +1477,7 @@ function update(data) {
       eq.length + ' closed trades';
   }
 
+  // ── Current Position ──
   const posBody  = document.getElementById('position-body');
   const posBadge = document.getElementById('pos-side');
 
@@ -1266,6 +1517,7 @@ function update(data) {
       html += row('Held', held + 'h');
     }
 
+    // Range position bar
     if (pos.support > 0 && pos.resistance > 0 && lastPrice > 0) {
       const rngPos = Math.max(0, Math.min(1, (lastPrice - pos.support) / (pos.resistance - pos.support)));
       html += `<div style="margin-top:10px;">
@@ -1291,12 +1543,13 @@ function update(data) {
       html += '<br><span style="font-size:11px;">Cooldown until ' + fmtTime(ss.cooldown_until) + '</span>';
     }
     if (ss.support > 0) {
-      html += '<br><span style="font-size:11px;">Range: ' + fmtPrice(ss.support) + ' — ' + fmtPrice(ss.resistance) + '</span>';
+      html += '<br><span style="font-size:11px;">Range: ' + fmtPrice(ss.support) + ' \u2014 ' + fmtPrice(ss.resistance) + '</span>';
     }
     html += '</div>';
     posBody.innerHTML = html;
   }
 
+  // ── Long vs Short breakdown ──
   const longPnlEl = document.getElementById('long-pnl');
   longPnlEl.textContent = fmt(m.long_pnl);
   longPnlEl.className = 'breakdown-pnl ' + colorClass(m.long_pnl);
@@ -1309,6 +1562,7 @@ function update(data) {
   document.getElementById('short-detail').textContent =
     (m.short_trades||0) + ' trades, ' + (m.short_wins||0) + ' wins';
 
+  // ── Trade table (most recent first, limit 20) ──
   const tbody = document.getElementById('trade-tbody');
   if (trades.length > 0) {
     const recent = trades.slice().reverse().slice(0, 20);
@@ -1318,11 +1572,11 @@ function update(data) {
       html += '<tr>';
       html += `<td>${fmtTime(t.time)}</td>`;
       html += `<td class="${actionClass(t.action)}">${t.action}</td>`;
-      html += `<td>${t.side ? '<span class="side-'+(t.side||'')+'">'+( t.side||'').toUpperCase()+'</span>' : '—'}</td>`;
+      html += `<td>${t.side ? '<span class="side-'+(t.side||'')+'">'+( t.side||'').toUpperCase()+'</span>' : '\u2014'}</td>`;
       html += `<td>${fmtPrice(t.fill_price)}</td>`;
-      html += `<td>${isClosed ? fmtPrice(t.entry_price) : '—'}</td>`;
-      html += `<td class="${colorClass(t.net_pnl)}">${isClosed ? fmt(t.net_pnl) : '—'}</td>`;
-      html += `<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font);font-size:11px;color:var(--text-dim);">${t.reason || '—'}</td>`;
+      html += `<td>${isClosed ? fmtPrice(t.entry_price) : '\u2014'}</td>`;
+      html += `<td class="${colorClass(t.net_pnl)}">${isClosed ? fmt(t.net_pnl) : '\u2014'}</td>`;
+      html += `<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font);font-size:11px;color:var(--text-dim);">${t.reason || '\u2014'}</td>`;
       html += '</tr>';
     }
     tbody.innerHTML = html;
@@ -1330,6 +1584,7 @@ function update(data) {
       trades.length + ' total entries';
   }
 
+  // ── Footer ──
   document.getElementById('footer').textContent =
     'Last updated: ' + new Date().toLocaleTimeString() +
     (s.last_price ? '  |  BTC: ' + fmtPrice(s.last_price) : '') +
@@ -1340,6 +1595,7 @@ function row(label, value) {
   return `<div class="position-row"><span class="label">${label}</span><span class="value">${value}</span></div>`;
 }
 
+// ── Polling ───────────────────────────────────────────
 let failCount = 0;
 
 async function poll() {
@@ -1358,6 +1614,7 @@ async function poll() {
   }
 }
 
+// Initial + every 3 seconds
 poll();
 setInterval(poll, 3000);
 </script>
@@ -1385,6 +1642,7 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=DASHBOARD_PORT, help="HTTP port (default: 8080)")
     args = parser.parse_args()
 
+    # Change to the project directory so we find trades.json / state.json
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
     run_dashboard(args.port)

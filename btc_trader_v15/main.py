@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-	v15 Main Runner — Human-Directed BTC Trading via Interactive Brokers
+v15 Main Runner — Human-Directed BTC Trading via Interactive Brokers
 =====================================================================
 Config I: Long+Short, rolling calibration, asymmetric risk
 
@@ -99,6 +99,7 @@ class Trader:
 
         # Rolling recalibration tracking
         self._last_recal_date = None  # date of last recalibration
+        self._last_recal_time = None  # datetime of last recalibration
         self._calibration_start_date = None  # first date of calibration data
 
         # Control file: dashboard can send commands
@@ -150,7 +151,7 @@ class Trader:
         notional = total * price * cfg.MULTIPLIER  # 0.1 BTC per contract
         
         if notional > cfg.MAX_EXPOSURE_USD:
-            logger.warning(f"Exposure check FAILED: {total} contracts × ${price:,.0f} × {cfg.MULTIPLIER} "
+            logger.warning(f"Exposure check FAILED: {total} contracts x ${price:,.0f} x {cfg.MULTIPLIER} "
                           f"= ${notional:,.0f} > max ${cfg.MAX_EXPOSURE_USD:,.0f}")
             return False
         
@@ -160,11 +161,11 @@ class Trader:
     # ── Lifecycle ──────────────────────────────────────
 
     async def start(self, regime: str = "choppy"):
-        """Full startup sequence: connect → calibrate → trade."""
+        """Full startup sequence: connect -> calibrate -> trade."""
         self.regime = regime
         self.start_time = datetime.now()
         logger.info("=" * 60)
-        logger.info(f"BTC TRADER v15 — Starting in {regime.upper()} regime")
+        logger.info(f"BTC TRADER v15 - Starting in {regime.upper()} regime")
         logger.info("Config I: Long+Short, asymmetric risk, rolling calibration")
         logger.info("=" * 60)
 
@@ -209,7 +210,7 @@ class Trader:
         short_zone = self.strategy.support + rng * cfg.CHOPPY["short_entry_zone"]
 
         print("\n" + "=" * 60)
-        print("  TRADING ACTIVE — Config I (Long+Short)")
+        print("  TRADING ACTIVE - Config I (Long+Short)")
         print(f"  Regime:      {regime.upper()}")
         print(f"  Instrument:  {self.ib_exec.contract.localSymbol}")
         print(f"  Range:       ${self.strategy.support:,.0f} - ${self.strategy.resistance:,.0f} "
@@ -267,6 +268,7 @@ class Trader:
         logger.info(f"Calibration result: {json.dumps(result, indent=2)}")
 
         self._last_recal_date = datetime.now().date()
+        self._last_recal_time = datetime.now()
         self.recalibrations += 1
 
         if not result["is_range"]:
@@ -284,7 +286,7 @@ class Trader:
     async def _maybe_recalibrate(self):
         """
         Rolling recalibration: re-calibrate once per day.
-        The strategy calibrate() uses the most recent bars (7→14 day window).
+        The strategy calibrate() uses the most recent bars (7->14 day window).
         """
         today = datetime.now().date()
         if self._last_recal_date and today <= self._last_recal_date:
@@ -292,7 +294,7 @@ class Trader:
 
         # Only recalibrate if we're flat (don't change parameters mid-trade)
         if self.strategy and not self.strategy.position.is_flat:
-            logger.debug("Skipping daily recalibration — position open")
+            logger.debug("Skipping daily recalibration - position open")
             return
 
         logger.info("Daily rolling recalibration triggered")
@@ -301,6 +303,7 @@ class Trader:
             bars_df = await self.ib_exec.fetch_calibration_bars(hours)
             result = self.strategy.calibrate(bars_df)
             self._last_recal_date = today
+            self._last_recal_time = datetime.now()
             self.recalibrations += 1
             logger.info(f"Recalibrated #{self.recalibrations}: "
                         f"S=${result['support']:,.0f} R=${result['resistance']:,.0f} "
@@ -338,7 +341,7 @@ class Trader:
             return
 
         if current_hour > self._last_hourly_time:
-            # New hour — build the completed hourly bar and process it
+            # New hour - build the completed hourly bar and process it
             if self._current_hour_bars:
                 hourly = self._aggregate_hourly(self._current_hour_bars, self._last_hourly_time)
                 self._process_hourly_bar(hourly)
@@ -377,7 +380,7 @@ class Trader:
 
         self.hourly_bars_processed += 1
 
-        # Check for daily recalibration (async — schedule it)
+        # Check for daily recalibration (async - schedule it)
         asyncio.ensure_future(self._maybe_recalibrate())
         # Check for auto-flatten / contract roll near expiry
         asyncio.ensure_future(self._check_expiry_actions())
@@ -391,7 +394,7 @@ class Trader:
             is_pyramid = (self.strategy.position.side == "long"
                           and self.strategy.position.contracts > 0)
             if not is_pyramid and self.ib_exec.should_avoid_entry():
-                logger.warning("Skipping entry — too close to contract expiry")
+                logger.warning("Skipping entry - too close to contract expiry")
                 return
             asyncio.ensure_future(self._execute_buy(signal, is_pyramid=is_pyramid))
 
@@ -402,7 +405,7 @@ class Trader:
         elif signal.action == "SHORT":
             logger.info(f"SIGNAL: {signal}")
             if self.ib_exec.should_avoid_entry():
-                logger.warning("Skipping short entry — too close to contract expiry")
+                logger.warning("Skipping short entry - too close to contract expiry")
                 return
             asyncio.ensure_future(self._execute_short(signal))
 
@@ -411,7 +414,7 @@ class Trader:
             asyncio.ensure_future(self._execute_cover(signal.reason))
 
         else:
-            # HOLD — log periodically
+            # HOLD - log periodically
             if self.hourly_bars_processed % 6 == 0:  # every 6 hours
                 logger.debug(f"HOLD: {signal.reason}")
 
@@ -455,7 +458,7 @@ class Trader:
                 side = self.strategy.position.side
                 logger.warning(f"AUTO-FLATTEN: Only {days} day(s) to expiry! "
                               f"Closing {side} position.")
-                print(f"\n  ⚠ AUTO-FLATTEN: Contract expires in {days} day(s)!")
+                print(f"\n  WARNING AUTO-FLATTEN: Contract expires in {days} day(s)!")
                 if side == "long":
                     await self._execute_sell("AUTO_FLATTEN_EXPIRY")
                 elif side == "short":
@@ -476,7 +479,7 @@ class Trader:
 
         # Only roll if flat
         if self.strategy and not self.strategy.position.is_flat:
-            logger.info("Cannot roll contract — position still open")
+            logger.info("Cannot roll contract - position still open")
             return
 
         logger.info(f"Attempting contract roll ({days} days to expiry)...")
@@ -508,8 +511,8 @@ class Trader:
                 self.ib_exec.qualified = True
                 new_symbol = self.ib_exec.contract.localSymbol
                 new_days = self.ib_exec.days_to_expiry()
-                logger.info(f"ROLLED: {old_symbol} → {new_symbol} ({new_days} days to expiry)")
-                print(f"\n  CONTRACT ROLLED: {old_symbol} → {new_symbol} ({new_days}d to expiry)\n")
+                logger.info(f"ROLLED: {old_symbol} -> {new_symbol} ({new_days} days to expiry)")
+                print(f"\n  CONTRACT ROLLED: {old_symbol} -> {new_symbol} ({new_days}d to expiry)\n")
 
                 # Re-subscribe to bars on the new contract
                 if self._bar_subscription:
@@ -532,14 +535,14 @@ class Trader:
             contracts = signal.contracts or cfg.DEFAULT_CONTRACTS
             # Exposure check
             if not self._check_exposure(contracts):
-                logger.warning("BUY blocked — would exceed max exposure")
+                logger.warning("BUY blocked - would exceed max exposure")
                 return
             # Enforce max contracts cap
             if is_pyramid:
                 current = self.strategy.position.contracts
                 contracts = min(contracts, cfg.MAX_CONTRACTS - current)
                 if contracts <= 0:
-                    logger.info("Pyramid skipped — already at max contracts")
+                    logger.info("Pyramid skipped - already at max contracts")
                     return
 
             fill = await self.ib_exec.place_buy(contracts)
@@ -566,7 +569,7 @@ class Trader:
                 else:
                     print(f"\n  BUY FILLED: {fill['filled_qty']} MBT @ ${fill['fill_price']:,.2f} "
                           f"({conviction} conviction)")
-                    print(f"    Target: ${signal.target:,.0f}  (no stop — patient longs)")
+                    print(f"    Target: ${signal.target:,.0f}  (no stop - patient longs)")
                     print(f"    Reason: {signal.reason}\n")
 
                 self._save_trade(fill, "PYRAMID" if is_pyramid else "BUY", signal)
@@ -616,7 +619,7 @@ class Trader:
             contracts = signal.contracts or cfg.DEFAULT_CONTRACTS
             # Exposure check
             if not self._check_exposure(contracts):
-                logger.warning("SHORT blocked — would exceed max exposure")
+                logger.warning("SHORT blocked - would exceed max exposure")
                 return
             fill = await self.ib_exec.place_short(contracts)
 
@@ -711,6 +714,9 @@ class Trader:
             # Contract info
             "contract_symbol": self.ib_exec.contract.localSymbol if self.ib_exec.contract else None,
             "days_to_expiry": self.ib_exec.days_to_expiry() if self.ib_exec.qualified else None,
+            # Recalibration & config
+            "cooldown_hours": cfg.CHOPPY["cooldown_hours"],
+            "last_recal_time": str(self._last_recal_time) if self._last_recal_time else None,
         }
         with open(self.state_file, "w") as f:
             json.dump(state, f, indent=2, default=str)
@@ -754,7 +760,7 @@ class Trader:
     def print_status(self):
         """Print current trading status."""
         print("\n" + "=" * 60)
-        print("  TRADER STATUS — Config I (Long+Short)")
+        print("  TRADER STATUS - Config I (Long+Short)")
         print("=" * 60)
 
         uptime = ""
@@ -857,12 +863,12 @@ async def run_interactive(trader: Trader, regime: str):
                 cmd_type = ctrl.get("command", "")
                 if cmd_type == "stop":
                     logger.info("STOP command received from dashboard")
-                    print("\n  STOP received from dashboard — stopping (keeping positions)...")
+                    print("\n  STOP received from dashboard - stopping (keeping positions)...")
                     await trader.stop(flatten=False)
                     break
                 elif cmd_type == "flatten_stop":
                     logger.info("FLATTEN & STOP command received from dashboard")
-                    print("\n  FLATTEN & STOP received — closing all positions and stopping...")
+                    print("\n  FLATTEN & STOP received - closing all positions and stopping...")
                     await trader.stop(flatten=True)
                     break
                 elif cmd_type == "pause":
@@ -885,6 +891,28 @@ async def run_interactive(trader: Trader, regime: str):
                             await trader._execute_cover("DASHBOARD_FLATTEN")
                     else:
                         print("  No position to flatten.")
+
+            # Check for config updates from dashboard
+            config_update_file = Path("config_update.json")
+            if config_update_file.exists():
+                try:
+                    updates = json.loads(config_update_file.read_text())
+                    config_update_file.unlink()
+                    if "paper_balance" in updates:
+                        old = cfg.PAPER_BALANCE
+                        cfg.PAPER_BALANCE = int(updates["paper_balance"])
+                        logger.info(f"Config update: PAPER_BALANCE {old:,} -> {cfg.PAPER_BALANCE:,}")
+                    if "max_exposure" in updates:
+                        old = cfg.MAX_EXPOSURE_USD
+                        cfg.MAX_EXPOSURE_USD = int(updates["max_exposure"])
+                        logger.info(f"Config update: MAX_EXPOSURE_USD {old:,} -> {cfg.MAX_EXPOSURE_USD:,}")
+                    if "cooldown_hours" in updates:
+                        old = cfg.CHOPPY["cooldown_hours"]
+                        cfg.CHOPPY["cooldown_hours"] = float(updates["cooldown_hours"])
+                        logger.info(f"Config update: cooldown_hours {old} -> {cfg.CHOPPY['cooldown_hours']}")
+                    trader._save_state()  # Persist immediately so dashboard sees it
+                except Exception as e:
+                    logger.error(f"Config update error: {e}")
 
             # Check for user input (non-blocking)
             cmd = await loop.run_in_executor(
@@ -929,13 +957,13 @@ async def run_interactive(trader: Trader, regime: str):
 
                 elif cmd in ("h", "help"):
                     print("\n  Commands:")
-                    print("    s / status   — Show current trading status")
-                    print("    p / pause    — Pause trading (keep connection)")
-                    print("    r / resume   — Resume trading")
-                    print("    q / quit     — Stop (keep position)")
-                    print("    f / flatten  — Close position and stop")
-                    print("    regime X     — Switch regime (choppy/bullish/bearish)")
-                    print("    h / help     — Show this help\n")
+                    print("    s / status   - Show current trading status")
+                    print("    p / pause    - Pause trading (keep connection)")
+                    print("    r / resume   - Resume trading")
+                    print("    q / quit     - Stop (keep position)")
+                    print("    f / flatten  - Close position and stop")
+                    print("    regime X     - Switch regime (choppy/bullish/bearish)")
+                    print("    h / help     - Show this help\n")
 
                 else:
                     print(f"  Unknown command: '{cmd}'. Type 'h' for help.")
@@ -962,7 +990,7 @@ def _get_input_nonblocking():
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="BTC Trader v15 — Config I: Long+Short Trading via IB")
+    parser = argparse.ArgumentParser(description="BTC Trader v15 - Config I: Long+Short Trading via IB")
     parser.add_argument("--regime", choices=["choppy", "bullish", "bearish"],
                         default=None, help="Start directly in this regime")
     parser.add_argument("--status", action="store_true",
@@ -988,15 +1016,15 @@ def main():
     regime = args.regime
     if not regime:
         print("\n" + "=" * 60)
-        print("  BTC TRADER v15 — Config I: Long+Short Trading")
+        print("  BTC TRADER v15 - Config I: Long+Short Trading")
         print("=" * 60)
         print("\n  Strategy: Asymmetric range trading")
-        print("    LONGS:  Patient — no stops, ride out dips, 14d max hold")
-        print("    SHORTS: Defensive — 2.5% stop, 3% trail, ADX exit")
+        print("    LONGS:  Patient - no stops, ride out dips, 14d max hold")
+        print("    SHORTS: Defensive - 2.5% stop, 3% trail, ADX exit")
         print("\n  Select market regime:")
-        print("    1) CHOPPY  — Range-bound sideways market")
-        print("    2) BULLISH — Trending up (not yet implemented)")
-        print("    3) BEARISH — Trending down (not yet implemented)")
+        print("    1) CHOPPY  - Range-bound sideways market")
+        print("    2) BULLISH - Trending up (not yet implemented)")
+        print("    3) BEARISH - Trending down (not yet implemented)")
         print()
 
         choice = input("  Enter choice (1/2/3): ").strip()
