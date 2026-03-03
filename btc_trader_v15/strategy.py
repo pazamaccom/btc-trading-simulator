@@ -1,19 +1,22 @@
 """
-	v15 Strategy — Choppy / Sideways Range Trading Engine
-	=====================================================
-	Adapted from v14 Conservative — the best-performing sideways strategy.
+v15 Strategy — Choppy/Sideways Range Trading (Long + Short)
+============================================================
+Asymmetric risk management:
+  LONGS:  Patient — no hard stops, ride out dips, exit at target/RSI/max-hold
+  SHORTS: Defensive — tight stops, quick ADX exits, protect against upswings
 
-	Receives calibration data (2 weeks of hourly bars) and live price updates.
-	Emits BUY / SELL signals that the execution layer turns into IB orders.
+Rolling calibration:
+  - Percentile-based support/resistance (5th/95th)
+  - Expands from 7 to 14 days, then rolls forward
 """
 
 import numpy as np
 import pandas as pd
 from dataclasses import dataclass, field
-from typing import Optional, Tuple, List
+from typing import Optional, List
 from datetime import datetime, timedelta
 
-from indicators import calc_rsi, calc_atr, calc_adx, calc_stochastic, calc_bollinger, calc_sma
+from indicators import calc_rsi, calc_adx, calc_stochastic
 import config as cfg
 
 
@@ -21,13 +24,13 @@ import config as cfg
 
 @dataclass
 class Signal:
-    action: str             # "BUY", "SELL", "HOLD"
-    reason: str             # human-readable explanation
-    price: float            # price at signal time
+    action: str             # "BUY", "SELL", "SHORT", "COVER", "HOLD"
+    reason: str
+    price: float
     timestamp: datetime
-    contracts: int = 0      # how many contracts
-    target: float = 0.0     # target price for the trade
-    stop: float = 0.0       # stop-loss price
+    contracts: int = 0
+    target: float = 0.0
+    stop: float = 0.0
 
     def __str__(self):
         if self.action == "HOLD":
@@ -40,13 +43,14 @@ class Signal:
 @dataclass
 class Position:
     """Current open position state."""
-    side: str = "flat"      # "long", "flat"
+    side: str = "flat"          # "long", "short", "flat"
     entry_price: float = 0.0
     contracts: int = 0
     entry_time: Optional[datetime] = None
     target_price: float = 0.0
-    stop_loss: float = 0.0
-    trailing_stop: float = 0.0
+    stop_loss: float = 0.0      # only used for shorts
+    trailing_stop: float = 0.0  # only used for shorts
+    peak_price: float = 0.0     # lowest price seen (for short trailing)
     support: float = 0.0
     resistance: float = 0.0
 
@@ -71,11 +75,12 @@ class Position:
 class ChoppyStrategy:
     """
     Sideways range-trading strategy for MBT Micro Bitcoin Futures.
-    
+    Supports both LONG and SHORT positions with asymmetric risk.
+
     Workflow:
-    1. calibrate(bars_df) — feed 2+ weeks of hourly OHLCV data
+    1. calibrate(bars_df) — feed hourly OHLCV bars (7-14 days)
     2. on_bar(bar) — feed each new bar; returns a Signal
-    3. The execution layer acts on BUY/SELL signals
+    3. The execution layer acts on BUY/SELL/SHORT/COVER signals
     """
 
     def __init__(self, params: dict = None):
@@ -83,24 +88,30 @@ class ChoppyStrategy:
         self.p = p
         self.position = Position()
         self.cooldown_until: Optional[datetime] = None
-        self.bars: List[dict] = []       # rolling window of bars
+        self.bars: List[dict] = []
         self.calibrated = False
         self.trade_log: List[dict] = []
-        
-        # Range state (recalculated continuously)
+
+        # Range state
         self.support = 0.0
         self.resistance = 0.0
         self.range_pct = 0.0
         self.is_range = False
-        self.s_touches = 0
-        self.r_touches = 0
+
+        # Dynamic cooldown tracking
+        self.consecutive_short_losses = 0
+
+        # Indicators (recomputed on each bar)
+        self._rsi = np.array([50])
+        self._adx = np.array([20])
 
     # ── Calibration ────────────────────────────────────
 
     def calibrate(self, bars_df: pd.DataFrame):
         """
         Feed historical bars to establish the trading range.
-        bars_df must have columns: time, open, high, low, close, volume
+        Uses percentile-based support/resistance.
+        bars_df must have columns: time, open, high, low, close
         """
         required = {"time", "open", "high", "low", "close"}
         if not required.issubset(bars_df.columns):
@@ -127,8 +138,6 @@ class ChoppyStrategy:
             "resistance": round(self.resistance, 2),
             "range_pct": round(self.range_pct * 100, 2),
             "is_range": self.is_range,
-            "support_touches": self.s_touches,
-            "resistance_touches": self.r_touches,
         }
 
     # ── Live Bar Processing ────────────────────────────
@@ -142,13 +151,12 @@ class ChoppyStrategy:
             return Signal("HOLD", "Not calibrated yet", bar.get("close", 0),
                           bar.get("time", datetime.now()))
 
-        # Append bar and trim to rolling window
+        # Append bar and trim (keep max 14 days + buffer)
         self.bars.append(bar)
-        max_bars = self.p["range_lookback"] + 100  # keep a buffer
+        max_bars = cfg.CALIBRATION_MAX_DAYS * 24 + 100
         if len(self.bars) > max_bars:
             self.bars = self.bars[-max_bars:]
 
-        # Recompute range and indicators
         self._update_range()
         self._compute_indicators()
 
@@ -159,75 +167,49 @@ class ChoppyStrategy:
         if isinstance(now, str):
             now = pd.Timestamp(now)
 
-        # Current indicator values (latest)
         adx_val = self._adx[-1] if len(self._adx) > 0 else 20
         rsi_val = self._rsi[-1] if len(self._rsi) > 0 else 50
-        stoch_val = self._stoch_k[-1] if len(self._stoch_k) > 0 else 50
 
         # ══════════ EXIT LOGIC ══════════
         if not self.position.is_flat:
-            return self._check_exit(price, high_val, low_val, now, adx_val, rsi_val)
+            if self.position.side == "long":
+                return self._check_long_exit(price, high_val, low_val, now, adx_val, rsi_val)
+            else:
+                return self._check_short_exit(price, high_val, low_val, now, adx_val, rsi_val)
 
         # ══════════ ENTRY LOGIC ══════════
-        return self._check_entry(price, now, adx_val, rsi_val, stoch_val)
+        return self._check_entry(price, now, adx_val, rsi_val)
 
-    # ── Private Methods ────────────────────────────────
+    # ── Range Detection (percentile-based) ─────────────
 
     def _update_range(self):
-        """Detect support/resistance from the rolling bar window."""
-        p = self.p
-        lb = p["range_lookback"]
-        if len(self.bars) < lb:
+        """Detect support/resistance using percentiles."""
+        if len(self.bars) < cfg.CALIBRATION_MIN_DAYS * 24:
             self.is_range = False
             return
 
-        window = self.bars[-lb:]
+        # Use all available bars up to max window
+        max_bars = cfg.CALIBRATION_MAX_DAYS * 24
+        window = self.bars[-max_bars:]
+
         highs = np.array([b["high"] for b in window])
         lows = np.array([b["low"] for b in window])
 
-        self.resistance = float(np.max(highs))
-        self.support = float(np.min(lows))
+        self.support = float(np.percentile(lows, cfg.SR_PERCENTILE_LOW))
+        self.resistance = float(np.percentile(highs, cfg.SR_PERCENTILE_HIGH))
 
         if self.support <= 0:
             self.is_range = False
             return
 
         self.range_pct = (self.resistance - self.support) / self.support
-
-        if self.range_pct < p["min_range_pct"]:
-            self.is_range = False
-            return
-
-        # Count touches
-        zone = p["touch_zone_pct"]
-        gap = p["touch_min_gap_bars"]
-        sup_zone = self.support * (1 + zone)
-        res_zone = self.resistance * (1 - zone)
-
-        s_touches = 0
-        r_touches = 0
-        last_s = -gap - 1
-        last_r = -gap - 1
-
-        for j, b in enumerate(window):
-            if b["low"] <= sup_zone and (j - last_s) >= gap:
-                s_touches += 1
-                last_s = j
-            if b["high"] >= res_zone and (j - last_r) >= gap:
-                r_touches += 1
-                last_r = j
-
-        self.s_touches = s_touches
-        self.r_touches = r_touches
-        total = s_touches + r_touches
-        self.is_range = total >= p["min_touches"]
+        self.is_range = self.range_pct >= cfg.MIN_RANGE_PCT
 
     def _compute_indicators(self):
-        """Compute RSI, ADX, Stochastic on the bar window."""
+        """Compute RSI and ADX on the bar window."""
         if len(self.bars) < 30:
             self._adx = np.array([20])
             self._rsi = np.array([50])
-            self._stoch_k = np.array([50])
             return
 
         closes = np.array([b["close"] for b in self.bars])
@@ -236,7 +218,6 @@ class ChoppyStrategy:
 
         self._rsi = calc_rsi(closes, 14)
         self._adx, _, _ = calc_adx(highs, lows, closes, 14)
-        self._stoch_k, _ = calc_stochastic(highs, lows, closes, k_period=14, d_period=3)
 
     def _range_position(self, price):
         """Where is price within the range? 0=support, 1=resistance."""
@@ -244,8 +225,10 @@ class ChoppyStrategy:
             return 0.5
         return (price - self.support) / (self.resistance - self.support)
 
-    def _check_entry(self, price, now, adx_val, rsi_val, stoch_val) -> Signal:
-        """Check if we should enter a new long position."""
+    # ── Entry Logic ────────────────────────────────────
+
+    def _check_entry(self, price, now, adx_val, rsi_val) -> Signal:
+        """Check for long or short entry."""
         p = self.p
 
         # Cooldown check
@@ -256,128 +239,178 @@ class ChoppyStrategy:
         # Must have a valid range
         if not self.is_range:
             return Signal("HOLD",
-                          f"No valid range (pct={self.range_pct*100:.1f}%, "
-                          f"touches={self.s_touches}+{self.r_touches})",
+                          f"No valid range (pct={self.range_pct*100:.1f}%)",
                           price, now)
 
-        # ADX must be low (sideways confirmed)
-        if adx_val >= p["adx_entry_max"]:
-            return Signal("HOLD", f"ADX too high: {adx_val:.1f} >= {p['adx_entry_max']}", price, now)
-
-        # Price must be in buy zone
         rng_pos = self._range_position(price)
-        if rng_pos >= p["buy_below_pct"]:
-            return Signal("HOLD",
-                          f"Price not in buy zone: {rng_pos*100:.1f}% "
-                          f"(need <{p['buy_below_pct']*100:.0f}%)",
-                          price, now)
-
-        # Indicator confirmation
-        rsi_ok = rsi_val < p["rsi_oversold"]
-        stoch_ok = stoch_val < p["stoch_oversold"]
-        if not (rsi_ok or stoch_ok):
-            return Signal("HOLD",
-                          f"No confirmation: RSI={rsi_val:.1f} Stoch={stoch_val:.1f}",
-                          price, now)
-
-        # ── ENTRY SIGNAL ──
-        target = self.support + (self.resistance - self.support) * p["sell_above_pct"]
-        stop = self.support * (1 - p["stop_loss_pct"])
         contracts = cfg.DEFAULT_CONTRACTS
-        expected_gain = (target / price - 1) * 100
 
-        reason = (f"Range buy: price in bottom {rng_pos*100:.1f}% of "
-                  f"${self.support:,.0f}-${self.resistance:,.0f} range "
-                  f"(ADX={adx_val:.1f}, RSI={rsi_val:.1f}, Stoch={stoch_val:.1f}) "
-                  f"Expected gain: {expected_gain:.1f}%")
+        # ── LONG entry: price near support ──
+        if rng_pos <= p["long_entry_zone"] and rsi_val < p["long_rsi_max"]:
+            target = self.support + (self.resistance - self.support) * p["long_target_zone"]
+            reason = (f"LONG entry: price in bottom {rng_pos*100:.0f}% of "
+                      f"${self.support:,.0f}-${self.resistance:,.0f} "
+                      f"(RSI={rsi_val:.1f})")
 
-        return Signal(
-            action="BUY",
-            reason=reason,
-            price=price,
-            timestamp=now,
-            contracts=contracts,
-            target=target,
-            stop=stop,
-        )
+            return Signal(
+                action="BUY", reason=reason, price=price, timestamp=now,
+                contracts=contracts, target=target, stop=0,  # no stop on longs
+            )
 
-    def _check_exit(self, price, high_val, low_val, now, adx_val, rsi_val) -> Signal:
-        """Check if we should exit the current position."""
+        # ── SHORT entry: price near resistance ──
+        if (rng_pos >= p["short_entry_zone"]
+                and rsi_val > p["short_rsi_min"]
+                and adx_val < p["short_adx_max"]):
+            target = self.support + (self.resistance - self.support) * p["short_target_zone"]
+            stop = price * (1 + p["short_stop_pct"])
+            reason = (f"SHORT entry: price in top {(1-rng_pos)*100:.0f}% of "
+                      f"${self.support:,.0f}-${self.resistance:,.0f} "
+                      f"(RSI={rsi_val:.1f}, ADX={adx_val:.1f})")
+
+            return Signal(
+                action="SHORT", reason=reason, price=price, timestamp=now,
+                contracts=contracts, target=target, stop=stop,
+            )
+
+        return Signal("HOLD",
+                       f"Range pos={rng_pos*100:.0f}% RSI={rsi_val:.1f} ADX={adx_val:.1f}",
+                       price, now)
+
+    # ── Long Exit Logic (patient) ──────────────────────
+
+    def _check_long_exit(self, price, high_val, low_val, now, adx_val, rsi_val) -> Signal:
+        """Check if we should exit a long position. Patient — no hard stops."""
         p = self.p
         pos = self.position
         bars_held = 0
         if pos.entry_time:
             bars_held = int((now - pos.entry_time).total_seconds() / 3600)
 
-        # Update trailing stop
-        trail_pct = p["trailing_stop_pct"]
-        if adx_val > p["adx_tighten_threshold"]:
-            tighten = min(0.5,
-                          (adx_val - p["adx_tighten_threshold"]) /
-                          (p["adx_exit_hard"] - p["adx_tighten_threshold"]) * 0.5)
-            trail_pct = trail_pct * (1 - tighten)
+        rng_pos = self._range_position(price)
 
-        new_trail = price * (1 - trail_pct)
-        if new_trail > pos.trailing_stop:
-            pos.trailing_stop = new_trail
+        # 1. Target reached (top of range)
+        if rng_pos >= p["long_target_zone"]:
+            return self._exit_long("TARGET",
+                                   f"Target zone reached ({rng_pos*100:.0f}%)",
+                                   price, now, bars_held)
 
-        # 1. Target reached
-        if pos.target_price > 0 and high_val >= pos.target_price:
-            return self._exit_signal("TARGET",
-                                     f"Target reached: ${pos.target_price:,.0f}",
-                                     pos.target_price, now, bars_held)
+        # 2. RSI overbought + in profit
+        if rsi_val > p["long_rsi_overbought"] and price > pos.entry_price:
+            return self._exit_long("RSI_OB",
+                                   f"RSI={rsi_val:.1f} overbought + profitable",
+                                   price, now, bars_held)
 
-        # 2. Hard stop loss
-        if pos.stop_loss > 0 and low_val <= pos.stop_loss:
-            return self._exit_signal("STOP_LOSS",
-                                     f"Stop loss hit: ${pos.stop_loss:,.0f}",
-                                     pos.stop_loss, now, bars_held,
-                                     cooldown_mult=2)
+        # 3. Max hold time
+        if bars_held >= p["long_max_hold_hours"]:
+            return self._exit_long("MAX_HOLD",
+                                   f"Max hold {p['long_max_hold_hours']}h exceeded",
+                                   price, now, bars_held)
 
-        # 3. Trailing stop
-        if pos.trailing_stop > 0 and low_val <= pos.trailing_stop:
-            return self._exit_signal("TRAILING_STOP",
-                                     f"Trailing stop hit: ${pos.trailing_stop:,.0f}",
-                                     pos.trailing_stop, now, bars_held)
-
-        # 4. ADX breakout + underwater
-        if adx_val > p["adx_exit_hard"] and price < pos.entry_price * 0.99:
-            return self._exit_signal("ADX_BREAKOUT",
-                                     f"ADX={adx_val:.1f} > {p['adx_exit_hard']} & underwater",
-                                     price, now, bars_held)
-
-        # 5. Max hold time
-        if bars_held >= p["max_hold_hours"]:
-            return self._exit_signal("TIME",
-                                     f"Max hold {p['max_hold_hours']}h exceeded ({bars_held}h)",
-                                     price, now, bars_held)
-
-        # 6. RSI overbought near resistance
-        if self.is_range:
-            rng_pos = self._range_position(price)
-            if rng_pos > p["sell_above_pct"] and rsi_val > p["rsi_overbought"]:
-                return self._exit_signal("OVERBOUGHT",
-                                         f"RSI={rsi_val:.1f} near resistance "
-                                         f"(range pos {rng_pos*100:.0f}%)",
-                                         price, now, bars_held)
-
-        # Hold
+        # Hold — report status
         pnl_pct = (price / pos.entry_price - 1) * 100 if pos.entry_price > 0 else 0
         return Signal("HOLD",
-                       f"In position: {bars_held}h, PnL={pnl_pct:+.2f}%, "
+                       f"LONG {bars_held}h, PnL={pnl_pct:+.2f}%, RSI={rsi_val:.1f}",
+                       price, now)
+
+    # ── Short Exit Logic (defensive) ───────────────────
+
+    def _check_short_exit(self, price, high_val, low_val, now, adx_val, rsi_val) -> Signal:
+        """Check if we should exit a short position. Defensive — tight stops."""
+        p = self.p
+        pos = self.position
+        bars_held = 0
+        if pos.entry_time:
+            bars_held = int((now - pos.entry_time).total_seconds() / 3600)
+
+        # Update trailing stop (for shorts: track lowest price, stop above it)
+        if price < pos.peak_price:
+            pos.peak_price = price
+            pos.trailing_stop = price * (1 + p["short_trail_pct"])
+
+        rng_pos = self._range_position(price)
+
+        # 1. Hard stop loss (price rose too much)
+        if pos.stop_loss > 0 and high_val >= pos.stop_loss:
+            return self._exit_short("STOP",
+                                    f"Stop hit: ${pos.stop_loss:,.0f}",
+                                    pos.stop_loss, now, bars_held, is_loss=True)
+
+        # 2. Trailing stop
+        if pos.trailing_stop > 0 and high_val >= pos.trailing_stop:
+            is_loss = price > pos.entry_price
+            return self._exit_short("TRAIL",
+                                    f"Trailing stop: ${pos.trailing_stop:,.0f}",
+                                    pos.trailing_stop, now, bars_held, is_loss=is_loss)
+
+        # 3. ADX breakout (trending UP while short = danger)
+        if adx_val > p["short_adx_exit"] and price > pos.entry_price:
+            return self._exit_short("ADX",
+                                    f"ADX={adx_val:.1f} trending up while short",
+                                    price, now, bars_held, is_loss=True)
+
+        # 4. Target reached (price dropped to bottom of range)
+        if rng_pos <= p["short_target_zone"]:
+            return self._exit_short("TARGET",
+                                    f"Target zone ({rng_pos*100:.0f}%)",
+                                    price, now, bars_held, is_loss=False)
+
+        # 5. RSI oversold + in profit
+        if rsi_val < p["short_rsi_oversold"] and price < pos.entry_price:
+            return self._exit_short("RSI_OS",
+                                    f"RSI={rsi_val:.1f} oversold + profitable",
+                                    price, now, bars_held, is_loss=False)
+
+        # 6. Max hold
+        if bars_held >= p["short_max_hold_hours"]:
+            is_loss = price > pos.entry_price
+            return self._exit_short("MAX_HOLD",
+                                    f"Max hold {p['short_max_hold_hours']}h",
+                                    price, now, bars_held, is_loss=is_loss)
+
+        # Hold
+        pnl_pct = (pos.entry_price / price - 1) * 100 if price > 0 else 0
+        return Signal("HOLD",
+                       f"SHORT {bars_held}h, PnL={pnl_pct:+.2f}%, "
                        f"ADX={adx_val:.1f}, trail=${pos.trailing_stop:,.0f}",
                        price, now)
 
-    def _exit_signal(self, exit_type, reason, price, now, bars_held, cooldown_mult=1):
-        """Create an exit signal and set cooldown."""
-        p = self.p
-        self.cooldown_until = now + timedelta(hours=p["cooldown_hours"] * cooldown_mult)
+    # ── Exit Helpers ───────────────────────────────────
+
+    def _exit_long(self, exit_type, reason, price, now, bars_held):
+        """Create a SELL signal (close long)."""
+        cd = self.p["cooldown_hours"]
+        self.cooldown_until = now + timedelta(hours=cd)
+        self.consecutive_short_losses = 0  # reset on long exit
 
         return Signal(
             action="SELL",
             reason=f"{exit_type}: {reason} (held {bars_held}h)",
-            price=price,
-            timestamp=now,
+            price=price, timestamp=now,
+            contracts=self.position.contracts,
+        )
+
+    def _exit_short(self, exit_type, reason, price, now, bars_held, is_loss=False):
+        """Create a COVER signal (close short)."""
+        p = self.p
+
+        # Dynamic cooldown after repeated short losses
+        if is_loss:
+            self.consecutive_short_losses += 1
+        else:
+            self.consecutive_short_losses = 0
+
+        if (p.get("dynamic_cooldown", False)
+                and self.consecutive_short_losses >= p.get("consecutive_loss_trigger", 2)):
+            cd = p.get("dynamic_cooldown_hrs", 12)
+        else:
+            cd = p["cooldown_hours"]
+
+        self.cooldown_until = now + timedelta(hours=cd)
+
+        return Signal(
+            action="COVER",
+            reason=f"{exit_type}: {reason} (held {bars_held}h)",
+            price=price, timestamp=now,
             contracts=self.position.contracts,
         )
 
@@ -386,43 +419,63 @@ class ChoppyStrategy:
     def record_fill(self, action, price, contracts, timestamp):
         """Called by execution layer when an order is filled."""
         if action == "BUY":
-            p = self.p
             self.position = Position(
                 side="long",
                 entry_price=price,
                 contracts=contracts,
                 entry_time=timestamp,
-                target_price=self.support + (self.resistance - self.support) * p["sell_above_pct"],
-                stop_loss=self.support * (1 - p["stop_loss_pct"]),
-                trailing_stop=price * (1 - p["trailing_stop_pct"]),
+                target_price=self.support + (self.resistance - self.support) * self.p["long_target_zone"],
+                stop_loss=0,  # no stop on longs
+                trailing_stop=0,
+                peak_price=price,
                 support=self.support,
                 resistance=self.resistance,
             )
             self.trade_log.append({
-                "action": "BUY",
-                "price": price,
-                "contracts": contracts,
-                "time": str(timestamp),
-                "support": self.support,
+                "action": "BUY", "price": price, "contracts": contracts,
+                "time": str(timestamp), "support": self.support,
                 "resistance": self.resistance,
-                "range_pct": round(self.range_pct * 100, 2),
             })
 
-        elif action == "SELL":
+        elif action == "SHORT":
+            self.position = Position(
+                side="short",
+                entry_price=price,
+                contracts=contracts,
+                entry_time=timestamp,
+                target_price=self.support + (self.resistance - self.support) * self.p["short_target_zone"],
+                stop_loss=price * (1 + self.p["short_stop_pct"]),
+                trailing_stop=price * (1 + self.p["short_trail_pct"]),
+                peak_price=price,
+                support=self.support,
+                resistance=self.resistance,
+            )
+            self.trade_log.append({
+                "action": "SHORT", "price": price, "contracts": contracts,
+                "time": str(timestamp), "support": self.support,
+                "resistance": self.resistance,
+            })
+
+        elif action in ("SELL", "COVER"):
             if not self.position.is_flat:
-                pnl_per_btc = price - self.position.entry_price
+                ep = self.position.entry_price
+                side = self.position.side
+                if side == "long":
+                    pnl_per_btc = price - ep
+                else:
+                    pnl_per_btc = ep - price
+
                 pnl_usd = pnl_per_btc * cfg.MULTIPLIER * self.position.contracts
                 commission = cfg.COMMISSION_PER_SIDE * 2 * self.position.contracts
                 net_pnl = pnl_usd - commission
 
                 self.trade_log.append({
-                    "action": "SELL",
-                    "price": price,
+                    "action": action, "price": price,
                     "contracts": self.position.contracts,
                     "time": str(timestamp),
-                    "entry_price": self.position.entry_price,
+                    "entry_price": ep,
+                    "side": side,
                     "pnl_usd": round(net_pnl, 2),
-                    "pnl_pct": round((price / self.position.entry_price - 1) * 100, 2),
                     "bars_held": int((timestamp - self.position.entry_time).total_seconds() / 3600)
                     if self.position.entry_time else 0,
                 })
@@ -437,10 +490,9 @@ class ChoppyStrategy:
             "support": round(self.support, 2),
             "resistance": round(self.resistance, 2),
             "range_pct": round(self.range_pct * 100, 2),
-            "support_touches": self.s_touches,
-            "resistance_touches": self.r_touches,
             "position": self.position.to_dict(),
-            "trade_count": len([t for t in self.trade_log if t["action"] == "SELL"]),
+            "trade_count": len([t for t in self.trade_log if t["action"] in ("SELL", "COVER")]),
             "cooldown_until": str(self.cooldown_until) if self.cooldown_until else None,
             "bars_in_window": len(self.bars),
+            "consecutive_short_losses": self.consecutive_short_losses,
         }

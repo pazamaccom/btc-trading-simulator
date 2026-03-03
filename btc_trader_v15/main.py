@@ -1,21 +1,24 @@
 #!/usr/bin/env python3
 """
-	v15 Main Runner — Human-Directed BTC Trading via Interactive Brokers
-	=====================================================================
-	Architecture:
-	  1. You tell the program which regime (choppy / bullish / bearish)
-	  2. You specify a calibration window (or it defaults to last 14 days)
-	  3. The program connects to TWS, calibrates the strategy, and starts trading
-	  4. You can stop anytime, switch regimes, or check status
+v15 Main Runner — Human-Directed BTC Trading via Interactive Brokers
+=====================================================================
+Config I: Long+Short, rolling calibration, asymmetric risk
 
-	Usage:
-	  python main.py                    # Interactive menu
-	  python main.py --regime choppy    # Start directly in choppy mode
-	  python main.py --status           # Show current state and exit
+Architecture:
+  1. You tell the program which regime (choppy / bullish / bearish)
+  2. The program connects to TWS, calibrates the strategy, and starts trading
+  3. Rolling recalibration: re-calibrates daily (7→14 day expanding, then rolling)
+  4. Supports both LONG (BUY/SELL) and SHORT (SHORT/COVER) positions
+  5. You can stop anytime, switch regimes, or check status
 
-	Requires:
-	  - TWS or IB Gateway running with paper trading enabled (port 7497)
-	  - pip install ib_async pandas numpy
+Usage:
+  python main.py                    # Interactive menu
+  python main.py --regime choppy    # Start directly in choppy mode
+  python main.py --status           # Show current state and exit
+
+Requires:
+  - TWS or IB Gateway running with paper trading enabled (port 7497)
+  - pip install ib_async pandas numpy
 """
 
 import asyncio
@@ -63,6 +66,7 @@ class Trader:
     """
     Main trading engine.
     Orchestrates the strategy, IB connection, and user control.
+    Supports LONG and SHORT positions with asymmetric risk management.
     """
 
     def __init__(self):
@@ -77,6 +81,10 @@ class Trader:
         self._last_hourly_time = None
         self._last_price = 0.0
 
+        # Rolling recalibration tracking
+        self._last_recal_date = None  # date of last recalibration
+        self._calibration_start_date = None  # first date of calibration data
+
         # State persistence
         self.state_file = Path(cfg.STATE_FILE)
         self.trade_file = Path(cfg.TRADE_LOG)
@@ -87,6 +95,7 @@ class Trader:
         self.signals_generated = 0
         self.orders_placed = 0
         self.start_time = None
+        self.recalibrations = 0
 
     # ── Lifecycle ──────────────────────────────────────
 
@@ -96,6 +105,7 @@ class Trader:
         self.start_time = datetime.now()
         logger.info("=" * 60)
         logger.info(f"BTC TRADER v15 — Starting in {regime.upper()} regime")
+        logger.info("Config I: Long+Short, asymmetric risk, rolling calibration")
         logger.info("=" * 60)
 
         # 1. Connect to TWS
@@ -124,7 +134,8 @@ class Trader:
                   f"({days} days to expiry)")
 
         # 2. Calibrate strategy
-        print(f"\n[2/3] Calibrating {regime} strategy (fetching {cfg.CALIBRATION_HOURS // 24} "
+        cal_days = cfg.CALIBRATION_MAX_DAYS
+        print(f"\n[2/3] Calibrating {regime} strategy (fetching {cal_days} "
               f"days of hourly data)...")
         await self._calibrate(regime)
 
@@ -133,14 +144,20 @@ class Trader:
         self.running = True
         await self.ib_exec.subscribe_bars(self._on_live_bar)
 
+        rng = self.strategy.resistance - self.strategy.support
+        buy_zone = self.strategy.support + rng * cfg.CHOPPY["long_entry_zone"]
+        short_zone = self.strategy.support + rng * cfg.CHOPPY["short_entry_zone"]
+
         print("\n" + "=" * 60)
-        print("  TRADING ACTIVE")
-        print(f"  Regime:     {regime.upper()}")
-        print(f"  Instrument: {self.ib_exec.contract.localSymbol}")
-        print(f"  Range:      ${self.strategy.support:,.0f} - ${self.strategy.resistance:,.0f} "
+        print("  TRADING ACTIVE — Config I (Long+Short)")
+        print(f"  Regime:      {regime.upper()}")
+        print(f"  Instrument:  {self.ib_exec.contract.localSymbol}")
+        print(f"  Range:       ${self.strategy.support:,.0f} - ${self.strategy.resistance:,.0f} "
               f"({self.strategy.range_pct * 100:.1f}%)")
-        print(f"  Buy zone:   below ${self.strategy.support + (self.strategy.resistance - self.strategy.support) * cfg.CHOPPY['buy_below_pct']:,.0f}")
-        print(f"  Sell target: above ${self.strategy.support + (self.strategy.resistance - self.strategy.support) * cfg.CHOPPY['sell_above_pct']:,.0f}")
+        print(f"  Long zone:   buy below ${buy_zone:,.0f}")
+        print(f"  Short zone:  short above ${short_zone:,.0f}")
+        print(f"  Long risk:   NO stop-loss, 14d max hold (patient)")
+        print(f"  Short risk:  2.5% stop, 3% trail, ADX>32 exit (defensive)")
         print("=" * 60)
         print("\n  Commands: [s]tatus  [p]ause  [r]esume  [q]uit  [f]latten")
         print("  Type a command and press Enter.\n")
@@ -153,8 +170,12 @@ class Trader:
         logger.info("Stopping trader...")
 
         if flatten and self.strategy and not self.strategy.position.is_flat:
-            logger.info("Flattening position before shutdown...")
-            await self._execute_sell("MANUAL_FLATTEN")
+            side = self.strategy.position.side
+            logger.info(f"Flattening {side} position before shutdown...")
+            if side == "long":
+                await self._execute_sell("MANUAL_FLATTEN")
+            elif side == "short":
+                await self._execute_cover("MANUAL_FLATTEN")
 
         await self.ib_exec.disconnect()
         self._save_state()
@@ -169,26 +190,55 @@ class Trader:
         else:
             raise ValueError(f"Regime '{regime}' not implemented yet. Use 'choppy'.")
 
-        # Fetch calibration bars from IB
-        bars_df = await self.ib_exec.fetch_calibration_bars(cfg.CALIBRATION_HOURS)
+        # Fetch calibration bars from IB (up to max window)
+        hours = cfg.CALIBRATION_MAX_DAYS * 24
+        bars_df = await self.ib_exec.fetch_calibration_bars(hours)
 
         # Calibrate
         result = self.strategy.calibrate(bars_df)
         logger.info(f"Calibration result: {json.dumps(result, indent=2)}")
 
+        self._last_recal_date = datetime.now().date()
+        self.recalibrations += 1
+
         if not result["is_range"]:
             logger.warning("No valid trading range detected in calibration data!")
             print(f"\n  WARNING: No confirmed range found in the last "
-                  f"{cfg.CALIBRATION_HOURS // 24} days.")
+                  f"{cfg.CALIBRATION_MAX_DAYS} days.")
             print(f"  Range: ${result['support']:,.0f} - ${result['resistance']:,.0f} "
                   f"({result['range_pct']:.1f}%)")
-            print(f"  Touches: {result['support_touches']}S + {result['resistance_touches']}R "
-                  f"(need {cfg.CHOPPY['min_touches']}+)")
             print("  The strategy will wait for a valid range to form.\n")
         else:
             print(f"  Range detected: ${result['support']:,.0f} - ${result['resistance']:,.0f} "
                   f"({result['range_pct']:.1f}%)")
-            print(f"  Touches: {result['support_touches']}S + {result['resistance_touches']}R")
+            print(f"  Bars: {result['bars_loaded']} | Recalibrations: {self.recalibrations}")
+
+    async def _maybe_recalibrate(self):
+        """
+        Rolling recalibration: re-calibrate once per day.
+        The strategy calibrate() uses the most recent bars (7→14 day window).
+        """
+        today = datetime.now().date()
+        if self._last_recal_date and today <= self._last_recal_date:
+            return  # Already calibrated today
+
+        # Only recalibrate if we're flat (don't change parameters mid-trade)
+        if self.strategy and not self.strategy.position.is_flat:
+            logger.debug("Skipping daily recalibration — position open")
+            return
+
+        logger.info("Daily rolling recalibration triggered")
+        try:
+            hours = cfg.CALIBRATION_MAX_DAYS * 24
+            bars_df = await self.ib_exec.fetch_calibration_bars(hours)
+            result = self.strategy.calibrate(bars_df)
+            self._last_recal_date = today
+            self.recalibrations += 1
+            logger.info(f"Recalibrated #{self.recalibrations}: "
+                        f"S=${result['support']:,.0f} R=${result['resistance']:,.0f} "
+                        f"({result['range_pct']:.1f}%)")
+        except Exception as e:
+            logger.error(f"Recalibration failed: {e}")
 
     # ── Live Bar Processing ────────────────────────────
 
@@ -226,7 +276,7 @@ class Trader:
         else:
             self._current_hour_bars.append(bar)
 
-        # Also do a quick interim check every ~5 minutes for exits
+        # Interim exit checks every ~5 minutes for active positions
         if self.strategy and not self.strategy.position.is_flat:
             if self.bars_received % 60 == 0:  # every ~5 min (60 * 5sec)
                 self._interim_exit_check(bar)
@@ -254,21 +304,34 @@ class Trader:
             return
 
         self.hourly_bars_processed += 1
+
+        # Check for daily recalibration (async — schedule it)
+        asyncio.ensure_future(self._maybe_recalibrate())
+
         signal = self.strategy.on_bar(bar)
         self.signals_generated += 1
 
         if signal.action == "BUY":
             logger.info(f"SIGNAL: {signal}")
-            # Check contract roll
             if self.ib_exec.should_avoid_entry():
                 logger.warning("Skipping entry — too close to contract expiry")
                 return
-            # Execute asynchronously
             asyncio.ensure_future(self._execute_buy(signal))
 
         elif signal.action == "SELL":
             logger.info(f"SIGNAL: {signal}")
             asyncio.ensure_future(self._execute_sell(signal.reason))
+
+        elif signal.action == "SHORT":
+            logger.info(f"SIGNAL: {signal}")
+            if self.ib_exec.should_avoid_entry():
+                logger.warning("Skipping short entry — too close to contract expiry")
+                return
+            asyncio.ensure_future(self._execute_short(signal))
+
+        elif signal.action == "COVER":
+            logger.info(f"SIGNAL: {signal}")
+            asyncio.ensure_future(self._execute_cover(signal.reason))
 
         else:
             # HOLD — log periodically
@@ -282,22 +345,29 @@ class Trader:
 
         pos = self.strategy.position
         price = bar["close"]
-        low = bar["low"]
+        high_val = bar["high"]
+        low_val = bar["low"]
 
-        # Check hard stop
-        if pos.stop_loss > 0 and low <= pos.stop_loss:
-            logger.warning(f"INTERIM STOP HIT: low={low:.0f} <= stop={pos.stop_loss:.0f}")
-            asyncio.ensure_future(self._execute_sell("INTERIM_STOP_LOSS"))
+        if pos.side == "long":
+            # Longs have NO stop-loss (patient), so nothing to check interim
+            pass
 
-        # Check trailing stop
-        if pos.trailing_stop > 0 and low <= pos.trailing_stop:
-            logger.warning(f"INTERIM TRAIL HIT: low={low:.0f} <= trail={pos.trailing_stop:.0f}")
-            asyncio.ensure_future(self._execute_sell("INTERIM_TRAILING_STOP"))
+        elif pos.side == "short":
+            # Shorts: check hard stop and trailing stop (defensive)
+            if pos.stop_loss > 0 and high_val >= pos.stop_loss:
+                logger.warning(f"INTERIM SHORT STOP HIT: high={high_val:.0f} >= "
+                               f"stop={pos.stop_loss:.0f}")
+                asyncio.ensure_future(self._execute_cover("INTERIM_STOP_LOSS"))
+
+            elif pos.trailing_stop > 0 and high_val >= pos.trailing_stop:
+                logger.warning(f"INTERIM SHORT TRAIL HIT: high={high_val:.0f} >= "
+                               f"trail={pos.trailing_stop:.0f}")
+                asyncio.ensure_future(self._execute_cover("INTERIM_TRAILING_STOP"))
 
     # ── Order Execution ────────────────────────────────
 
     async def _execute_buy(self, signal: Signal):
-        """Execute a buy order via IB."""
+        """Execute a BUY order (open long) via IB."""
         try:
             contracts = signal.contracts or cfg.DEFAULT_CONTRACTS
             fill = await self.ib_exec.place_buy(contracts)
@@ -307,8 +377,8 @@ class Trader:
                     "BUY", fill["fill_price"], fill["filled_qty"], fill["time"])
                 self.orders_placed += 1
 
-                print(f"\n  ✓ BUY FILLED: {fill['filled_qty']} MBT @ ${fill['fill_price']:,.2f}")
-                print(f"    Target: ${signal.target:,.0f}  Stop: ${signal.stop:,.0f}")
+                print(f"\n  BUY FILLED: {fill['filled_qty']} MBT @ ${fill['fill_price']:,.2f}")
+                print(f"    Target: ${signal.target:,.0f}  (no stop — patient longs)")
                 print(f"    Reason: {signal.reason}\n")
 
                 self._save_trade(fill, "BUY", signal)
@@ -319,35 +389,92 @@ class Trader:
             logger.error(f"Buy execution error: {e}", exc_info=True)
 
     async def _execute_sell(self, reason: str):
-        """Execute a sell order via IB."""
+        """Execute a SELL order (close long) via IB."""
         try:
             pos = self.strategy.position
             contracts = pos.contracts or cfg.DEFAULT_CONTRACTS
             fill = await self.ib_exec.place_sell(contracts)
 
             if fill["status"] == "Filled":
-                self.strategy.record_fill(
-                    "SELL", fill["fill_price"], contracts, fill["time"])
-                self.orders_placed += 1
-
                 # Calculate P&L
                 pnl_per_btc = fill["fill_price"] - pos.entry_price
                 pnl_usd = pnl_per_btc * cfg.MULTIPLIER * contracts
                 commission = cfg.COMMISSION_PER_SIDE * 2 * contracts
                 net_pnl = pnl_usd - commission
 
-                print(f"\n  ✓ SELL FILLED: {contracts} MBT @ ${fill['fill_price']:,.2f}")
-                print(f"    Entry: ${pos.entry_price:,.2f} → "
+                self.strategy.record_fill(
+                    "SELL", fill["fill_price"], contracts, fill["time"])
+                self.orders_placed += 1
+
+                print(f"\n  SELL FILLED: {contracts} MBT @ ${fill['fill_price']:,.2f}")
+                print(f"    Entry: ${pos.entry_price:,.2f} -> "
                       f"PnL: ${net_pnl:,.2f} ({pnl_per_btc/pos.entry_price*100:+.2f}%)")
                 print(f"    Reason: {reason}\n")
 
                 self._save_trade(fill, "SELL", reason=reason,
-                                 entry_price=pos.entry_price, net_pnl=net_pnl)
+                                 entry_price=pos.entry_price, net_pnl=net_pnl,
+                                 side="long")
             else:
                 logger.error(f"Sell order not filled: {fill['status']}")
 
         except Exception as e:
             logger.error(f"Sell execution error: {e}", exc_info=True)
+
+    async def _execute_short(self, signal: Signal):
+        """Execute a SHORT order (sell-to-open) via IB."""
+        try:
+            contracts = signal.contracts or cfg.DEFAULT_CONTRACTS
+            fill = await self.ib_exec.place_short(contracts)
+
+            if fill["status"] == "Filled":
+                self.strategy.record_fill(
+                    "SHORT", fill["fill_price"], fill["filled_qty"], fill["time"])
+                self.orders_placed += 1
+
+                print(f"\n  SHORT FILLED: {fill['filled_qty']} MBT @ ${fill['fill_price']:,.2f}")
+                print(f"    Target: ${signal.target:,.0f}  "
+                      f"Stop: ${signal.stop:,.0f}  (defensive shorts)")
+                print(f"    Reason: {signal.reason}\n")
+
+                self._save_trade(fill, "SHORT", signal)
+            else:
+                logger.error(f"Short order not filled: {fill['status']}")
+
+        except Exception as e:
+            logger.error(f"Short execution error: {e}", exc_info=True)
+
+    async def _execute_cover(self, reason: str):
+        """Execute a COVER order (buy-to-close short) via IB."""
+        try:
+            pos = self.strategy.position
+            contracts = pos.contracts or cfg.DEFAULT_CONTRACTS
+            fill = await self.ib_exec.place_cover(contracts)
+
+            if fill["status"] == "Filled":
+                # Calculate P&L (short: entry - exit)
+                pnl_per_btc = pos.entry_price - fill["fill_price"]
+                pnl_usd = pnl_per_btc * cfg.MULTIPLIER * contracts
+                commission = cfg.COMMISSION_PER_SIDE * 2 * contracts
+                net_pnl = pnl_usd - commission
+
+                self.strategy.record_fill(
+                    "COVER", fill["fill_price"], contracts, fill["time"])
+                self.orders_placed += 1
+
+                pnl_pct = pnl_per_btc / pos.entry_price * 100 if pos.entry_price > 0 else 0
+                print(f"\n  COVER FILLED: {contracts} MBT @ ${fill['fill_price']:,.2f}")
+                print(f"    Entry: ${pos.entry_price:,.2f} -> "
+                      f"PnL: ${net_pnl:,.2f} ({pnl_pct:+.2f}%)")
+                print(f"    Reason: {reason}\n")
+
+                self._save_trade(fill, "COVER", reason=reason,
+                                 entry_price=pos.entry_price, net_pnl=net_pnl,
+                                 side="short")
+            else:
+                logger.error(f"Cover order not filled: {fill['status']}")
+
+        except Exception as e:
+            logger.error(f"Cover execution error: {e}", exc_info=True)
 
     # ── State Persistence ──────────────────────────────
 
@@ -361,6 +488,7 @@ class Trader:
             "bars_received": self.bars_received,
             "hourly_bars_processed": self.hourly_bars_processed,
             "orders_placed": self.orders_placed,
+            "recalibrations": self.recalibrations,
             "last_price": self._last_price,
             "strategy_status": self.strategy.get_status() if self.strategy else None,
             "saved_at": str(datetime.now()),
@@ -369,7 +497,7 @@ class Trader:
             json.dump(state, f, indent=2, default=str)
 
     def _save_trade(self, fill, action, signal=None, reason=None,
-                    entry_price=None, net_pnl=None):
+                    entry_price=None, net_pnl=None, side=None):
         """Append a trade record to the trade log."""
         record = {
             "time": str(fill["time"]),
@@ -387,6 +515,8 @@ class Trader:
             record["entry_price"] = entry_price
         if net_pnl is not None:
             record["net_pnl"] = round(net_pnl, 2)
+        if side:
+            record["side"] = side
 
         # Append to JSON array
         trades = []
@@ -405,7 +535,7 @@ class Trader:
     def print_status(self):
         """Print current trading status."""
         print("\n" + "=" * 60)
-        print("  TRADER STATUS")
+        print("  TRADER STATUS — Config I (Long+Short)")
         print("=" * 60)
 
         uptime = ""
@@ -421,30 +551,40 @@ class Trader:
         print(f"  Bars (5sec):  {self.bars_received}")
         print(f"  Bars (1h):    {self.hourly_bars_processed}")
         print(f"  Orders:       {self.orders_placed}")
+        print(f"  Recal:        {self.recalibrations}")
 
         if self.strategy:
             status = self.strategy.get_status()
             pos = status["position"]
             print(f"\n  Range:        ${status['support']:,.0f} - ${status['resistance']:,.0f} "
                   f"({status['range_pct']:.1f}%)")
-            print(f"  Range Valid:  {status['is_range']} "
-                  f"(touches: {status['support_touches']}S + {status['resistance_touches']}R)")
+            print(f"  Range Valid:  {status['is_range']}")
 
             if pos["side"] != "flat":
                 print(f"\n  POSITION:     {pos['side'].upper()} {pos['contracts']} contracts")
                 print(f"  Entry:        ${pos['entry_price']:,.2f}")
                 print(f"  Target:       ${pos['target_price']:,.2f}")
-                print(f"  Stop Loss:    ${pos['stop_loss']:,.2f}")
-                print(f"  Trailing:     ${pos['trailing_stop']:,.2f}")
+
+                if pos["side"] == "short":
+                    print(f"  Stop Loss:    ${pos['stop_loss']:,.2f}")
+                    print(f"  Trailing:     ${pos['trailing_stop']:,.2f}")
+                else:
+                    print(f"  Stop Loss:    NONE (patient longs)")
+                    print(f"  Trailing:     NONE")
 
                 if pos["entry_price"] > 0:
-                    pnl_pct = (self._last_price / pos["entry_price"] - 1) * 100
-                    pnl_usd = (self._last_price - pos["entry_price"]) * cfg.MULTIPLIER * pos["contracts"]
+                    if pos["side"] == "long":
+                        pnl_pct = (self._last_price / pos["entry_price"] - 1) * 100
+                        pnl_usd = (self._last_price - pos["entry_price"]) * cfg.MULTIPLIER * pos["contracts"]
+                    else:  # short
+                        pnl_pct = (pos["entry_price"] / self._last_price - 1) * 100
+                        pnl_usd = (pos["entry_price"] - self._last_price) * cfg.MULTIPLIER * pos["contracts"]
                     print(f"  Unrealized:   ${pnl_usd:,.2f} ({pnl_pct:+.2f}%)")
             else:
                 print(f"\n  POSITION:     FLAT")
 
             print(f"  Trades Done:  {status['trade_count']}")
+            print(f"  Short Losses: {status['consecutive_short_losses']} consecutive")
             if status["cooldown_until"]:
                 print(f"  Cooldown:     until {status['cooldown_until']}")
 
@@ -456,8 +596,9 @@ class Trader:
                     if trades:
                         print(f"\n  RECENT TRADES (last 5):")
                         for t in trades[-5:]:
-                            pnl_str = f" PnL=${t.get('net_pnl', '?')}" if t['action'] == 'SELL' else ""
-                            print(f"    {t['time'][:19]}  {t['action']:4s} "
+                            side_str = f" [{t.get('side', '?')}]" if t['action'] in ('SELL', 'COVER') else ""
+                            pnl_str = f" PnL=${t.get('net_pnl', '?')}" if t['action'] in ('SELL', 'COVER') else ""
+                            print(f"    {t['time'][:19]}  {t['action']:5s}{side_str} "
                                   f"@ ${t['fill_price']:>10,.2f}{pnl_str}")
                 except:
                     pass
@@ -490,7 +631,7 @@ async def run_interactive(trader: Trader, regime: str):
             if cmd:
                 cmd = cmd.strip().lower()
                 if cmd in ("q", "quit", "exit"):
-                    print("\nShutting down...")
+                    print("\nShutting down (keeping position)...")
                     await trader.stop(flatten=False)
                     break
 
@@ -560,7 +701,7 @@ def _get_input_nonblocking():
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="BTC Trader v15 — Human-Directed Trading via IB")
+    parser = argparse.ArgumentParser(description="BTC Trader v15 — Config I: Long+Short Trading via IB")
     parser.add_argument("--regime", choices=["choppy", "bullish", "bearish"],
                         default=None, help="Start directly in this regime")
     parser.add_argument("--status", action="store_true",
@@ -586,8 +727,11 @@ def main():
     regime = args.regime
     if not regime:
         print("\n" + "=" * 60)
-        print("  BTC TRADER v15 — Human-Directed Trading")
+        print("  BTC TRADER v15 — Config I: Long+Short Trading")
         print("=" * 60)
+        print("\n  Strategy: Asymmetric range trading")
+        print("    LONGS:  Patient — no stops, ride out dips, 14d max hold")
+        print("    SHORTS: Defensive — 2.5% stop, 3% trail, ADX exit")
         print("\n  Select market regime:")
         print("    1) CHOPPY  — Range-bound sideways market")
         print("    2) BULLISH — Trending up (not yet implemented)")

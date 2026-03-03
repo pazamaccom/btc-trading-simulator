@@ -225,7 +225,7 @@ async def _qualify_contract(ib: "IB"):
     )
 
 
-# ── Standalone test ──────────────────────────────────────
+# ── Standalone test ───────────────────────────────────────
 if __name__ == "__main__":
     """Quick test: python data_fetcher.py 2026-02-06 2026-03-03"""
     import sys

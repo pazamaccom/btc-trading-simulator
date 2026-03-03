@@ -1,7 +1,7 @@
 """
-v15 Configuration — Human-Directed BTC Trading via IB
+	v15 Configuration — Human-Directed BTC Trading via IB
 =====================================================
-All tuneable parameters in one place.
+Config I: Long+Short, rolling calibration, asymmetric risk
 """
 
 # ── IB Connection ──────────────────────────────────────
@@ -27,36 +27,48 @@ POSITION_LIMIT_USD = 50_000  # Hard dollar limit
 ROLL_AVOID_DAYS = 3     # Avoid entering within N days of expiry
 
 # ── Data ───────────────────────────────────────────────
-CALIBRATION_HOURS = 168     # 7 days of hourly bars for calibration
 BAR_SIZE = "1 hour"         # IB bar size for historical data
 LIVE_BAR_SECONDS = 300      # Re-check every 5 minutes in live trading
 
-# ── Choppy / Sideways Strategy (from v14 Conservative) ─
+# ── Calibration (rolling/expanding window) ─────────────
+CALIBRATION_MIN_DAYS = 7    # Start with 7 days of training data
+CALIBRATION_MAX_DAYS = 14   # Cap at 14 days (then roll forward)
+SR_PERCENTILE_LOW = 5       # 5th percentile of lows → support
+SR_PERCENTILE_HIGH = 95     # 95th percentile of highs → resistance
+MIN_RANGE_PCT = 0.03        # Minimum 3% range to trade
+
+# ── Choppy / Sideways Strategy ─────────────────────────
+# Long+Short with asymmetric risk management
 CHOPPY = {
-    # Range detection
-    "range_lookback":       168,    # hours to look back for support/resistance (7 days)
-    "min_range_pct":        0.05,   # minimum 5% range width
-    "min_touches":          3,      # at least 3 touches of support+resistance
-    "touch_zone_pct":       0.025,  # 2.5% zone around S/R levels
-    "touch_min_gap_bars":   12,     # minimum bars between distinct touches
+    # ── LONG entries ──
+    "long_entry_zone":      0.30,   # buy when price in bottom 30% of range
+    "long_rsi_max":         45,     # RSI must be < 45 to go long
 
-    # Entry filters
-    "buy_below_pct":        0.15,   # buy when price in bottom 15% of range
-    "sell_above_pct":       0.85,   # target: top 85% of range
-    "adx_entry_max":        22,     # only enter if ADX < 22
-    "rsi_oversold":         32,     # RSI confirmation for buy
-    "stoch_oversold":       22,     # Stochastic confirmation for buy
+    # ── LONG exits (patient — let trades breathe) ──
+    "long_target_zone":     0.75,   # exit long when price reaches top 75% of range
+    "long_rsi_overbought":  68,     # RSI exit when overbought + in profit
+    "long_max_hold_hours":  336,    # 14 days max hold (patient)
+    # NO hard stop-loss on longs — building exposure is OK
+    # NO ADX exit on longs — let them ride
 
-    # Exit parameters
-    "adx_tighten_threshold": 22,    # start tightening trailing stop
-    "adx_exit_hard":        32,     # hard exit when ADX > 32 AND underwater
-    "trailing_stop_pct":    0.03,   # 3% trailing stop
-    "stop_loss_pct":        0.025,  # 2.5% hard stop below support
-    "max_hold_hours":       168,    # 7 days max hold
+    # ── SHORT entries ──
+    "short_entry_zone":     0.70,   # short when price in top 30% of range
+    "short_rsi_min":        55,     # RSI must be > 55 to go short
+    "short_adx_max":        25,     # only short when ADX < 25 (no trending)
 
-    # Risk
+    # ── SHORT exits (defensive — cut losses fast) ──
+    "short_target_zone":    0.25,   # cover short when price drops to bottom 25%
+    "short_rsi_oversold":   32,     # RSI exit when oversold + in profit
+    "short_stop_pct":       0.025,  # 2.5% hard stop above entry
+    "short_trail_pct":      0.03,   # 3% trailing stop
+    "short_adx_exit":       32,     # ADX > 32 + underwater → exit short
+    "short_max_hold_hours": 168,    # 7 days max hold for shorts
+
+    # ── Risk ──
     "cooldown_hours":       3,      # hours between trades
-    "rsi_overbought":       68,     # RSI confirmation for exit
+    "dynamic_cooldown":     True,   # 12h cooldown after 2+ consecutive short losses
+    "dynamic_cooldown_hrs": 12,     # cooldown used after repeated short losses
+    "consecutive_loss_trigger": 2,  # how many consecutive short losses to trigger
 }
 
 # ── Bullish Strategy (placeholder for future) ──────────

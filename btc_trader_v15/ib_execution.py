@@ -1,12 +1,13 @@
 """
-	v15 IB Execution Layer — Connects to TWS and executes trades
-	=============================================================
-	Uses ib_async to:
-	  - Connect to TWS paper trading (port 7497)
-	  - Fetch historical hourly bars for calibration
-	  - Subscribe to live 5-second bars
-	  - Place market orders for MBT Micro Bitcoin Futures
-	  - Handle contract rolls
+v15 IB Execution Layer — Connects to TWS and executes trades
+=============================================================
+Uses ib_async to:
+  - Connect to TWS paper trading (port 7497)
+  - Fetch historical hourly bars for calibration
+  - Subscribe to live 5-second bars
+  - Place market orders for MBT Micro Bitcoin Futures
+  - Support LONG (buy/sell) and SHORT (sell-short/cover) positions
+  - Handle contract rolls
 """
 
 import asyncio
@@ -34,6 +35,7 @@ logger = logging.getLogger("ib_exec")
 class IBExecution:
     """
     Manages the IB TWS connection and order execution for MBT futures.
+    Supports BUY, SELL, SHORT (sell-to-open), and COVER (buy-to-close).
     """
 
     def __init__(self):
@@ -52,7 +54,7 @@ class IBExecution:
 
         # State
         self._bar_subscription = None
-        self._position_contracts = 0
+        self._position_contracts = 0   # positive = long, negative = short
 
     # ── Connection ─────────────────────────────────────
 
@@ -127,7 +129,7 @@ class IBExecution:
         if not self.connected or not self.qualified:
             raise RuntimeError("Not connected or contract not qualified")
 
-        hours = hours or cfg.CALIBRATION_HOURS
+        hours = hours or cfg.CALIBRATION_MAX_DAYS * 24
         duration = f"{hours} S" if hours <= 86400 else f"{hours // 3600} D"
         # IB duration string: "14 D" for 14 days
         days_needed = max(1, hours // 24 + 1)
@@ -205,7 +207,7 @@ class IBExecution:
     # ── Order Execution ────────────────────────────────
 
     async def place_buy(self, contracts: int = None) -> dict:
-        """Place a market BUY order for MBT."""
+        """Place a market BUY order to open a long position."""
         contracts = contracts or cfg.DEFAULT_CONTRACTS
         if contracts > cfg.MAX_CONTRACTS:
             contracts = cfg.MAX_CONTRACTS
@@ -215,16 +217,47 @@ class IBExecution:
         logger.info(f"Placing BUY {contracts} {self.contract.localSymbol}...")
 
         trade = self.ib.placeOrder(self.contract, order)
-        # Wait for fill (with timeout)
         fill_info = await self._wait_for_fill(trade, timeout=30)
         return fill_info
 
     async def place_sell(self, contracts: int = None) -> dict:
-        """Place a market SELL order to close position."""
-        contracts = contracts or self._position_contracts or cfg.DEFAULT_CONTRACTS
+        """Place a market SELL order to close a long position."""
+        contracts = contracts or abs(self._position_contracts) or cfg.DEFAULT_CONTRACTS
 
         order = MarketOrder("SELL", contracts)
-        logger.info(f"Placing SELL {contracts} {self.contract.localSymbol}...")
+        logger.info(f"Placing SELL {contracts} {self.contract.localSymbol} (close long)...")
+
+        trade = self.ib.placeOrder(self.contract, order)
+        fill_info = await self._wait_for_fill(trade, timeout=30)
+        return fill_info
+
+    async def place_short(self, contracts: int = None) -> dict:
+        """
+        Place a market SELL order to open a short position.
+        IB treats selling when flat or negative as a short sale.
+        For futures, SELL when flat = short.
+        """
+        contracts = contracts or cfg.DEFAULT_CONTRACTS
+        if contracts > cfg.MAX_CONTRACTS:
+            contracts = cfg.MAX_CONTRACTS
+            logger.warning(f"Capped to {cfg.MAX_CONTRACTS} contracts")
+
+        order = MarketOrder("SELL", contracts)
+        logger.info(f"Placing SHORT (SELL) {contracts} {self.contract.localSymbol}...")
+
+        trade = self.ib.placeOrder(self.contract, order)
+        fill_info = await self._wait_for_fill(trade, timeout=30)
+        return fill_info
+
+    async def place_cover(self, contracts: int = None) -> dict:
+        """
+        Place a market BUY order to close (cover) a short position.
+        IB: buying back when short = covering.
+        """
+        contracts = contracts or abs(self._position_contracts) or cfg.DEFAULT_CONTRACTS
+
+        order = MarketOrder("BUY", contracts)
+        logger.info(f"Placing COVER (BUY) {contracts} {self.contract.localSymbol}...")
 
         trade = self.ib.placeOrder(self.contract, order)
         fill_info = await self._wait_for_fill(trade, timeout=30)
@@ -254,10 +287,10 @@ class IBExecution:
 
         if status == "Filled":
             logger.info(f"FILLED: {trade.order.action} {filled} @ ${fill_price:,.2f}")
-            self._position_contracts = (
-                self._position_contracts + filled if trade.order.action == "BUY"
-                else max(0, self._position_contracts - filled)
-            )
+            if trade.order.action == "BUY":
+                self._position_contracts += filled
+            else:  # SELL
+                self._position_contracts -= filled
         else:
             logger.warning(f"Order status: {status} (may still fill)")
 
