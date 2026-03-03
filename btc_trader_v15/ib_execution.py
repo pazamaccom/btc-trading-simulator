@@ -426,17 +426,35 @@ class IBExecution:
     # ── Position Query ─────────────────────────────────
 
     async def get_position(self) -> dict:
-        """Query current position from IB."""
-        positions = self.ib.positions()
+        """
+        Query current position from IB.
+
+        Uses reqPositionsAsync() to fetch fresh position data from TWS,
+        rather than relying on the local cache which may be empty after
+        a fresh connection.
+        """
+        # First, request fresh positions from IB (populates the cache)
+        try:
+            positions = await self.ib.reqPositionsAsync()
+            logger.info(f"reqPositionsAsync returned {len(positions)} position(s)")
+        except Exception as e:
+            logger.warning(f"reqPositionsAsync failed: {e}, trying cached positions")
+            positions = self.ib.positions()
+
         for pos in positions:
+            # Match by symbol — works for both ContFuture and specific month
             if pos.contract.symbol == cfg.SYMBOL:
                 self._position_contracts = int(pos.position)
+                logger.info(f"Found IB position: {pos.contract.localSymbol} "
+                            f"qty={pos.position} avgCost={pos.avgCost}")
                 return {
                     "symbol": pos.contract.localSymbol,
                     "position": int(pos.position),
                     "avg_cost": pos.avgCost,
                     "unrealized_pnl": getattr(pos, "unrealizedPNL", None),
                 }
+
+        logger.info("No MBT position found in IB")
         return {"symbol": cfg.SYMBOL, "position": 0, "avg_cost": 0}
 
     async def get_account_summary(self) -> dict:
