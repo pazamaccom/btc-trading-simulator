@@ -172,6 +172,9 @@ async def _fetch_bars_async(start: pd.Timestamp, end: pd.Timestamp) -> pd.DataFr
     df = pd.DataFrame(all_bars)
     df = df.drop_duplicates(subset="time").sort_values("time").reset_index(drop=True)
 
+    # Strip timezone info (IB returns US/Central) so all comparisons are tz-naive
+    df["time"] = df["time"].dt.tz_localize(None) if df["time"].dt.tz is None else df["time"].dt.tz_convert("UTC").dt.tz_localize(None)
+
     # Filter to requested range
     df = df[(df["time"] >= start) & (df["time"] <= end)].reset_index(drop=True)
 
