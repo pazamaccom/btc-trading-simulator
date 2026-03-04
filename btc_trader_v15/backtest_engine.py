@@ -38,7 +38,7 @@ from regime_detector import RegimeDetector
 
 logger = logging.getLogger("backtest_engine")
 
-# ── Constants (from config) ─────────────────────────────────────────────────
+# ── Constants (from config) ───────────────────────────────────────────────────
 MULTIPLIER = cfg.MULTIPLIER                 # 0.1 BTC per contract
 COMMISSION_PER_SIDE = cfg.COMMISSION_PER_SIDE  # $1.25 per contract per side
 
@@ -81,7 +81,7 @@ class BacktestEngine:
     def __init__(self, strategy_map: Optional[dict] = None):
         self.strategy_map: dict = strategy_map or {}
 
-    # ── Public Entry Point ──────────────────────────────────────────────────────
+    # ── Public Entry Point ────────────────────────────────────────────────────
 
     async def run(
         self,
@@ -95,7 +95,7 @@ class BacktestEngine:
         Args:
             start_date: "YYYY-MM-DD" (default "2023-01-01")
             end_date:   "YYYY-MM-DD" or None (default: today)
-            progress_callback: optional callable({"pct": int, "msg": str})
+            progress_callback: optional callable({\"pct\": int, \"msg\": str})
 
         Returns:
             Results dict with keys:
@@ -121,7 +121,7 @@ class BacktestEngine:
 
         _progress(0, f"Starting multi-regime backtest: {start_date} → {end_date}")
 
-        # ── 1. Fetch historical bars ──────────────────────────────────────────────────
+        # ── 1. Fetch historical bars ──────────────────────────────────────────
         _progress(2, "Fetching BTC-USD historical bars from Yahoo Finance...")
         try:
             bars_df = await self._fetch_historical_bars(start_date, end_date)
@@ -141,7 +141,7 @@ class BacktestEngine:
         total_bars = len(bars_df)
         _progress(10, f"Fetched {total_bars} bars")
 
-        # ── 2. Fit RegimeDetector on full dataset ───────────────────────────────────────
+        # ── 2. Fit RegimeDetector on full dataset ─────────────────────────────
         _progress(12, "Fitting RegimeDetector on full dataset...")
         detector = RegimeDetector()
         try:
@@ -168,10 +168,10 @@ class BacktestEngine:
             f"{len(regime_periods)} regime periods found."
         ))
 
-        # ── 3. Convert DataFrame to bar list ────────────────────────────────────────────
+        # ── 3. Convert DataFrame to bar list ──────────────────────────────────
         bars_list = self._df_to_bar_list(bars_df)
 
-        # ── 4. Walk-forward simulation ──────────────────────────────────────────────────
+        # ── 4. Walk-forward simulation ────────────────────────────────────────
         trades = []          # all completed trades (with 'regime' field)
         equity_curve = []    # {time, pnl, regime}
         cumulative_pnl = 0.0
@@ -183,7 +183,7 @@ class BacktestEngine:
         active_strategy = None
         active_regime: Optional[str] = None
 
-        progress_step = max(1, total_bars // 40)
+        progress_step = max(1, total_bars // 10)  # fewer progress messages
 
         _progress(22, "Beginning walk-forward simulation...")
 
@@ -194,7 +194,7 @@ class BacktestEngine:
 
             bar_regime = regime_labels[i]  # may be None for leading bars
 
-            # ── Regime switch detection ───────────────────────────────────────────────
+            # ── Regime switch detection ───────────────────────────────────────
             if bar_regime is not None and bar_regime != active_regime:
                 # Force-close any open position at the current bar's close price
                 if virt["side"] != "flat":
@@ -297,7 +297,7 @@ class BacktestEngine:
                     )
                     active_strategy = None
 
-            # ── Feed bar to active strategy ───────────────────────────────────────────────
+            # ── Feed bar to active strategy ───────────────────────────────────
             bar_pnl = 0.0
 
             if active_strategy is None:
@@ -445,7 +445,7 @@ class BacktestEngine:
 
         _progress(92, "Simulation complete — computing metrics")
 
-        # ── 5. Handle open position at end of backtest ────────────────────────────────────
+        # ── 5. Handle open position at end of backtest ────────────────────────
         final_position = "flat"
         if virt["side"] != "flat":
             final_position = {
@@ -456,17 +456,17 @@ class BacktestEngine:
                 "note": "Open at backtest end — PnL not realized",
             }
 
-        # ── 6. Compute overall metrics ───────────────────────────────────────────────────
+        # ── 6. Compute overall metrics ────────────────────────────────────────
         metrics = _compute_metrics(trades)
 
-        # ── 7. Compute per-regime metrics ────────────────────────────────────────────────
+        # ── 7. Compute per-regime metrics ─────────────────────────────────────
         all_regimes = sorted({r for r in regime_labels if r is not None})
         metrics_by_regime: Dict[str, dict] = {}
         for regime in all_regimes:
             regime_trades = [t for t in trades if t.get("regime") == regime]
             metrics_by_regime[regime] = _compute_metrics(regime_trades)
 
-        # ── 8. Build regime_summary ───────────────────────────────────────────────────────
+        # ── 8. Build regime_summary ───────────────────────────────────────────
         regime_summary = []
         for regime in all_regimes:
             regime_trades_closed = [
@@ -526,7 +526,7 @@ class BacktestEngine:
 
         return results
 
-    # ── Historical Data Fetching ────────────────────────────────────────────────────────
+    # ── Historical Data Fetching ──────────────────────────────────────────────
 
     async def _fetch_historical_bars(
         self, start_date: str, end_date: str
@@ -682,7 +682,7 @@ class BacktestEngine:
         )
         return df
 
-    # ── Helpers ───────────────────────────────────────────────────────────────────────────
+    # ── Helpers ───────────────────────────────────────────────────────────────
 
     @staticmethod
     def _df_to_bar_list(df: pd.DataFrame) -> list:
@@ -722,7 +722,7 @@ class BacktestEngine:
         }
 
 
-# ── PnL Helpers ───────────────────────────────────────────────────────────────────────────
+# ── PnL Helpers ───────────────────────────────────────────────────────────────
 
 def _long_pnl(entry: float, exit_px: float, contracts: int) -> float:
     """Net PnL for a closed long position."""
@@ -748,7 +748,7 @@ def _flat_position() -> dict:
     }
 
 
-# ── Metrics ────────────────────────────────────────────────────────────────────────────────
+# ── Metrics ───────────────────────────────────────────────────────────────────
 
 def _compute_metrics(trades: list) -> dict:
     """
@@ -832,7 +832,7 @@ def _empty_metrics() -> dict:
     }
 
 
-# ── Result Persistence ──────────────────────────────────────────────────────────────────
+# ── Result Persistence ────────────────────────────────────────────────────────
 
 def _save_results(results: dict, path: str = "backtest_results.json"):
     """Save results dict to JSON, stripping non-serialisable objects."""
@@ -857,7 +857,7 @@ def _json_default(obj):
     return str(obj)
 
 
-# ── Timestamp Helper ────────────────────────────────────────────────────────────────────────
+# ── Timestamp Helper ──────────────────────────────────────────────────────────
 
 def _ts_str(ts) -> str:
     """Convert various timestamp types to a consistent string."""

@@ -74,8 +74,9 @@ class RegimeDetector:
     def __init__(
         self,
         n_states: int = 3,
-        lookback_days: int = 90,
+        lookback_days: int = 0,
         min_bars: int = 200,
+        min_regime_bars: int = 24,
     ) -> None:
         """
         Parameters
@@ -84,10 +85,14 @@ class RegimeDetector:
             Number of HMM hidden states. Must be 3.
         lookback_days : int
             How many calendar days of historical data to use when fitting.
-            Only the most recent ``lookback_days`` worth of bars are used.
+            0 means use ALL available data (recommended for backtest).
         min_bars : int
             Minimum number of bars required to fit the model. If the
             prepared feature matrix has fewer rows, fit() returns an error.
+        min_regime_bars : int
+            Minimum number of consecutive bars a regime must persist.
+            Shorter regime periods are absorbed into the surrounding regime.
+            Default 24 (= 1 day of hourly bars) to prevent noisy switching.
         """
         if n_states != 3:
             raise ValueError("RegimeDetector requires exactly 3 hidden states.")
@@ -95,6 +100,7 @@ class RegimeDetector:
         self.n_states = n_states
         self.lookback_days = lookback_days
         self.min_bars = min_bars
+        self.min_regime_bars = min_regime_bars
 
         # Set after fit()
         self._model: Optional[GaussianHMM] = None
@@ -204,6 +210,10 @@ class RegimeDetector:
 
         # ---- Build full-length regime arrays --------------------------------
         regimes_full = self._expand_regimes(raw_states, valid_mask, len(df), state_map)
+
+        # ---- Apply minimum regime duration filter ----------------------------
+        if self.min_regime_bars > 1:
+            regimes_full = self._smooth_regimes(regimes_full, self.min_regime_bars)
 
         # ---- Compute per-regime statistics (original scale) -----------------
         state_means: dict[str, float] = {}
@@ -415,9 +425,9 @@ class RegimeDetector:
 
         df_orig = df.reset_index(drop=True).copy()
 
-        # --- Trim to lookback window -----------------------------------------
+        # --- Trim to lookback window (0 = use all data) ----------------------
         df_work = df_orig
-        if "time" in df_orig.columns:
+        if self.lookback_days > 0 and "time" in df_orig.columns:
             try:
                 times = pd.to_datetime(df_orig["time"])
                 cutoff = times.max() - pd.Timedelta(days=self.lookback_days)
@@ -544,6 +554,70 @@ class RegimeDetector:
                 except StopIteration:
                     break
         return regimes
+
+    @staticmethod
+    def _smooth_regimes(
+        regimes: List[Optional[str]], min_bars: int
+    ) -> List[Optional[str]]:
+        """
+        Remove short-lived regime periods by absorbing them into the
+        surrounding (previous) regime.
+
+        Any contiguous block of a single regime that is shorter than
+        ``min_bars`` bars is replaced with the regime of the preceding
+        block.  If no preceding regime exists, the next regime is used.
+
+        This prevents noisy 1-bar flickers that cause constant expensive
+        recalibration with zero actual trades.
+
+        Parameters
+        ----------
+        regimes : list[str | None]
+        min_bars : int
+
+        Returns
+        -------
+        list[str | None]  smoothed regimes (same length)
+        """
+        if not regimes or min_bars <= 1:
+            return regimes
+
+        result = list(regimes)  # copy
+
+        # Build list of (start_idx, end_idx, regime) runs
+        runs: List[Tuple[int, int, Optional[str]]] = []
+        run_start = 0
+        for i in range(1, len(result)):
+            if result[i] != result[run_start]:
+                runs.append((run_start, i - 1, result[run_start]))
+                run_start = i
+        runs.append((run_start, len(result) - 1, result[run_start]))
+
+        # Smooth: replace short non-None runs with surrounding regime
+        for idx, (start, end, regime) in enumerate(runs):
+            if regime is None:
+                continue
+            length = end - start + 1
+            if length < min_bars:
+                # Find the previous non-None regime
+                prev_regime = None
+                for j in range(idx - 1, -1, -1):
+                    if runs[j][2] is not None:
+                        prev_regime = runs[j][2]
+                        break
+                # Find the next non-None regime
+                next_regime = None
+                for j in range(idx + 1, len(runs)):
+                    if runs[j][2] is not None:
+                        next_regime = runs[j][2]
+                        break
+                # Replace with previous if available, else next
+                replacement = prev_regime if prev_regime is not None else next_regime
+                if replacement is not None and replacement != regime:
+                    for k in range(start, end + 1):
+                        result[k] = replacement
+
+        return result
 
     @staticmethod
     def _make_error_result(df_len: int) -> dict:

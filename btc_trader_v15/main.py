@@ -67,7 +67,7 @@ from regime_detector import RegimeDetector
 from ib_execution import IBExecution
 from dashboard import run_dashboard
 
-# ── Logging Setup ──────────────────────
+# ── Logging Setup ──────────────────────────────────────
 
 log_dir = Path(cfg.LOG_DIR)
 log_dir.mkdir(exist_ok=True)
@@ -83,9 +83,9 @@ logging.basicConfig(
 logger = logging.getLogger("main")
 
 
-# ═══════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════
 # TRADER ENGINE
-# ═══════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════
 
 class Trader:
     """
@@ -130,7 +130,7 @@ class Trader:
         self.start_time = None
         self.recalibrations = 0
 
-    # ── Control File ─────────────────────
+    # ── Control File ───────────────────────────────────
 
     def _clear_control(self):
         """Clear any pending control commands."""
@@ -170,7 +170,7 @@ class Trader:
         logger.debug(f"Exposure check OK: ${notional:,.0f} / ${cfg.MAX_EXPOSURE_USD:,.0f}")
         return True
 
-    # ── Lifecycle ──────────────────────
+    # ── Lifecycle ──────────────────────────────────────
 
     async def start(self):
         """Full startup sequence: connect → auto-detect regime → calibrate → trade."""
@@ -269,7 +269,7 @@ class Trader:
         self._save_state()
         logger.info("Trader stopped.")
 
-    # ── Calibration ────────────────────
+    # ── Calibration ────────────────────────────────────
 
     async def _calibrate(self):
         """
@@ -285,7 +285,7 @@ class Trader:
         hours = cfg.CALIBRATION_MAX_DAYS * 24
         bars_df = await self.ib_exec.fetch_calibration_bars(hours)
 
-        # ── Auto-detect regime ──────────────
+        # ── Auto-detect regime ──────────────────────────
         detector = RegimeDetector()
         det_result = detector.fit(bars_df)
 
@@ -312,7 +312,7 @@ class Trader:
             self.detected_regime = "CHOPPY"
             self.regime_confidence = 0.5
 
-        # ── Select strategy ─────────────────
+        # ── Select strategy ─────────────────────────────
         regime_label = self.detected_regime.upper()
 
         if regime_label == "CHOPPY":
@@ -349,7 +349,7 @@ class Trader:
             self.regime = "choppy"
             self.strategy = ChoppyStrategy()
 
-        # ── Calibrate the selected strategy ───────────
+        # ── Calibrate the selected strategy ─────────────
         result = self.strategy.calibrate(bars_df)
         logger.info(f"Calibration result: {json.dumps(result, indent=2)}")
 
@@ -460,7 +460,7 @@ class Trader:
         except Exception as e:
             logger.error(f"Recalibration failed: {e}")
 
-    # ── Live Bar Processing ─────────────────
+    # ── Live Bar Processing ────────────────────────────
 
     def _on_live_bar(self, bar: dict):
         """
@@ -598,7 +598,7 @@ class Trader:
                                f"trail={pos.trailing_stop:.0f}")
                 self._safe_ensure_future(self._execute_cover("INTERIM_TRAILING_STOP"))
 
-    # ── Order Execution ──────────────────
+    # ── Order Execution ────────────────────────────────
 
     async def _check_expiry_actions(self):
         """Check if we need to auto-flatten or roll the contract."""
@@ -681,7 +681,7 @@ class Trader:
         except Exception as e:
             logger.error(f"Contract roll failed: {e}", exc_info=True)
 
-    # ── Order Execution ──────────────────
+    # ── Order Execution ────────────────────────────────
 
     def _safe_ensure_future(self, coro):
         """Schedule a coroutine with error handling so crashes don't kill the main loop."""
@@ -845,7 +845,7 @@ class Trader:
         except Exception as e:
             logger.error(f"Cover execution error: {e}", exc_info=True)
 
-    # ── State Persistence ─────────────────
+    # ── State Persistence ──────────────────────────────
 
     def _save_state(self):
         """Save current state to disk (read by dashboard)."""
@@ -921,7 +921,7 @@ class Trader:
         with open(self.trade_file, "w") as f:
             json.dump(trades, f, indent=2, default=str)
 
-    # ── Status Display ─────────────────
+    # ── Status Display ─────────────────────────────────
 
     def print_status(self):
         """Print current trading status."""
@@ -1004,9 +1004,9 @@ class Trader:
         print("=" * 60 + "\n")
 
 
-# ═══════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════
 # BACKTEST MODE
-# ═══════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════
 
 async def run_backtest():
     """
@@ -1075,23 +1075,40 @@ async def run_backtest():
     print("  BACKTEST COMPLETE")
     print("=" * 60)
     if "error" not in results:
-        summary = results.get("summary", {})
-        if summary:
-            total_return = summary.get("total_return_pct", summary.get("total_return", "N/A"))
-            total_trades = summary.get("total_trades", "N/A")
-            win_rate = summary.get("win_rate", "N/A")
-            sharpe = summary.get("sharpe_ratio", summary.get("sharpe", "N/A"))
-            max_dd = summary.get("max_drawdown_pct", summary.get("max_drawdown", "N/A"))
-            print(f"  Total Return:   {total_return}")
-            print(f"  Total Trades:   {total_trades}")
-            print(f"  Win Rate:       {win_rate}")
-            print(f"  Sharpe Ratio:   {sharpe}")
-            print(f"  Max Drawdown:   {max_dd}")
-        else:
-            # Print top-level keys if no summary
-            for k, v in results.items():
-                if not isinstance(v, (dict, list)):
-                    print(f"  {k}: {v}")
+        # Top-level info
+        for k in ("mode", "start_date", "end_date", "total_bars",
+                  "current_regime", "final_position", "status", "elapsed_seconds"):
+            val = results.get(k)
+            if val is not None:
+                print(f"  {k}: {val}")
+
+        # Overall metrics table
+        m = results.get("metrics", {})
+        if m:
+            print("\n  ──── OVERALL METRICS ────")
+            print(f"  Total Trades:   {m.get('total_trades', 0)}")
+            print(f"  Cumulative PnL: ${m.get('cumulative_pnl', 0):,.2f}")
+            print(f"  Win Rate:       {m.get('win_rate', 0):.1f}%")
+            print(f"  Profit Factor:  {m.get('profit_factor', 0):.2f}")
+            print(f"  Max Drawdown:   ${m.get('max_drawdown', 0):,.2f}")
+            print(f"  Best Trade:     ${m.get('best_trade', 0):,.2f}")
+            print(f"  Worst Trade:    ${m.get('worst_trade', 0):,.2f}")
+
+        # Per-regime summary table
+        rs = results.get("regime_summary", [])
+        if rs:
+            print("\n  ──── BY REGIME ────")
+            print(f"  {'Regime':<10} {'Periods':>8} {'Bars':>8} {'Trades':>8} {'PnL':>12} {'Win%':>8}")
+            print(f"  {'─'*10} {'─'*8} {'─'*8} {'─'*8} {'─'*12} {'─'*8}")
+            for r in rs:
+                print(f"  {r['regime']:<10} {r['periods']:>8} {r['total_bars']:>8} "
+                      f"{r['trades']:>8} ${r['pnl']:>10,.2f} {r['win_rate']:>7.1f}%")
+
+        # Regime periods count
+        regime_periods = results.get("regimes", [])
+        if regime_periods:
+            print(f"\n  Total regime periods: {len(regime_periods)}")
+
     else:
         print(f"  ERROR: {results['error']}")
     print("=" * 60)
@@ -1112,9 +1129,9 @@ async def run_backtest():
         print("\n\nBacktest viewer stopped.")
 
 
-# ═══════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════
 # INTERACTIVE CONTROL LOOP
-# ═══════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════
 
 async def run_interactive(trader: Trader):
     """Run the trader with an interactive command loop."""
@@ -1254,9 +1271,9 @@ def _get_input_nonblocking():
     return None
 
 
-# ═══════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════
 # ENTRY POINT
-# ═══════════════════════════════════════════════════════
+# ══════════════════════════════════════════════════════
 
 def main():
     import argparse
@@ -1280,7 +1297,7 @@ def main():
     if args.port:
         cfg.IB_PORT = args.port
 
-    # ── --status mode ──────────────────────────
+    # ── --status mode ──────────────────────────────────
     if args.status:
         state_file = Path(cfg.STATE_FILE)
         if state_file.exists():
@@ -1291,7 +1308,7 @@ def main():
             print("No saved state found.")
         return
 
-    # ── --backtest mode ────────────────────────
+    # ── --backtest mode ────────────────────────────────
     if args.backtest:
         print("\n  Starting backtest mode (no IB connection)...")
         # Use ib_async's patched event loop for consistency
