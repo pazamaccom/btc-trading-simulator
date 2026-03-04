@@ -76,7 +76,7 @@ class RegimeDetector:
         n_states: int = 3,
         lookback_days: int = 0,
         min_bars: int = 200,
-        min_regime_bars: int = 24,
+        min_regime_bars: int = 168,
     ) -> None:
         """
         Parameters
@@ -92,7 +92,7 @@ class RegimeDetector:
         min_regime_bars : int
             Minimum number of consecutive bars a regime must persist.
             Shorter regime periods are absorbed into the surrounding regime.
-            Default 24 (= 1 day of hourly bars) to prevent noisy switching.
+            Default 168 (= 1 week of hourly bars) to prevent noisy switching.
         """
         if n_states != 3:
             raise ValueError("RegimeDetector requires exactly 3 hidden states.")

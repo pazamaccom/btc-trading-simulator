@@ -95,7 +95,7 @@ class BacktestEngine:
         Args:
             start_date: "YYYY-MM-DD" (default "2023-01-01")
             end_date:   "YYYY-MM-DD" or None (default: today)
-            progress_callback: optional callable({\"pct\": int, \"msg\": str})
+            progress_callback: optional callable({"pct": int, "msg": str})
 
         Returns:
             Results dict with keys:
@@ -107,6 +107,17 @@ class BacktestEngine:
                 - 'regime_summary': [{regime, periods, total_bars, trades, pnl, win_rate}]
         """
         t_start = time.time()
+
+        # Suppress noisy sub-module logging during backtest
+        # (regime switches, bear_strategy refits, feature selection, etc.)
+        _quiet_loggers = [
+            "bear_strategy", "regime_detector", "strategy",
+        ]
+        _saved_levels = {}
+        for name in _quiet_loggers:
+            _lg = logging.getLogger(name)
+            _saved_levels[name] = _lg.level
+            _lg.setLevel(logging.WARNING)
 
         if end_date is None:
             end_date = datetime.utcnow().strftime("%Y-%m-%d")
@@ -163,9 +174,20 @@ class BacktestEngine:
         regime_periods = fit_result["regime_periods"]  # list[dict]
         current_regime = fit_result["current_regime"]
 
+        # Print concise regime summary
+        regime_counts = {}
+        regime_bar_counts = {}
+        for p in regime_periods:
+            r = p["regime"]
+            regime_counts[r] = regime_counts.get(r, 0) + 1
+            regime_bar_counts[r] = regime_bar_counts.get(r, 0) + p["bars"]
+        summary_parts = []
+        for r in sorted(regime_counts.keys()):
+            pct = regime_bar_counts[r] / total_bars * 100 if total_bars > 0 else 0
+            summary_parts.append(f"{r.upper()}: {regime_counts[r]} periods ({regime_bar_counts[r]} bars, {pct:.0f}%)")
         _progress(20, (
-            f"Regime detection complete. Current: {current_regime}. "
-            f"{len(regime_periods)} regime periods found."
+            f"Regime detection: {len(regime_periods)} periods. "
+            + " | ".join(summary_parts)
         ))
 
         # ── 3. Convert DataFrame to bar list ──────────────────────────────────
@@ -183,7 +205,7 @@ class BacktestEngine:
         active_strategy = None
         active_regime: Optional[str] = None
 
-        progress_step = max(1, total_bars // 10)  # fewer progress messages
+        progress_step = max(1, total_bars // 5)  # ~5 progress messages total
 
         _progress(22, "Beginning walk-forward simulation...")
 
@@ -274,7 +296,7 @@ class BacktestEngine:
                             strategy = strategy_class()
                             calib_info = strategy.calibrate(calib_df)
                             active_strategy = strategy
-                            logger.info(
+                            logger.debug(
                                 f"Regime switch {prev_regime}→{bar_regime} at bar {i}: "
                                 f"calibrated on {calib_bars_needed} bars. "
                                 f"calib_info={calib_info}"
@@ -285,14 +307,14 @@ class BacktestEngine:
                             )
                             active_strategy = None
                     else:
-                        logger.info(
+                        logger.debug(
                             f"Regime {bar_regime} at bar {i}: not enough preceding bars "
                             f"for calibration (need {calib_bars_needed}, have {i}). Skipping."
                         )
                         active_strategy = None
                 else:
                     # bull or unmapped regime — hold flat
-                    logger.info(
+                    logger.debug(
                         f"Regime {bar_regime} at bar {i}: no strategy mapped (hold flat)."
                     )
                     active_strategy = None
@@ -523,6 +545,10 @@ class BacktestEngine:
             f"Done. {metrics['total_trades']} total trades, "
             f"PnL=${metrics['cumulative_pnl']:,.2f} in {elapsed}s"
         ))
+
+        # Restore suppressed loggers
+        for name, level in _saved_levels.items():
+            logging.getLogger(name).setLevel(level)
 
         return results
 
