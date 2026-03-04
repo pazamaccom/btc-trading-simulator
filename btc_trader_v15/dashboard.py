@@ -60,17 +60,14 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         elif path == "/api/metrics":
             self._serve_json(self._compute_metrics())
         elif path == "/api/all":
-            # Single endpoint for everything (reduces polling requests)
             state = self._get_state()
             mode = state.get("mode", "live")
-
             base = {
                 "state": state,
                 "trades": self._get_trades(),
                 "metrics": self._compute_metrics(),
                 "timestamp": datetime.now().isoformat(),
                 "mode": mode,
-                # Account / exposure fields surfaced at top level for convenience
                 "paper_balance": state.get("paper_balance", cfg.PAPER_BALANCE),
                 "max_exposure": state.get("max_exposure", cfg.MAX_EXPOSURE_USD),
                 "current_exposure": state.get("current_exposure", 0),
@@ -82,10 +79,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 "last_recal_time": state.get("last_recal_time"),
                 "recalibrations": state.get("recalibrations", 0),
             }
-
             if mode == "backtest":
                 base["backtest_results"] = self._get_backtest_results()
-
             self._serve_json(base)
         else:
             self.send_error(404)
@@ -100,7 +95,6 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     def do_POST(self):
         parsed = urlparse(self.path)
         path = parsed.path
-
         if path == "/api/control":
             try:
                 length = int(self.headers.get("Content-Length", 0))
@@ -121,7 +115,6 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 length = int(self.headers.get("Content-Length", 0))
                 body = self.rfile.read(length)
                 data = json.loads(body)
-                # Write config update file for engine to consume
                 config_path = Path("config_update.json")
                 config_path.write_text(json.dumps(data))
                 self._serve_json({"ok": True, "updated": data})
@@ -131,7 +124,6 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_error(404)
 
     def log_message(self, format, *args):
-        """Suppress default access logging (too noisy)."""
         pass
 
     def _serve_json(self, data):
@@ -170,7 +162,6 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         return []
 
     def _get_backtest_results(self):
-        """Read backtest_results.json if it exists."""
         bt_path = Path("backtest_results.json")
         if bt_path.exists():
             try:
@@ -182,32 +173,17 @@ class DashboardHandler(SimpleHTTPRequestHandler):
     def _compute_metrics(self):
         trades = self._get_trades()
         state = self._get_state()
-
-        # Filter to closed trades (SELL or COVER)
         closed = [t for t in trades if t.get("action") in ("SELL", "COVER")]
         entries = [t for t in trades if t.get("action") in ("BUY", "SHORT")]
-
         if not closed:
             return {
-                "total_trades": 0,
-                "cumulative_pnl": 0,
-                "win_rate": 0,
-                "avg_pnl": 0,
-                "max_drawdown": 0,
-                "best_trade": 0,
-                "worst_trade": 0,
-                "long_trades": 0,
-                "long_pnl": 0,
-                "long_wins": 0,
-                "short_trades": 0,
-                "short_pnl": 0,
-                "short_wins": 0,
-                "equity_curve": [],
-                "profit_factor": 0,
+                "total_trades": 0, "cumulative_pnl": 0, "win_rate": 0,
+                "avg_pnl": 0, "max_drawdown": 0, "best_trade": 0,
+                "worst_trade": 0, "long_trades": 0, "long_pnl": 0,
+                "long_wins": 0, "short_trades": 0, "short_pnl": 0,
+                "short_wins": 0, "equity_curve": [], "profit_factor": 0,
                 "avg_hold_hours": 0,
             }
-
-        # Build equity curve
         equity = []
         running_pnl = 0
         peak = 0
@@ -216,30 +192,25 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         losses = 0
         gross_profit = 0
         gross_loss = 0
-
         long_trades = 0
         long_pnl = 0
         long_wins = 0
         short_trades = 0
         short_pnl = 0
         short_wins = 0
-
         for t in closed:
             pnl = t.get("net_pnl", t.get("pnl", 0))
             running_pnl += pnl
-            # Derive side from action if not stored
             side = t.get("side", "")
             if not side:
                 action = t.get("action", "")
                 side = "long" if action == "SELL" else "short" if action == "COVER" else "unknown"
-
             if pnl >= 0:
                 wins += 1
                 gross_profit += pnl
             else:
                 losses += 1
                 gross_loss += abs(pnl)
-
             if side == "long":
                 long_trades += 1
                 long_pnl += pnl
@@ -250,11 +221,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 short_pnl += pnl
                 if pnl >= 0:
                     short_wins += 1
-
             peak = max(peak, running_pnl)
             dd = peak - running_pnl
             max_dd = max(max_dd, dd)
-
             equity.append({
                 "time": t.get("time", ""),
                 "pnl": round(running_pnl, 2),
@@ -262,10 +231,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 "side": side,
                 "action": t.get("action", ""),
             })
-
         pnl_list = [t.get("net_pnl", t.get("pnl", 0)) for t in closed]
         total = len(closed)
-
         return {
             "total_trades": total,
             "cumulative_pnl": round(running_pnl, 2),
@@ -282,11 +249,38 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             "short_pnl": round(short_pnl, 2),
             "short_wins": short_wins,
             "equity_curve": equity,
-            "avg_hold_hours": 0,  # computed below
+            "avg_hold_hours": 0,
         }
 
 
-# ══════════════════════════════════════════════════════
-DAGRAM HTML (single-page, self-contained)
-# ══════════════════════════════════════════════════════
-See full file at btc_trader_v15/dashboard.py
+# See full HTML dashboard below (embedded in DASHBOARD_HTML variable)
+# The complete file with all HTML/CSS/JS is available in the workspace
+# at /home/user/workspace/dashboard.py
+
+# NOTE: This is a truncated push — the DASHBOARD_HTML variable containing
+# the full single-page HTML application is too large to push via this method.
+# The complete file (2620 lines, 86KB) must be pushed via git CLI or GitHub API.
+
+DASHBOARD_HTML = ""
+
+
+def run_dashboard(port=DASHBOARD_PORT):
+    """Start the dashboard HTTP server."""
+    server = HTTPServer(("0.0.0.0", port), DashboardHandler)
+    print(f"\n  Dashboard running at http://localhost:{port}")
+    print(f"  Reading from: {cfg.TRADE_LOG}, {cfg.STATE_FILE}")
+    print(f"  Control file: {cfg.CONTROL_FILE}")
+    print(f"  Press Ctrl+C to stop\n")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n  Dashboard stopped.")
+        server.server_close()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="BTC Trader v15 — Live Dashboard")
+    parser.add_argument("--port", type=int, default=DASHBOARD_PORT, help="HTTP port (default: 8080)")
+    args = parser.parse_args()
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+    run_dashboard(args.port)
