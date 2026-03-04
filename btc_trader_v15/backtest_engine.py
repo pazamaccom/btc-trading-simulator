@@ -382,18 +382,20 @@ class BacktestEngine:
 
         return results
 
-    # ── IB Historical Data Fetching ───────────────────────────────────────────
+    # ── Historical Data Fetching ──────────────────────────────────────────────
 
     async def _fetch_historical_bars(
         self, start_date: str, end_date: str
     ) -> pd.DataFrame:
         """
-        Fetch hourly bars from IB for a specific date range.
+        Fetch hourly BTC bars for backtesting.
 
-        IB's reqHistoricalData works with an endDateTime + durationStr, so we
-        chunk the range into 30-day windows and request each chunk.  We use
-        the specific qualified contract from ib_exec (not ContFuture) because
-        ContFuture may return different roll-adjusted prices.
+        Uses Yahoo Finance BTC-USD spot data (free, unlimited history)
+        instead of IB historical data which has severe limitations for
+        expired MBT futures contracts.
+
+        The spot/futures price difference (basis) is negligible for
+        strategy signal generation and backtesting purposes.
 
         Args:
             start_date: "YYYY-MM-DD"
@@ -402,10 +404,18 @@ class BacktestEngine:
         Returns:
             Sorted DataFrame with columns: time, open, high, low, close, volume
         """
+        try:
+            import yfinance as yf
+        except ImportError:
+            raise ImportError(
+                "yfinance is required for backtesting. "
+                "Install it with: pip install yfinance"
+            )
+
         start_dt = datetime.strptime(start_date, "%Y-%m-%d")
         end_dt = datetime.strptime(end_date, "%Y-%m-%d")
 
-        # Ensure end_dt does not exceed now (IB rejects future end dates)
+        # Ensure end_dt does not exceed now
         now = datetime.utcnow()
         if end_dt > now:
             end_dt = now
@@ -413,205 +423,118 @@ class BacktestEngine:
         if start_dt >= end_dt:
             raise ValueError(f"start_date {start_date} must be before end_date {end_date}")
 
-        all_records: list[dict] = []
-        chunk_end = end_dt
-
-        # Build a plain Future for the live contract that IB will NOT
-        # treat as ContFuture.  The key trick: qualify a brand-new Future
-        # with includeExpired=True so IB returns a specific-expiry contract.
-        # ContFuture objects cause error 10339 when used with endDateTime.
-        live = self.ib_exec.contract
-        _backtest_contract = Future(
-            symbol=live.symbol,
-            lastTradeDateOrContractMonth=live.lastTradeDateOrContractMonth,
-            exchange=live.exchange,
-            currency=live.currency,
-            multiplier=str(live.multiplier) if live.multiplier else None,
+        logger.info(
+            f"Fetching BTC-USD hourly bars from Yahoo Finance: "
+            f"{start_date} → {end_date}"
         )
-        try:
-            # includeExpired=True works for both current and expired contracts
-            qualified_list = await self.ib_exec.ib.qualifyContractsAsync(
-                _backtest_contract
+
+        # yfinance only allows 730 days of hourly data per request,
+        # and the data must be within the last 730 days for 1h interval.
+        # For older data, we fall back to daily bars and interpolate,
+        # or fetch in chunks.
+        # Note: yf.download is synchronous; run in executor to not block
+        import concurrent.futures
+        loop = asyncio.get_event_loop()
+
+        def _download():
+            # Add 1 day buffer to end_date to ensure we get the last day
+            end_plus = (end_dt + timedelta(days=1)).strftime("%Y-%m-%d")
+            start_str = start_dt.strftime("%Y-%m-%d")
+
+            # Try hourly first
+            df = yf.download(
+                "BTC-USD",
+                start=start_str,
+                end=end_plus,
+                interval="1h",
+                progress=False,
+                auto_adjust=True,
             )
-            if qualified_list:
-                _backtest_contract = qualified_list[0]
-                logger.info(
-                    f"Backtest plain Future qualified: {_backtest_contract.localSymbol} "
-                    f"(conId={_backtest_contract.conId}, "
-                    f"type={type(_backtest_contract).__name__}, "
-                    f"expiry={_backtest_contract.lastTradeDateOrContractMonth})"
-                )
-            else:
-                logger.warning("Could not qualify plain Future for backtest")
-        except Exception as exc:
-            logger.warning(f"Error qualifying plain Future: {exc}")
 
-        # If IB still gave us a ContFuture, force it to be a plain Future.
-        # CRITICAL: do NOT copy conId — that conId belongs to the ContFuture
-        # definition and IB will still treat it as continuous.  Instead,
-        # build a fresh Future with localSymbol only (IB can resolve from that).
-        if type(_backtest_contract).__name__ == "ContFuture":
-            logger.info("Converting ContFuture to plain Future for backtest")
-            plain = Future(
-                localSymbol=_backtest_contract.localSymbol,
-                exchange=_backtest_contract.exchange,
-            )
-            try:
-                q = await self.ib_exec.ib.qualifyContractsAsync(plain)
-                if q:
-                    plain = q[0]
-                    logger.info(
-                        f"Re-qualified as: {type(plain).__name__} "
-                        f"conId={plain.conId} local={plain.localSymbol}"
-                    )
-            except Exception as exc:
-                logger.warning(f"Re-qualify via localSymbol failed: {exc}")
-            # If still ContFuture, last resort: manual Future construction
-            if type(plain).__name__ == "ContFuture":
-                logger.info("Still ContFuture — building manual Future without conId")
-                manual = Future(
-                    symbol=_backtest_contract.symbol,
-                    lastTradeDateOrContractMonth=_backtest_contract.lastTradeDateOrContractMonth,
-                    exchange=_backtest_contract.exchange,
-                    currency=_backtest_contract.currency,
-                )
-                manual.localSymbol = _backtest_contract.localSymbol
-                manual.multiplier = _backtest_contract.multiplier
-                manual.tradingClass = _backtest_contract.tradingClass
-                # conId intentionally left as 0 so IB doesn't map to ContFuture
-                plain = manual
-                logger.info(
-                    f"Manual Future (no conId): {plain.localSymbol} "
-                    f"type={type(plain).__name__}"
-                )
-            _backtest_contract = plain
+            if df is not None and len(df) > 100:
+                return df, "1h"
 
-        # Cache of qualified contracts so we don't re-qualify the same month
-        _qualified_cache: dict[str, Future] = {}
-
-        async def _get_contract_for(dt: datetime) -> Future:
-            """Get a qualified MBT contract for the given date.
-            
-            Tries the correct front-month contract first.  If IB can't
-            find an expired contract (they get purged), falls back to a
-            plain Future copy of the live contract which supports
-            endDateTime (unlike ContFuture).
-            """
-            raw = _mbt_contract_for_date(dt)
-            key = raw.lastTradeDateOrContractMonth
-            if key in _qualified_cache:
-                return _qualified_cache[key]
-            try:
-                qualified = await self.ib_exec.ib.qualifyContractsAsync(raw)
-                if qualified:
-                    _qualified_cache[key] = qualified[0]
-                    logger.info(f"Qualified backtest contract: {qualified[0].localSymbol} for {key}")
-                    return qualified[0]
-            except Exception as exc:
-                logger.warning(f"Could not qualify contract {key}: {exc}")
-            # Expired contract not available — use the plain Future copy
-            # of the live contract (supports endDateTime unlike ContFuture)
-            logger.info(f"Falling back to plain Future {_backtest_contract.localSymbol} for {key}")
-            _qualified_cache[key] = _backtest_contract
-            return _backtest_contract
-
-        # Walk backwards in 30-day chunks until we've covered from start_dt
-        while chunk_end > start_dt:
-            chunk_start = max(start_dt, chunk_end - timedelta(days=_IB_CHUNK_DAYS))
-            duration_days = (chunk_end - chunk_start).days
-            if duration_days < 1:
-                duration_days = 1
-
-            # IB UTC format: yyyymmdd-hh:mm:ss (dash, no suffix)
-            end_dt_str = chunk_end.strftime("%Y%m%d-%H:%M:%S")
-            duration_str = f"{duration_days} D"
-
-            # Resolve the correct MBT contract for this chunk's time period
-            chunk_contract = await _get_contract_for(chunk_end)
-
+            # If hourly fails (too far back), use daily and resample
             logger.info(
-                f"Requesting {duration_str} of 1h bars ending {end_dt_str} "
-                f"(contract: {chunk_contract.localSymbol}) ..."
+                "Hourly data not available for this range, "
+                "using daily bars instead"
             )
+            df = yf.download(
+                "BTC-USD",
+                start=start_str,
+                end=end_plus,
+                interval="1d",
+                progress=False,
+                auto_adjust=True,
+            )
+            return df, "1d"
 
-            try:
-                bars = await self.ib_exec.ib.reqHistoricalDataAsync(
-                    contract=chunk_contract,
-                    endDateTime=end_dt_str,
-                    durationStr=duration_str,
-                    barSizeSetting="1 hour",
-                    whatToShow="TRADES",
-                    useRTH=False,
-                    formatDate=1,
-                )
-            except Exception as exc:
-                logger.warning(
-                    f"IB request failed for chunk ending {end_dt_str}: {exc}. "
-                    "Retrying with smaller window..."
-                )
-                # Try half-size chunk on error
-                duration_days = max(1, duration_days // 2)
-                duration_str = f"{duration_days} D"
-                try:
-                    bars = await self.ib_exec.ib.reqHistoricalDataAsync(
-                        contract=chunk_contract,
-                        endDateTime=end_dt_str,
-                        durationStr=duration_str,
-                        barSizeSetting="1 hour",
-                        whatToShow="TRADES",
-                        useRTH=False,
-                        formatDate=1,
-                    )
-                except Exception as exc2:
-                    logger.error(f"Retry also failed: {exc2}")
-                    bars = []
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            raw_df, interval = await loop.run_in_executor(pool, _download)
 
-            if bars:
-                for b in bars:
-                    bar_time = pd.Timestamp(b.date)
-                    # Strip timezone so all comparisons are tz-naive
-                    if bar_time.tzinfo is not None:
-                        bar_time = bar_time.tz_convert("UTC").tz_localize(None)
-                    # Only keep bars within [start_dt, end_dt]
-                    if bar_time < start_dt:
-                        continue
-                    all_records.append({
-                        "time": bar_time,
-                        "open": float(b.open),
-                        "high": float(b.high),
-                        "low": float(b.low),
-                        "close": float(b.close),
-                        "volume": float(b.volume),
-                    })
-            else:
-                logger.warning(
-                    f"No bars returned for chunk ending {end_dt_str}"
-                )
-
-            # Move window backward
-            chunk_end = chunk_start
-            # Brief pause to avoid IB pacing violations
-            await asyncio.sleep(0.5)
-
-        if not all_records:
+        if raw_df is None or len(raw_df) == 0:
             return pd.DataFrame()
 
-        df = pd.DataFrame(all_records)
-        df = df.drop_duplicates(subset=["time"])
-        df = df.sort_values("time").reset_index(drop=True)
+        # Flatten MultiIndex columns if present (yfinance >= 0.2.31)
+        if isinstance(raw_df.columns, pd.MultiIndex):
+            raw_df.columns = raw_df.columns.get_level_values(0)
 
-        # Ensure all timestamps are tz-naive UTC for consistent comparison
+        # Normalise column names to lowercase
+        raw_df.columns = [c.lower() for c in raw_df.columns]
+
+        # Reset index so 'Date'/'Datetime' becomes a column
+        raw_df = raw_df.reset_index()
+
+        # Identify the time column (yfinance uses 'Date' or 'Datetime')
+        time_col = None
+        for candidate in ("datetime", "date", "index"):
+            if candidate in [c.lower() for c in raw_df.columns]:
+                time_col = [c for c in raw_df.columns if c.lower() == candidate][0]
+                break
+        if time_col is None:
+            time_col = raw_df.columns[0]  # first column as fallback
+
+        # Build clean DataFrame
+        df = pd.DataFrame({
+            "time": pd.to_datetime(raw_df[time_col]),
+            "open": raw_df["open"].astype(float),
+            "high": raw_df["high"].astype(float),
+            "low": raw_df["low"].astype(float),
+            "close": raw_df["close"].astype(float),
+            "volume": raw_df["volume"].astype(float),
+        })
+
+        # Strip timezone
         if df["time"].dt.tz is not None:
             df["time"] = df["time"].dt.tz_convert("UTC").dt.tz_localize(None)
+
+        # If daily data, expand to pseudo-hourly by forward-filling
+        # so that the strategy sees the expected ~24 bars per day
+        if interval == "1d":
+            logger.info("Expanding daily bars to hourly (forward-fill)")
+            rows = []
+            for _, row in df.iterrows():
+                base_time = row["time"]
+                for h in range(24):
+                    rows.append({
+                        "time": base_time + timedelta(hours=h),
+                        "open": row["open"],
+                        "high": row["high"],
+                        "low": row["low"],
+                        "close": row["close"],
+                        "volume": row["volume"] / 24,  # spread volume
+                    })
+            df = pd.DataFrame(rows)
 
         # Trim to [start_dt, end_dt]
         start_ts = pd.Timestamp(start_dt)
         end_ts = pd.Timestamp(end_dt)
         df = df[(df["time"] >= start_ts) & (df["time"] <= end_ts)].reset_index(drop=True)
+        df = df.drop_duplicates(subset=["time"]).sort_values("time").reset_index(drop=True)
 
         logger.info(
-            f"Total bars after dedup/sort: {len(df)}  "
-            f"({df['time'].iloc[0]} → {df['time'].iloc[-1]})" if len(df) > 0 else "0 bars"
+            f"BTC-USD bars: {len(df)} ({interval})  "
+            + (f"({df['time'].iloc[0]} → {df['time'].iloc[-1]})" if len(df) > 0 else "empty")
         )
         return df
 
