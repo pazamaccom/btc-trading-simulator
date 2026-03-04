@@ -522,8 +522,8 @@ class BacktestEngine:
             if duration_days < 1:
                 duration_days = 1
 
-            # Use IB's preferred UTC format to avoid warning 2174
-            end_dt_str = chunk_end.strftime("%Y%m%d-%H:%M:%S") + " UTC"
+            # IB UTC format: yyyymmdd-hh:mm:ss (dash, no suffix)
+            end_dt_str = chunk_end.strftime("%Y%m%d-%H:%M:%S")
             duration_str = f"{duration_days} D"
 
             # Resolve the correct MBT contract for this chunk's time period
