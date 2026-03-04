@@ -13,6 +13,8 @@ Reads trades.json and state.json to display:
   - Long vs Short breakdown
   - Account & exposure panel
   - Engine control buttons (stop, pause, resume, flatten)
+  - Regime selector (Choppy / Bear)
+  - Mode toggle (Live Paper / Backtest with date pickers)
 
 No external dependencies beyond Python stdlib.
 
@@ -53,6 +55,15 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self._serve_json(self._get_trades())
         elif path == "/api/metrics":
             self._serve_json(self._compute_metrics())
+        elif path == "/api/backtest_results":
+            bt_path = Path("backtest_results.json")
+            if bt_path.exists():
+                try:
+                    self._serve_json(json.loads(bt_path.read_text()))
+                except:
+                    self._serve_json({"status": "error", "error": "Could not read results"})
+            else:
+                self._serve_json({"status": "no_results"})
         elif path == "/api/all":
             # Single endpoint for everything (reduces polling requests)
             state = self._get_state()
@@ -94,7 +105,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 length = int(self.headers.get("Content-Length", 0))
                 body = self.rfile.read(length)
                 data = json.loads(body)
-                allowed = {"stop", "flatten_stop", "pause", "resume", "flatten"}
+                allowed = {"stop", "flatten_stop", "pause", "resume", "flatten", "regime_switch"}
                 cmd = data.get("command", "")
                 if cmd not in allowed:
                     self._serve_json({"ok": False, "error": f"Unknown command: {cmd}"})
@@ -113,6 +124,32 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 config_path = Path("config_update.json")
                 config_path.write_text(json.dumps(data))
                 self._serve_json({"ok": True, "updated": data})
+            except Exception as e:
+                self._serve_json({"ok": False, "error": str(e)})
+        elif path == "/api/regime":
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body = self.rfile.read(length)
+                data = json.loads(body)
+                regime = data.get("regime", "")
+                if regime not in ("choppy", "bear"):
+                    self._serve_json({"ok": False, "error": f"Invalid regime: {regime}"})
+                    return
+                # Write as control command for engine to pick up
+                control_path = Path(cfg.CONTROL_FILE)
+                control_path.write_text(json.dumps({"command": "regime_switch", "regime": regime}))
+                self._serve_json({"ok": True, "regime": regime})
+            except Exception as e:
+                self._serve_json({"ok": False, "error": str(e)})
+        elif path == "/api/backtest":
+            try:
+                length = int(self.headers.get("Content-Length", 0))
+                body = self.rfile.read(length)
+                data = json.loads(body)
+                # Write backtest request for engine to consume
+                bt_path = Path("backtest_request.json")
+                bt_path.write_text(json.dumps(data))
+                self._serve_json({"ok": True, "backtest": data})
             except Exception as e:
                 self._serve_json({"ok": False, "error": str(e)})
         else:
@@ -330,6 +367,39 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   .status-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: pulse 2s ease-in-out infinite; }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
+  .header-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  .regime-dropdown {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 10px;
+    cursor: pointer;
+    outline: none;
+    appearance: auto;
+  }
+  .regime-dropdown:hover { border-color: var(--accent); }
+  .regime-dropdown:focus { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(59,130,246,0.2); }
+  .date-input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 4px 8px;
+    outline: none;
+  }
+  .date-input:focus { border-color: var(--accent); }
+
   .control-bar {
     padding: 10px 24px 12px; border-top: 1px solid rgba(45, 49, 65, 0.6);
     display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
@@ -464,7 +534,30 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 
 <div class="header">
   <div class="header-top">
-    <h1>BTC Trader <span>v15</span> — Config I</h1>
+    <h1>BTC Trader <span>v15</span></h1>
+    <div class="header-controls">
+      <div class="regime-select">
+        <label class="ctrl-label" style="margin-right:6px;">Regime</label>
+        <select id="regime-select" class="regime-dropdown" onchange="switchRegime(this.value)">
+          <option value="choppy">Choppy</option>
+          <option value="bear">Bear (ML)</option>
+        </select>
+      </div>
+      <div class="ctrl-divider"></div>
+      <div class="mode-select">
+        <label class="ctrl-label" style="margin-right:6px;">Mode</label>
+        <select id="mode-select" class="regime-dropdown" onchange="toggleMode(this.value)">
+          <option value="live">Live Paper</option>
+          <option value="backtest">Backtest</option>
+        </select>
+      </div>
+      <div id="backtest-dates" style="display:none; align-items:center; gap:6px;">
+        <input type="date" id="bt-start" class="date-input" value="2025-01-01">
+        <span style="color:var(--text-dim);font-size:12px;">to</span>
+        <input type="date" id="bt-end" class="date-input" value="2025-06-01">
+        <button class="btn btn-start" onclick="runBacktest()" id="btn-backtest">&#9654; RUN</button>
+      </div>
+    </div>
     <div id="status-badge" class="status-badge offline">
       <div class="dot"></div>
       <span id="status-text">Connecting...</span>
@@ -472,19 +565,29 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   </div>
   <div class="control-bar">
     <span class="ctrl-label">Controls</span>
-    <button class="btn btn-start" id="btn-start" disabled title="Start the engine from the command line">▶ START</button>
+    <button class="btn btn-start" id="btn-start" disabled title="Start the engine from the command line">&#9654; START</button>
     <div class="ctrl-divider"></div>
-    <button class="btn btn-stop" id="btn-stop" onclick="sendCommand('stop', true)">■ STOP</button>
-    <button class="btn btn-flatten-stop" id="btn-flatten-stop" onclick="sendCommand('flatten_stop', true)">⬛ FLATTEN &amp; STOP</button>
+    <button class="btn btn-stop" id="btn-stop" onclick="sendCommand('stop', true)">&#9632; STOP</button>
+    <button class="btn btn-flatten-stop" id="btn-flatten-stop" onclick="sendCommand('flatten_stop', true)">&#11035; FLATTEN &amp; STOP</button>
     <div class="ctrl-divider"></div>
-    <button class="btn btn-pause" id="btn-pause" onclick="sendCommand('pause', false)">⏸ PAUSE</button>
-    <button class="btn btn-resume" id="btn-resume" onclick="sendCommand('resume', false)" style="display:none;">▶ RESUME</button>
+    <button class="btn btn-pause" id="btn-pause" onclick="sendCommand('pause', false)">&#9208; PAUSE</button>
+    <button class="btn btn-resume" id="btn-resume" onclick="sendCommand('resume', false)" style="display:none;">&#9654; RESUME</button>
     <div class="ctrl-divider"></div>
-    <button class="btn btn-flatten" id="btn-flatten" onclick="sendCommand('flatten', false)">↩ FLATTEN</button>
+    <button class="btn btn-flatten" id="btn-flatten" onclick="sendCommand('flatten', false)">&#8617; FLATTEN</button>
   </div>
 </div>
 
 <div class="container">
+
+  <div id="backtest-panel" class="card" style="margin-bottom:16px; display:none;">
+    <div class="card-header">
+      <span>Backtest Results</span>
+      <button class="btn btn-flatten" onclick="closeBacktestPanel()" style="font-size:11px; padding:3px 10px;">&#10005; Close</button>
+    </div>
+    <div class="card-body" id="backtest-body">
+      <div class="empty-state">Running backtest...</div>
+    </div>
+  </div>
 
   <div class="kpi-grid">
     <div class="kpi"><div class="kpi-label">Cumulative PnL</div><div class="kpi-value" id="kpi-pnl">$0.00</div><div class="kpi-sub" id="kpi-pnl-sub">0 trades</div></div>
@@ -673,12 +776,178 @@ function updateGauge(currentExposure, maxExposure) {
   pctLabel.textContent = pct.toFixed(1) + '% used';
 }
 
+// ── Regime & Mode controls ──────────────────────────────────────────────────
+
+let currentRegime = 'choppy';
+
+function switchRegime(regime) {
+  if (!confirm('Switch regime to ' + regime.toUpperCase() + '? This will re-calibrate the strategy.')) {
+    // Revert dropdown
+    const sel = document.getElementById('regime-select');
+    sel.value = currentRegime || 'choppy';
+    return;
+  }
+  fetch('/api/regime', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({regime: regime})
+  }).then(r => r.json()).then(data => {
+    if (data.ok) {
+      showToast('Switching to ' + regime.toUpperCase() + ' regime...', 'ok');
+      currentRegime = regime;
+    } else {
+      showToast('Error: ' + (data.error || 'unknown'), 'err');
+    }
+  }).catch(e => showToast('Request failed: ' + e.message, 'err'));
+}
+
+function toggleMode(mode) {
+  const dates = document.getElementById('backtest-dates');
+  if (mode === 'backtest') {
+    dates.style.display = 'flex';
+  } else {
+    dates.style.display = 'none';
+  }
+}
+
+function runBacktest() {
+  const regime = document.getElementById('regime-select').value;
+  const startDate = document.getElementById('bt-start').value;
+  const endDate = document.getElementById('bt-end').value;
+
+  if (!startDate || !endDate) {
+    showToast('Please select start and end dates', 'err');
+    return;
+  }
+
+  const btn = document.getElementById('btn-backtest');
+  btn.disabled = true;
+  btn.textContent = '\u23f3 Running...';
+
+  // Show results panel
+  const panel = document.getElementById('backtest-panel');
+  panel.style.display = 'block';
+  document.getElementById('backtest-body').innerHTML = '<div class="empty-state">Running ' + regime.toUpperCase() + ' backtest: ' + startDate + ' \u2192 ' + endDate + '...<br><span style="font-size:11px;">This may take a few minutes.</span></div>';
+
+  fetch('/api/backtest', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({regime: regime, start_date: startDate, end_date: endDate})
+  }).then(r => r.json()).then(data => {
+    if (data.ok) {
+      showToast('Backtest request sent \u2014 check results below', 'ok');
+      // Poll for results
+      pollBacktestResults();
+    } else {
+      btn.disabled = false;
+      btn.textContent = '\u25b6 RUN';
+      showToast('Error: ' + (data.error || 'unknown'), 'err');
+    }
+  }).catch(e => {
+    btn.disabled = false;
+    btn.textContent = '\u25b6 RUN';
+    showToast('Request failed: ' + e.message, 'err');
+  });
+}
+
+let btPollTimer = null;
+function pollBacktestResults() {
+  if (btPollTimer) clearInterval(btPollTimer);
+  btPollTimer = setInterval(async () => {
+    try {
+      const res = await fetch('/api/backtest_results');
+      const data = await res.json();
+      if (data.status === 'completed') {
+        clearInterval(btPollTimer);
+        btPollTimer = null;
+        displayBacktestResults(data);
+        const btn = document.getElementById('btn-backtest');
+        btn.disabled = false;
+        btn.textContent = '\u25b6 RUN';
+      } else if (data.status === 'error') {
+        clearInterval(btPollTimer);
+        btPollTimer = null;
+        document.getElementById('backtest-body').innerHTML = '<div class="empty-state" style="color:var(--red);">Backtest error: ' + (data.error || 'unknown') + '</div>';
+        const btn = document.getElementById('btn-backtest');
+        btn.disabled = false;
+        btn.textContent = '\u25b6 RUN';
+      }
+    } catch(e) { /* keep polling */ }
+  }, 3000);
+}
+
+function displayBacktestResults(data) {
+  const m = data.metrics || {};
+  const eq = data.equity_curve || [];
+  const trades = data.trades || [];
+
+  let html = '<div class="kpi-grid" style="margin-bottom:12px;">';
+  html += kpiBox('Regime', (data.regime || '').toUpperCase());
+  html += kpiBox('Period', data.start_date + ' \u2192 ' + data.end_date);
+  html += kpiBox('Total Trades', m.total_trades || 0);
+  html += kpiBox('Win Rate', (m.win_rate || 0) + '%');
+  html += kpiBox('Cumulative PnL', fmt(m.cumulative_pnl), colorClass(m.cumulative_pnl));
+  html += kpiBox('Max Drawdown', fmt(-(m.max_drawdown || 0)), 'neg');
+  html += kpiBox('Profit Factor', (m.profit_factor || 0).toFixed(2));
+  html += kpiBox('Avg Trade', fmt(m.avg_pnl), colorClass(m.avg_pnl));
+  html += '</div>';
+
+  // Long vs Short summary
+  html += '<div class="breakdown" style="margin-bottom:12px;">';
+  html += '<div class="breakdown-box long-box"><div class="breakdown-title" style="color:var(--green);">Longs</div><div class="breakdown-pnl ' + colorClass(m.long_pnl) + '">' + fmt(m.long_pnl) + '</div><div class="breakdown-detail">' + (m.long_trades||0) + ' trades, ' + (m.long_wins||0) + ' wins</div></div>';
+  html += '<div class="breakdown-box short-box"><div class="breakdown-title" style="color:var(--red);">Shorts</div><div class="breakdown-pnl ' + colorClass(m.short_pnl) + '">' + fmt(m.short_pnl) + '</div><div class="breakdown-detail">' + (m.short_trades||0) + ' trades, ' + (m.short_wins||0) + ' wins</div></div>';
+  html += '</div>';
+
+  // Trade list (first 30)
+  if (trades.length > 0) {
+    html += '<div style="font-size:12px;font-weight:600;margin-bottom:6px;">Trades (' + trades.length + ' total)</div>';
+    html += '<div style="max-height:300px;overflow-y:auto;">';
+    html += '<table class="trade-table"><thead><tr><th>Time</th><th>Action</th><th>Price</th><th>Contracts</th><th>PnL</th><th>Reason</th></tr></thead><tbody>';
+    for (const t of trades.slice(0, 30)) {
+      const pnlStr = t.pnl !== null && t.pnl !== undefined ? fmt(t.pnl) : '\u2014';
+      const pnlClass = t.pnl > 0 ? 'pos' : t.pnl < 0 ? 'neg' : '';
+      html += '<tr>';
+      html += '<td>' + fmtTime(t.time) + '</td>';
+      html += '<td class="' + actionClass(t.action) + '">' + t.action + '</td>';
+      html += '<td>' + fmtPrice(t.price) + '</td>';
+      html += '<td>' + (t.contracts || '\u2014') + '</td>';
+      html += '<td class="' + pnlClass + '">' + pnlStr + '</td>';
+      html += '<td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--font);font-size:11px;color:var(--text-dim);">' + (t.reason || '\u2014') + '</td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table></div>';
+  }
+
+  html += '<div style="font-size:11px;color:var(--text-dim);margin-top:8px;">Elapsed: ' + (data.elapsed_seconds || 0).toFixed(1) + 's | ' + (data.trading_bars || 0) + ' trading bars | ' + (data.calibration_bars || 0) + ' calibration bars</div>';
+
+  document.getElementById('backtest-body').innerHTML = html;
+}
+
+function kpiBox(label, value, cls) {
+  return '<div class="kpi"><div class="kpi-label">' + label + '</div><div class="kpi-value ' + (cls || '') + '">' + value + '</div></div>';
+}
+
+function closeBacktestPanel() {
+  document.getElementById('backtest-panel').style.display = 'none';
+  if (btPollTimer) { clearInterval(btPollTimer); btPollTimer = null; }
+}
+
+// ── Main update function ────────────────────────────────────────────────────
+
 function update(data) {
   const m = data.metrics || {};
   const s = data.state || {};
   const trades = data.trades || [];
   const ss = s.strategy_status || {};
   const pos = ss.position || {};
+
+  // Sync regime dropdown with engine state
+  const engineRegime = s.regime || 'choppy';
+  currentRegime = engineRegime;
+  const regimeSelect = document.getElementById('regime-select');
+  if (regimeSelect && regimeSelect.value !== engineRegime) {
+    regimeSelect.value = engineRegime;
+  }
 
   const badge = document.getElementById('status-badge');
   const statusText = document.getElementById('status-text');
@@ -863,6 +1132,9 @@ function update(data) {
   const chkShortCd = document.getElementById('chk-short-cd');
   chkShortCd.textContent = !cooldownActive ? '\u2713' : '\u2717';
   chkShortCd.className = 'param-check ' + (!cooldownActive ? 'pass' : 'fail');
+
+  // Update title to reflect current regime
+  document.querySelector('.header h1').innerHTML = 'BTC Trader <span>v15</span> \u2014 ' + engineRegime.charAt(0).toUpperCase() + engineRegime.slice(1);
 }
 
 function row(label, value) { return `<div class="position-row"><span class="label">${label}</span><span class="value">${value}</span></div>`; }
