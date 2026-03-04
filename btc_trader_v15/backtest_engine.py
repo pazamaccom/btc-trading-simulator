@@ -27,7 +27,38 @@ if _V15_DIR not in sys.path:
 
 import config as cfg
 
+try:
+    from ib_async import Future
+except ImportError:
+    from ib_insync import Future
+
 logger = logging.getLogger("backtest_engine")
+
+# MBT monthly contract month codes
+_MONTH_CODES = {
+    1: "F", 2: "G", 3: "H", 4: "J", 5: "K", 6: "M",
+    7: "N", 8: "Q", 9: "U", 10: "V", 11: "X", 12: "Z",
+}
+
+
+def _mbt_contract_for_date(dt: datetime) -> Future:
+    """
+    Return the MBT Future contract that would be the front-month
+    for a given date.  MBT contracts expire on the last Friday of
+    the contract month, so data during month M is typically on the
+    M-contract (or M+1 near expiry).  For simplicity we use the
+    contract whose expiry month matches the *next* month from dt,
+    because traders usually roll a few days before expiry.
+    E.g. dt = 2025-11-15 → use 202512 (Z5) contract.
+    """
+    # Use next month's contract (front-month is usually next month)
+    y, m = dt.year, dt.month
+    m += 1
+    if m > 12:
+        m = 1
+        y += 1
+    expiry_str = f"{y}{m:02d}"
+    return Future(cfg.SYMBOL, expiry_str, cfg.EXCHANGE, currency=cfg.CURRENCY)
 
 # ── Constants (from config) ───────────────────────────────────────────────────
 MULTIPLIER = cfg.MULTIPLIER                 # 0.1 BTC per contract
@@ -385,6 +416,26 @@ class BacktestEngine:
         all_records: list[dict] = []
         chunk_end = end_dt
 
+        # Cache of qualified contracts so we don't re-qualify the same month
+        _qualified_cache: dict[str, Future] = {}
+
+        async def _get_contract_for(dt: datetime) -> Future:
+            """Get a qualified MBT contract for the given date."""
+            raw = _mbt_contract_for_date(dt)
+            key = raw.lastTradeDateOrContractMonth
+            if key in _qualified_cache:
+                return _qualified_cache[key]
+            try:
+                qualified = await self.ib_exec.ib.qualifyContractsAsync(raw)
+                if qualified:
+                    _qualified_cache[key] = qualified[0]
+                    logger.info(f"Qualified backtest contract: {qualified[0].localSymbol} for {key}")
+                    return qualified[0]
+            except Exception as exc:
+                logger.warning(f"Could not qualify contract {key}: {exc}")
+            # Fallback: try the live contract
+            return self.ib_exec.contract
+
         # Walk backwards in 30-day chunks until we've covered from start_dt
         while chunk_end > start_dt:
             chunk_start = max(start_dt, chunk_end - timedelta(days=_IB_CHUNK_DAYS))
@@ -395,13 +446,17 @@ class BacktestEngine:
             end_dt_str = chunk_end.strftime("%Y%m%d %H:%M:%S")
             duration_str = f"{duration_days} D"
 
+            # Resolve the correct MBT contract for this chunk's time period
+            chunk_contract = await _get_contract_for(chunk_end)
+
             logger.info(
-                f"Requesting {duration_str} of 1h bars ending {end_dt_str} ..."
+                f"Requesting {duration_str} of 1h bars ending {end_dt_str} "
+                f"(contract: {chunk_contract.localSymbol}) ..."
             )
 
             try:
                 bars = await self.ib_exec.ib.reqHistoricalDataAsync(
-                    contract=self.ib_exec.contract,
+                    contract=chunk_contract,
                     endDateTime=end_dt_str,
                     durationStr=duration_str,
                     barSizeSetting="1 hour",
@@ -419,7 +474,7 @@ class BacktestEngine:
                 duration_str = f"{duration_days} D"
                 try:
                     bars = await self.ib_exec.ib.reqHistoricalDataAsync(
-                        contract=self.ib_exec.contract,
+                        contract=chunk_contract,
                         endDateTime=end_dt_str,
                         durationStr=duration_str,
                         barSizeSetting="1 hour",
