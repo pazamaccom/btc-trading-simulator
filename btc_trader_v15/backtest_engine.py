@@ -564,8 +564,9 @@ class BacktestEngine:
         instead of IB historical data which has severe limitations for
         expired MBT futures contracts.
 
-        The spot/futures price difference (basis) is negligible for
-        strategy signal generation and backtesting purposes.
+        Strategy:
+          1. Try yfinance library (if installed and working)
+          2. Fallback: direct HTTP request to Yahoo Finance chart API
 
         Args:
             start_date: "YYYY-MM-DD"
@@ -574,14 +575,6 @@ class BacktestEngine:
         Returns:
             Sorted DataFrame with columns: time, open, high, low, close, volume
         """
-        try:
-            import yfinance as yf
-        except ImportError:
-            raise ImportError(
-                "yfinance is required for backtesting. "
-                "Install it with: pip install yfinance"
-            )
-
         start_dt = datetime.strptime(start_date, "%Y-%m-%d")
         end_dt = datetime.strptime(end_date, "%Y-%m-%d")
 
@@ -594,57 +587,212 @@ class BacktestEngine:
             raise ValueError(f"start_date {start_date} must be before end_date {end_date}")
 
         logger.info(
-            f"Fetching BTC-USD hourly bars from Yahoo Finance: "
+            f"Fetching BTC-USD bars from Yahoo Finance: "
             f"{start_date} → {end_date}"
         )
 
-        # yfinance only allows 730 days of hourly data per request,
-        # and the data must be within the last 730 days for 1h interval.
-        # For older data, we fall back to daily bars and interpolate,
-        # or fetch in chunks.
-        # Note: yf.download is synchronous; run in executor to not block
         import concurrent.futures
         loop = asyncio.get_event_loop()
 
-        def _download():
-            # Add 1 day buffer to end_date to ensure we get the last day
-            end_plus = (end_dt + timedelta(days=1)).strftime("%Y-%m-%d")
-            start_str = start_dt.strftime("%Y-%m-%d")
+        # ── Attempt 1: yfinance library ──────────────────────────────────────
+        raw_df = None
+        interval = "1d"
+        yf_error = None
 
-            # Try hourly first
-            df = yf.download(
-                "BTC-USD",
-                start=start_str,
-                end=end_plus,
-                interval="1h",
-                progress=False,
-                auto_adjust=True,
+        try:
+            import yfinance as yf
+
+            def _yf_download():
+                end_plus = (end_dt + timedelta(days=1)).strftime("%Y-%m-%d")
+                start_str = start_dt.strftime("%Y-%m-%d")
+
+                # Try hourly first
+                df = yf.download(
+                    "BTC-USD",
+                    start=start_str,
+                    end=end_plus,
+                    interval="1h",
+                    progress=False,
+                    auto_adjust=True,
+                )
+                if df is not None and len(df) > 100:
+                    return df, "1h"
+
+                # If hourly fails (too far back), use daily
+                logger.info(
+                    "yfinance hourly failed or insufficient, trying daily"
+                )
+                df = yf.download(
+                    "BTC-USD",
+                    start=start_str,
+                    end=end_plus,
+                    interval="1d",
+                    progress=False,
+                    auto_adjust=True,
+                )
+                return df, "1d"
+
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                raw_df, interval = await loop.run_in_executor(pool, _yf_download)
+
+            # Validate that yfinance actually returned data
+            if raw_df is None or len(raw_df) == 0:
+                raise ValueError("yfinance returned empty DataFrame")
+
+            logger.info(f"yfinance returned {len(raw_df)} bars ({interval})")
+
+        except Exception as exc:
+            yf_error = str(exc)
+            raw_df = None
+            logger.warning(
+                f"yfinance failed ({yf_error}), falling back to direct Yahoo API"
             )
 
-            if df is not None and len(df) > 100:
-                return df, "1h"
-
-            # If hourly fails (too far back), use daily and resample
-            logger.info(
-                "Hourly data not available for this range, "
-                "using daily bars instead"
-            )
-            df = yf.download(
-                "BTC-USD",
-                start=start_str,
-                end=end_plus,
-                interval="1d",
-                progress=False,
-                auto_adjust=True,
-            )
-            return df, "1d"
-
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            raw_df, interval = await loop.run_in_executor(pool, _download)
-
+        # ── Attempt 2: Direct Yahoo Finance chart API ────────────────────────
         if raw_df is None or len(raw_df) == 0:
-            return pd.DataFrame()
+            logger.info("Using direct Yahoo Finance chart API fallback")
 
+            def _direct_download():
+                return self._download_yahoo_direct(start_dt, end_dt)
+
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                raw_df, interval = await loop.run_in_executor(
+                    pool, _direct_download
+                )
+
+            if raw_df is None or len(raw_df) == 0:
+                err_msg = (
+                    "Both yfinance and direct Yahoo API failed. "
+                    f"yfinance error: {yf_error}"
+                )
+                raise RuntimeError(err_msg)
+
+            logger.info(
+                f"Direct Yahoo API returned {len(raw_df)} bars ({interval})"
+            )
+
+        # ── Normalise the DataFrame ──────────────────────────────────────────
+        df = self._normalise_yahoo_df(raw_df, interval, start_dt, end_dt)
+        return df
+
+    # ── Direct Yahoo Finance chart API ───────────────────────────────────────
+
+    @staticmethod
+    def _download_yahoo_direct(
+        start_dt: datetime, end_dt: datetime
+    ) -> tuple:
+        """
+        Download BTC-USD data directly from Yahoo Finance chart API
+        using requests.  This bypasses yfinance entirely.
+
+        Returns (DataFrame, interval_str) or (None, None) on failure.
+        """
+        import requests as _requests
+
+        _HEADERS = {
+            "User-Agent": (
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/131.0.0.0 Safari/537.36"
+            ),
+            "Accept": "application/json",
+        }
+
+        period1 = int(start_dt.timestamp())
+        period2 = int((end_dt + timedelta(days=1)).timestamp())
+
+        # Try daily first (most reliable, longest range)
+        url = (
+            f"https://query1.finance.yahoo.com/v8/finance/chart/BTC-USD"
+            f"?period1={period1}&period2={period2}"
+            f"&interval=1d&includePrePost=false"
+        )
+
+        try:
+            resp = _requests.get(url, headers=_HEADERS, timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+
+            chart = data.get("chart", {}).get("result", [None])[0]
+            if chart is None:
+                raise ValueError("No chart data in Yahoo response")
+
+            timestamps = chart["timestamp"]
+            quotes = chart["indicators"]["quote"][0]
+
+            df = pd.DataFrame({
+                "time": pd.to_datetime(timestamps, unit="s", utc=True),
+                "open": quotes["open"],
+                "high": quotes["high"],
+                "low": quotes["low"],
+                "close": quotes["close"],
+                "volume": quotes["volume"],
+            })
+
+            # Drop rows where OHLC are all NaN
+            df = df.dropna(subset=["open", "high", "low", "close"], how="all")
+
+            if len(df) > 0:
+                logger.info(
+                    f"Direct Yahoo API (daily): {len(df)} bars"
+                )
+                return df, "1d"
+
+        except Exception as exc:
+            logger.warning(f"Direct Yahoo daily API failed: {exc}")
+
+        # Try v7 endpoint as last resort
+        url_v7 = (
+            f"https://query2.finance.yahoo.com/v7/finance/download/BTC-USD"
+            f"?period1={period1}&period2={period2}"
+            f"&interval=1d&events=history"
+        )
+        try:
+            resp = _requests.get(url_v7, headers=_HEADERS, timeout=30)
+            resp.raise_for_status()
+
+            from io import StringIO
+            df = pd.read_csv(StringIO(resp.text))
+
+            # Normalise column names
+            df.columns = [c.strip().lower() for c in df.columns]
+            df = df.rename(columns={"adj close": "close"})
+
+            if "date" in df.columns:
+                df["time"] = pd.to_datetime(df["date"])
+            elif "datetime" in df.columns:
+                df["time"] = pd.to_datetime(df["datetime"])
+            else:
+                df["time"] = pd.to_datetime(df.iloc[:, 0])
+
+            df = df[["time", "open", "high", "low", "close", "volume"]]
+            df = df.dropna(subset=["open", "high", "low", "close"], how="all")
+
+            if len(df) > 0:
+                logger.info(
+                    f"Direct Yahoo v7 API (daily): {len(df)} bars"
+                )
+                return df, "1d"
+
+        except Exception as exc:
+            logger.warning(f"Direct Yahoo v7 API failed: {exc}")
+
+        return None, None
+
+    # ── DataFrame Normalisation ──────────────────────────────────────────────
+
+    @staticmethod
+    def _normalise_yahoo_df(
+        raw_df: pd.DataFrame,
+        interval: str,
+        start_dt: datetime,
+        end_dt: datetime,
+    ) -> pd.DataFrame:
+        """
+        Normalise a raw Yahoo Finance DataFrame (from yfinance or direct API)
+        into our standard format: time, open, high, low, close, volume.
+        Expands daily bars to pseudo-hourly if needed.
+        """
         # Flatten MultiIndex columns if present (yfinance >= 0.2.31)
         if isinstance(raw_df.columns, pd.MultiIndex):
             raw_df.columns = raw_df.columns.get_level_values(0)
@@ -652,34 +800,39 @@ class BacktestEngine:
         # Normalise column names to lowercase
         raw_df.columns = [c.lower() for c in raw_df.columns]
 
-        # Reset index so 'Date'/'Datetime' becomes a column
-        raw_df = raw_df.reset_index()
+        # If 'time' column already exists (from direct API), use it
+        if "time" in raw_df.columns:
+            df = raw_df[["time", "open", "high", "low", "close", "volume"]].copy()
+            df["time"] = pd.to_datetime(df["time"])
+        else:
+            # Reset index so 'Date'/'Datetime' becomes a column
+            raw_df = raw_df.reset_index()
 
-        # Identify the time column (yfinance uses 'Date' or 'Datetime')
-        time_col = None
-        for candidate in ("datetime", "date", "index"):
-            if candidate in [c.lower() for c in raw_df.columns]:
-                time_col = [c for c in raw_df.columns if c.lower() == candidate][0]
-                break
-        if time_col is None:
-            time_col = raw_df.columns[0]  # first column as fallback
+            # Identify the time column (yfinance uses 'Date' or 'Datetime')
+            time_col = None
+            for candidate in ("datetime", "date", "index"):
+                if candidate in [c.lower() for c in raw_df.columns]:
+                    time_col = [
+                        c for c in raw_df.columns if c.lower() == candidate
+                    ][0]
+                    break
+            if time_col is None:
+                time_col = raw_df.columns[0]
 
-        # Build clean DataFrame
-        df = pd.DataFrame({
-            "time": pd.to_datetime(raw_df[time_col]),
-            "open": raw_df["open"].astype(float),
-            "high": raw_df["high"].astype(float),
-            "low": raw_df["low"].astype(float),
-            "close": raw_df["close"].astype(float),
-            "volume": raw_df["volume"].astype(float),
-        })
+            df = pd.DataFrame({
+                "time": pd.to_datetime(raw_df[time_col]),
+                "open": raw_df["open"].astype(float),
+                "high": raw_df["high"].astype(float),
+                "low": raw_df["low"].astype(float),
+                "close": raw_df["close"].astype(float),
+                "volume": raw_df["volume"].astype(float),
+            })
 
         # Strip timezone
         if df["time"].dt.tz is not None:
             df["time"] = df["time"].dt.tz_convert("UTC").dt.tz_localize(None)
 
         # If daily data, expand to pseudo-hourly by forward-filling
-        # so that the strategy sees the expected ~24 bars per day
         if interval == "1d":
             logger.info("Expanding daily bars to hourly (forward-fill)")
             rows = []
@@ -688,23 +841,31 @@ class BacktestEngine:
                 for h in range(24):
                     rows.append({
                         "time": base_time + timedelta(hours=h),
-                        "open": row["open"],
-                        "high": row["high"],
-                        "low": row["low"],
-                        "close": row["close"],
-                        "volume": row["volume"] / 24,  # spread volume
+                        "open": float(row["open"]),
+                        "high": float(row["high"]),
+                        "low": float(row["low"]),
+                        "close": float(row["close"]),
+                        "volume": float(row["volume"]) / 24,
                     })
             df = pd.DataFrame(rows)
 
         # Trim to [start_dt, end_dt]
         start_ts = pd.Timestamp(start_dt)
         end_ts = pd.Timestamp(end_dt)
-        df = df[(df["time"] >= start_ts) & (df["time"] <= end_ts)].reset_index(drop=True)
-        df = df.drop_duplicates(subset=["time"]).sort_values("time").reset_index(drop=True)
+        df = df[
+            (df["time"] >= start_ts) & (df["time"] <= end_ts)
+        ].reset_index(drop=True)
+        df = df.drop_duplicates(
+            subset=["time"]
+        ).sort_values("time").reset_index(drop=True)
 
         logger.info(
             f"BTC-USD bars: {len(df)} ({interval})  "
-            + (f"({df['time'].iloc[0]} → {df['time'].iloc[-1]})" if len(df) > 0 else "empty")
+            + (
+                f"({df['time'].iloc[0]} → {df['time'].iloc[-1]})"
+                if len(df) > 0
+                else "empty"
+            )
         )
         return df
 
