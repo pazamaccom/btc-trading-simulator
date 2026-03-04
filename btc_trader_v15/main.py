@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
 """
-v15 Main Runner — Human-Directed BTC Trading via Interactive Brokers
-=====================================================================
+v15 Main Runner — Auto-Regime BTC Trading via Interactive Brokers
+=================================================================
 Config I: Long+Short, rolling calibration, asymmetric risk
 
 Architecture:
-  1. You tell the program which regime (choppy / bullish / bearish)
-  2. The program connects to TWS, calibrates the strategy, and starts trading
-  3. Rolling recalibration: re-calibrates daily (7→14 day expanding, then rolling)
-  4. Supports both LONG (BUY/SELL) and SHORT (SHORT/COVER) positions
-  5. You can stop anytime, switch regimes, or check status
+  1. The program connects to TWS, auto-detects the current regime via HMM,
+     calibrates the appropriate strategy, and starts trading
+  2. Rolling recalibration: re-calibrates daily (7→14 day expanding, then rolling)
+  3. Supports both LONG (BUY/SELL) and SHORT (SHORT/COVER) positions
+  4. You can stop anytime, check status, or run a full backtest
 
 Usage:
-  python main.py                    # Interactive menu
-  python main.py --regime choppy    # Start directly in choppy mode
-  python main.py --status           # Show current state and exit
-  python main.py --mode backtest --regime bear --start-date 2024-01-01 --end-date 2024-06-30
+  python main.py                    # Live trading with auto regime detection
+  python main.py --backtest         # Run backtest from Jan 1 2023 to now
+  python main.py --status           # Show saved state and exit
+  python main.py --port 7496        # Use live trading port
 
 Requires:
   - TWS or IB Gateway running with paper trading enabled (port 7497)
-  - pip install ib_async pandas numpy
+  - pip install ib_async pandas numpy hmmlearn
 """
 
 import asyncio
@@ -36,19 +36,6 @@ from typing import Optional
 
 import pandas as pd
 import numpy as np
-
-
-def _to_naive(ts):
-    """Convert any timestamp to tz-naive for safe comparisons."""
-    if ts is None:
-        return None
-    if isinstance(ts, pd.Timestamp):
-        if ts.tzinfo is not None:
-            return ts.tz_convert("UTC").tz_localize(None)
-        return ts
-    if hasattr(ts, 'tzinfo') and ts.tzinfo is not None:
-        return ts.replace(tzinfo=None)
-    return ts
 
 # Patch asyncio BEFORE anything else — allows nested event loops
 # (ib_async internally uses loop.run_until_complete which conflicts
@@ -68,17 +55,19 @@ except ImportError:
 # (so state.json, trades.json, control.json, config_update.json
 #  all land in the right place regardless of where the user launches from)
 _PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+_PARENT_DIR = os.path.dirname(_PROJECT_DIR)
 sys.path.insert(0, _PROJECT_DIR)
+sys.path.insert(0, _PARENT_DIR)
 os.chdir(_PROJECT_DIR)
 
 import config as cfg
 from strategy import ChoppyStrategy, Signal
 from bear_strategy import BearStrategy
-from backtest_engine import BacktestEngine
+from regime_detector import RegimeDetector
 from ib_execution import IBExecution
 from dashboard import run_dashboard
 
-# ── Logging Setup ────────────────────────────────────────────
+# ── Logging Setup ──────────────────────
 
 log_dir = Path(cfg.LOG_DIR)
 log_dir.mkdir(exist_ok=True)
@@ -94,21 +83,24 @@ logging.basicConfig(
 logger = logging.getLogger("main")
 
 
-# ══════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════
 # TRADER ENGINE
-# ══════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════
 
 class Trader:
     """
     Main trading engine.
     Orchestrates the strategy, IB connection, and user control.
     Supports LONG and SHORT positions with asymmetric risk management.
+    Auto-detects market regime via Gaussian HMM.
     """
 
     def __init__(self):
         self.ib_exec = IBExecution()
-        self.strategy = None
+        self.strategy: Optional[ChoppyStrategy] = None
         self.regime = "none"
+        self.detected_regime = "none"
+        self.regime_confidence = 0.0
         self.running = False
         self.paused = False
 
@@ -138,10 +130,7 @@ class Trader:
         self.start_time = None
         self.recalibrations = 0
 
-        # Wire up reconnection callback so ib_exec can notify us
-        self.ib_exec._on_reconnect_callback = self._on_reconnected
-
-    # ── Control File ───────────────────────────────────
+    # ── Control File ─────────────────────
 
     def _clear_control(self):
         """Clear any pending control commands."""
@@ -162,14 +151,6 @@ class Trader:
             pass
         return None
 
-    def _on_reconnected(self):
-        """Called by ib_exec after a successful auto-reconnect."""
-        logger.info("Trader notified of TWS reconnection")
-        print("\n  ✅ TWS RECONNECTED — trading resumes automatically.\n")
-        # Reset hourly aggregation state so we don't compare stale timestamps
-        self._current_hour_bars = []
-        self._last_hourly_time = None
-
     def _check_exposure(self, proposed_contracts: int) -> bool:
         """Check if adding proposed contracts would exceed max exposure."""
         current_contracts = 0
@@ -180,23 +161,22 @@ class Trader:
         # Use live price for notional calculation
         price = self._last_price if self._last_price > 0 else 69000  # fallback
         notional = total * price * cfg.MULTIPLIER  # 0.1 BTC per contract
-        
+
         if notional > cfg.MAX_EXPOSURE_USD:
             logger.warning(f"Exposure check FAILED: {total} contracts × ${price:,.0f} × {cfg.MULTIPLIER} "
                           f"= ${notional:,.0f} > max ${cfg.MAX_EXPOSURE_USD:,.0f}")
             return False
-        
+
         logger.debug(f"Exposure check OK: ${notional:,.0f} / ${cfg.MAX_EXPOSURE_USD:,.0f}")
         return True
 
-    # ── Lifecycle ──────────────────────────────────────
+    # ── Lifecycle ──────────────────────
 
-    async def start(self, regime: str = "choppy"):
-        """Full startup sequence: connect → calibrate → trade."""
-        self.regime = regime
+    async def start(self):
+        """Full startup sequence: connect → auto-detect regime → calibrate → trade."""
         self.start_time = datetime.now()
         logger.info("=" * 60)
-        logger.info(f"BTC TRADER v15 — Starting in {regime.upper()} regime")
+        logger.info("BTC TRADER v15 — Starting with AUTO regime detection")
         logger.info("Config I: Long+Short, asymmetric risk, rolling calibration")
         logger.info("=" * 60)
 
@@ -208,7 +188,7 @@ class Trader:
             print("\n  ERROR: Could not connect to TWS.")
             print("  Make sure TWS is running with:")
             print("  - API connections enabled (Edit > Global Config > API > Settings)")
-            print("  - Socket port = 7497 (paper trading)")
+            print(f"  - Socket port = {cfg.IB_PORT} (paper trading)")
             print("  - 'Allow connections from localhost' checked")
             return False
 
@@ -225,11 +205,10 @@ class Trader:
             print(f"  Contract: {self.ib_exec.contract.localSymbol} "
                   f"({days} days to expiry)")
 
-        # 2. Calibrate strategy
+        # 2. Calibrate strategy (auto-detects regime internally)
         cal_days = cfg.CALIBRATION_MAX_DAYS
-        print(f"\n[2/3] Calibrating {regime} strategy (fetching {cal_days} "
-              f"days of hourly data)...")
-        await self._calibrate(regime)
+        print(f"\n[2/3] Fetching {cal_days} days of hourly data for regime detection & calibration...")
+        await self._calibrate()
 
         # 2b. Recover any existing position from IB
         await self._recover_position()
@@ -239,45 +218,31 @@ class Trader:
         self.running = True
         await self.ib_exec.subscribe_bars(self._on_live_bar)
 
-        if self.regime == "choppy":
+        # Print startup summary — regime-dependent display
+        print("\n" + "=" * 60)
+        print("  TRADING ACTIVE — Config I (Long+Short)")
+        print(f"  Mode:        LIVE (auto regime)")
+        print(f"  Detected:    {self.detected_regime.upper()}"
+              f"  (confidence: {self.regime_confidence:.0%})")
+        print(f"  Active:      {self.regime.upper()}")
+        print(f"  Instrument:  {self.ib_exec.contract.localSymbol}")
+
+        if self.strategy and hasattr(self.strategy, 'support'):
             rng = self.strategy.resistance - self.strategy.support
             buy_zone = self.strategy.support + rng * cfg.CHOPPY["long_entry_zone"]
             short_zone = self.strategy.support + rng * cfg.CHOPPY["short_entry_zone"]
-
-            print("\n" + "=" * 60)
-            print("  TRADING ACTIVE — Config I (Long+Short)")
-            print(f"  Regime:      {regime.upper()}")
-            print(f"  Instrument:  {self.ib_exec.contract.localSymbol}")
             print(f"  Range:       ${self.strategy.support:,.0f} - ${self.strategy.resistance:,.0f} "
                   f"({self.strategy.range_pct * 100:.1f}%)")
             print(f"  S/R Touches: {self.strategy.support_touches}S + {self.strategy.resistance_touches}R")
             print(f"  Long zone:   buy below ${buy_zone:,.0f}")
             print(f"  Short zone:  short above ${short_zone:,.0f}")
-            print(f"  Long risk:   NO stop-loss, 14d max hold (patient)")
-            print(f"  Short risk:  2.5% stop, 3% trail, ADX>32 exit (defensive)")
-            print(f"  Sizing:      Conviction (1-3ct) + Pyramid longs, max {cfg.MAX_CONTRACTS}ct")
-            print("=" * 60)
-            print("\n  Commands: [s]tatus  [p]ause  [r]esume  [q]uit  [f]latten")
-            print("  Type a command and press Enter.\n")
-        elif self.regime == "bear":
-            print("\n" + "=" * 60)
-            print("  TRADING ACTIVE — Bear Regime (ML Ensemble)")
-            print(f"  Regime:      BEAR")
-            print(f"  Instrument:  {self.ib_exec.contract.localSymbol}")
-            print(f"  ML Models:   RF + GradientBoosting + LightGBM")
-            print(f"  Refit every: {cfg.BEARISH.get('refit_interval_bars', 480)} bars")
-            print(f"  Confidence:  ≥ {cfg.BEARISH.get('base_confidence', 0.50)}")
-            print(f"  Sizing:      Exposure-based, max {cfg.MAX_CONTRACTS}ct")
-            print("=" * 60)
-            print("\n  Commands: [s]tatus  [p]ause  [r]esume  [q]uit  [f]latten")
-            print("  Type a command and press Enter.\n")
-        else:
-            print("\n" + "=" * 60)
-            print(f"  TRADING ACTIVE — {regime.upper()} regime")
-            print(f"  Instrument:  {self.ib_exec.contract.localSymbol}")
-            print("=" * 60)
-            print("\n  Commands: [s]tatus  [p]ause  [r]esume  [q]uit  [f]latten")
-            print("  Type a command and press Enter.\n")
+
+        print(f"  Long risk:   NO stop-loss, 14d max hold (patient)")
+        print(f"  Short risk:  2.5% stop, 3% trail, ADX>32 exit (defensive)")
+        print(f"  Sizing:      Conviction (1-3ct) + Pyramid longs, max {cfg.MAX_CONTRACTS}ct")
+        print("=" * 60)
+        print("\n  Commands: [s]tatus  [p]ause  [r]esume  [q]uit  [f]latten")
+        print("  Type a command and press Enter.\n")
 
         # Launch live dashboard in background thread
         self._dashboard_thread = threading.Thread(
@@ -304,42 +269,107 @@ class Trader:
         self._save_state()
         logger.info("Trader stopped.")
 
-    # ── Calibration ────────────────────────────────────
+    # ── Calibration ────────────────────
 
-    async def _calibrate(self, regime: str):
-        """Fetch historical data and calibrate the strategy."""
-        if regime == "choppy":
-            self.strategy = ChoppyStrategy()
-            hours = cfg.CALIBRATION_MAX_DAYS * 24
-        elif regime == "bear":
-            self.strategy = BearStrategy(params=cfg.BEARISH)
-            hours = cfg.BEAR_CALIBRATION_DAYS * 24
-        else:
-            raise ValueError(f"Regime '{regime}' not implemented yet.")
+    async def _calibrate(self):
+        """
+        Fetch historical data, auto-detect regime via HMM, then calibrate
+        the appropriate strategy.
 
+        Regime mapping:
+          CHOPPY → ChoppyStrategy (full live support)
+          BEAR   → ChoppyStrategy for now (BearStrategy needs 90d; prints warning)
+          BULL   → flat / no trades
+        """
+        # Fetch calibration bars from IB (up to max window)
+        hours = cfg.CALIBRATION_MAX_DAYS * 24
         bars_df = await self.ib_exec.fetch_calibration_bars(hours)
+
+        # ── Auto-detect regime ──────────────
+        detector = RegimeDetector()
+        det_result = detector.fit(bars_df)
+
+        if det_result.get("status") == "ok":
+            self.detected_regime = det_result.get("current_regime", "CHOPPY").upper()
+            # Estimate confidence from transition matrix diagonal (self-persistence)
+            tm = det_result.get("transition_matrix", [[]])
+            try:
+                regime_labels = ["BULL", "BEAR", "CHOPPY"]
+                # Map detected regime to row index for self-transition probability
+                idx = regime_labels.index(self.detected_regime)
+                self.regime_confidence = tm[idx][idx] if tm and len(tm) > idx else 0.5
+            except (ValueError, IndexError):
+                self.regime_confidence = 0.5
+            logger.info(
+                f"Regime detection: {self.detected_regime} "
+                f"(self-transition prob: {self.regime_confidence:.2f})"
+            )
+        else:
+            logger.warning(
+                f"Regime detection failed ({det_result.get('message', 'unknown')}), "
+                f"defaulting to CHOPPY"
+            )
+            self.detected_regime = "CHOPPY"
+            self.regime_confidence = 0.5
+
+        # ── Select strategy ─────────────────
+        regime_label = self.detected_regime.upper()
+
+        if regime_label == "CHOPPY":
+            self.regime = "choppy"
+            self.strategy = ChoppyStrategy()
+            logger.info("Regime: CHOPPY → using ChoppyStrategy")
+
+        elif regime_label == "BEAR":
+            self.regime = "bear"
+            # BearStrategy needs 90 days of data — IB live calibration window
+            # is too short for the ML ensemble to be reliable. Use ChoppyStrategy
+            # until a full backtest-trained model can be injected.
+            print(
+                "\n  WARNING: Bear strategy active — uses ML ensemble.\n"
+                "  IB live calibration window is insufficient for BearStrategy's\n"
+                "  90-day walk-forward requirement. Running ChoppyStrategy as fallback."
+            )
+            logger.warning(
+                "BEAR regime detected but using ChoppyStrategy fallback "
+                "(BearStrategy needs 90d of data which IB live can't provide in initial calibration)"
+            )
+            self.strategy = ChoppyStrategy()
+
+        elif regime_label == "BULL":
+            self.regime = "bull"
+            print("\n  Bull regime detected — holding flat (no trades)")
+            logger.info("Regime: BULL → holding flat (no strategy trades)")
+            # Create a ChoppyStrategy instance so calibration data is available
+            # for display, but the regime label will suppress trading
+            self.strategy = ChoppyStrategy()
+
+        else:
+            logger.warning(f"Unknown regime label '{regime_label}', defaulting to CHOPPY")
+            self.regime = "choppy"
+            self.strategy = ChoppyStrategy()
+
+        # ── Calibrate the selected strategy ───────────
         result = self.strategy.calibrate(bars_df)
-        logger.info(f"Calibration result: {json.dumps(result, indent=2, default=str)}")
+        logger.info(f"Calibration result: {json.dumps(result, indent=2)}")
 
         self._last_recal_date = datetime.now().date()
         self._last_recal_time = datetime.now()
         self.recalibrations += 1
 
-        if regime == "choppy":
-            if not result["is_range"]:
-                logger.warning("No valid trading range detected in calibration data!")
-                print(f"\n  WARNING: No confirmed range found in the last "
-                      f"{cfg.CALIBRATION_MAX_DAYS} days.")
-                print(f"  Range: ${result['support']:,.0f} - ${result['resistance']:,.0f} "
-                      f"({result['range_pct']:.1f}%)")
-                print("  The strategy will wait for a valid range to form.\n")
-            else:
-                print(f"  Range detected: ${result['support']:,.0f} - ${result['resistance']:,.0f} "
-                      f"({result['range_pct']:.1f}%)")
-                print(f"  Bars: {result['bars_loaded']} | Recalibrations: {self.recalibrations}")
-        elif regime == "bear":
-            print(f"  Bear ML ensemble calibrated on {result.get('training_samples', 'N/A')} samples")
-            print(f"  Features: {result.get('n_features', 'N/A')} | Recalibrations: {self.recalibrations}")
+        if not result["is_range"]:
+            logger.warning("No valid trading range detected in calibration data!")
+            print(f"\n  WARNING: No confirmed range found in the last "
+                  f"{cfg.CALIBRATION_MAX_DAYS} days.")
+            print(f"  Range: ${result['support']:,.0f} - ${result['resistance']:,.0f} "
+                  f"({result['range_pct']:.1f}%)")
+            print("  The strategy will wait for a valid range to form.\n")
+        else:
+            print(f"  Detected regime: {self.detected_regime} "
+                  f"(confidence: {self.regime_confidence:.0%})")
+            print(f"  Range detected:  ${result['support']:,.0f} - ${result['resistance']:,.0f} "
+                  f"({result['range_pct']:.1f}%)")
+            print(f"  Bars: {result['bars_loaded']} | Recalibrations: {self.recalibrations}")
 
     async def _recover_position(self):
         """
@@ -367,26 +397,16 @@ class Trader:
             side = "long" if qty > 0 else "short"
             contracts = abs(qty)
 
-            # Restore the strategy position using regime-aware config
-            if self.regime == "choppy" and hasattr(self.strategy, 'support'):
-                rng = self.strategy.resistance - self.strategy.support
-                if side == "long":
-                    target = self.strategy.support + rng * cfg.CHOPPY["long_target_zone"]
-                    stop_loss = 0.0
-                    trailing_stop = 0.0
-                else:
-                    target = self.strategy.support + rng * cfg.CHOPPY["short_target_zone"]
-                    stop_loss = entry_price * (1 + cfg.CHOPPY["short_stop_pct"])
-                    trailing_stop = entry_price * (1 + cfg.CHOPPY["short_trail_pct"])
-            elif self.regime == "bear":
-                # Bear strategy manages its own targets via ML signals
-                target = 0.0
-                stop_loss = 0.0
+            # Restore the strategy position
+            rng = self.strategy.resistance - self.strategy.support
+            if side == "long":
+                target = self.strategy.support + rng * cfg.CHOPPY["target_pct"]
+                stop_loss = 0.0   # patient longs — no stop
                 trailing_stop = 0.0
-            else:
-                target = 0.0
-                stop_loss = 0.0
-                trailing_stop = 0.0
+            else:  # short
+                target = self.strategy.resistance - rng * cfg.CHOPPY["target_pct"]
+                stop_loss = entry_price * (1 + cfg.CHOPPY["short_stop_pct"])
+                trailing_stop = entry_price * (1 + cfg.CHOPPY["short_trailing_pct"])
 
             pos = self.strategy.position
             pos.side = side
@@ -405,7 +425,7 @@ class Trader:
             pos.conviction = "normal"  # can't recover this from IB
 
             logger.info(f"RECOVERED position from IB: {side.upper()} {contracts} contracts "
-                        f"@ ${entry_price:,.2f} (avg_cost={avg_cost:.2f})")
+                        f"@ ${entry_price:,.2f} (avg_cost=${avg_cost:.2f})")
             print(f"\n  RECOVERED POSITION: {side.upper()} {int(contracts)} contracts "
                   f"@ ${entry_price:,.2f}")
             print(f"    Target: ${target:,.2f}  Stop: ${stop_loss:,.2f}")
@@ -417,6 +437,7 @@ class Trader:
     async def _maybe_recalibrate(self):
         """
         Rolling recalibration: re-calibrate once per day.
+        Re-detects regime and re-selects strategy on each recalibration.
         The strategy calibrate() uses the most recent bars (7→14 day window).
         """
         today = datetime.now().date()
@@ -428,24 +449,18 @@ class Trader:
             logger.debug("Skipping daily recalibration — position open")
             return
 
-        logger.info("Daily rolling recalibration triggered")
+        logger.info("Daily rolling recalibration triggered (with regime re-detection)")
         try:
-            if self.regime == "bear":
-                hours = cfg.BEAR_CALIBRATION_DAYS * 24
-            else:
-                hours = cfg.CALIBRATION_MAX_DAYS * 24
-            bars_df = await self.ib_exec.fetch_calibration_bars(hours)
-            result = self.strategy.calibrate(bars_df)
-            self._last_recal_date = today
-            self._last_recal_time = datetime.now()
-            self.recalibrations += 1
-            logger.info(f"Recalibrated #{self.recalibrations}: "
-                        f"S=${result['support']:,.0f} R=${result['resistance']:,.0f} "
-                        f"({result['range_pct']:.1f}%)")
+            await self._calibrate()
+            logger.info(
+                f"Recalibrated #{self.recalibrations}: regime={self.detected_regime} "
+                f"S=${self.strategy.support:,.0f} R=${self.strategy.resistance:,.0f} "
+                f"({self.strategy.range_pct * 100:.1f}%)"
+            )
         except Exception as e:
             logger.error(f"Recalibration failed: {e}")
 
-    # ── Live Bar Processing ────────────────────────────
+    # ── Live Bar Processing ─────────────────
 
     def _on_live_bar(self, bar: dict):
         """
@@ -467,8 +482,6 @@ class Trader:
         if isinstance(bar_time, str):
             bar_time = pd.Timestamp(bar_time)
 
-        # Strip timezone to avoid tz-naive vs tz-aware comparison errors
-        bar_time = _to_naive(bar_time)
         current_hour = bar_time.floor("h")
 
         if self._last_hourly_time is None:
@@ -512,6 +525,11 @@ class Trader:
     def _process_hourly_bar(self, bar: dict):
         """Feed an hourly bar to the strategy and act on signals."""
         if not self.strategy:
+            return
+
+        # If we're in bull regime, hold flat — no trades
+        if self.regime == "bull":
+            logger.debug("BULL regime — holding flat (no trades)")
             return
 
         self.hourly_bars_processed += 1
@@ -580,7 +598,7 @@ class Trader:
                                f"trail={pos.trailing_stop:.0f}")
                 self._safe_ensure_future(self._execute_cover("INTERIM_TRAILING_STOP"))
 
-    # ── Order Execution ────────────────────────────────
+    # ── Order Execution ──────────────────
 
     async def _check_expiry_actions(self):
         """Check if we need to auto-flatten or roll the contract."""
@@ -655,15 +673,15 @@ class Trader:
                     self.ib_exec.ib.cancelHistoricalData(self.ib_exec._bar_subscription)
                 await self.ib_exec.subscribe_bars(self._on_live_bar)
 
-                # Recalibrate with new contract data
-                await self._calibrate(self.regime)
+                # Recalibrate with new contract data (includes regime re-detection)
+                await self._calibrate()
             else:
                 logger.error(f"Could not qualify next contract {next_str}")
 
         except Exception as e:
             logger.error(f"Contract roll failed: {e}", exc_info=True)
 
-    # ── Order Execution ────────────────────────────────
+    # ── Order Execution ──────────────────
 
     def _safe_ensure_future(self, coro):
         """Schedule a coroutine with error handling so crashes don't kill the main loop."""
@@ -827,7 +845,7 @@ class Trader:
         except Exception as e:
             logger.error(f"Cover execution error: {e}", exc_info=True)
 
-    # ── State Persistence ──────────────────────────────
+    # ── State Persistence ─────────────────
 
     def _save_state(self):
         """Save current state to disk (read by dashboard)."""
@@ -838,15 +856,11 @@ class Trader:
         price = self._last_price if self._last_price > 0 else 0
         current_exposure = current_contracts * price * cfg.MULTIPLIER
 
-        if self.regime == "choppy":
-            cooldown_val = cfg.CHOPPY["cooldown_hours"]
-        elif self.regime == "bear":
-            cooldown_val = cfg.BEARISH.get("cooldown_bars", 24)
-        else:
-            cooldown_val = 2
-
         state = {
+            "mode": "live",
             "regime": self.regime,
+            "detected_regime": self.detected_regime,
+            "regime_confidence": round(self.regime_confidence, 4),
             "running": self.running,
             "paused": self.paused,
             "start_time": str(self.start_time),
@@ -867,11 +881,8 @@ class Trader:
             "contract_symbol": self.ib_exec.contract.localSymbol if self.ib_exec.contract else None,
             "days_to_expiry": self.ib_exec.days_to_expiry() if self.ib_exec.qualified else None,
             # Recalibration & config
-            "cooldown_hours": cooldown_val,
+            "cooldown_hours": cfg.CHOPPY["cooldown_hours"],
             "last_recal_time": str(self._last_recal_time) if self._last_recal_time else None,
-            # Exposure sizing
-            "target_exposure": getattr(cfg, "TARGET_EXPOSURE_USD", 0),
-            "exposure_sizing_enabled": getattr(cfg, "EXPOSURE_SIZING_ENABLED", False),
         }
         with open(self.state_file, "w") as f:
             json.dump(state, f, indent=2, default=str)
@@ -910,7 +921,7 @@ class Trader:
         with open(self.trade_file, "w") as f:
             json.dump(trades, f, indent=2, default=str)
 
-    # ── Status Display ─────────────────────────────────
+    # ── Status Display ─────────────────
 
     def print_status(self):
         """Print current trading status."""
@@ -924,7 +935,8 @@ class Trader:
             hours = delta.total_seconds() / 3600
             uptime = f"{hours:.1f}h"
 
-        print(f"  Regime:       {self.regime.upper()}")
+        print(f"  Regime:       {self.regime.upper()} (detected: {self.detected_regime}, "
+              f"conf: {self.regime_confidence:.0%})")
         print(f"  State:        {'PAUSED' if self.paused else 'RUNNING' if self.running else 'STOPPED'}")
         print(f"  Uptime:       {uptime}")
         print(f"  Last Price:   ${self._last_price:,.2f}")
@@ -992,73 +1004,122 @@ class Trader:
         print("=" * 60 + "\n")
 
 
-# ══════════════════════════════════════════════════════
-# BACKTEST RUNNER
-# ══════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════
+# BACKTEST MODE
+# ═══════════════════════════════════════════════════════
 
-async def _run_backtest(regime: str, start_date: str, end_date: str):
-    """Run a backtest using IB historical data."""
-    ib_exec = IBExecution()
-    connected = await ib_exec.connect()
-    if not connected:
-        print("  ERROR: Could not connect to TWS for historical data")
+async def run_backtest():
+    """
+    Run a full multi-regime backtest from 2023-01-01 to today.
+    Saves results to backtest_results.json and state.json for dashboard display.
+    Launches the dashboard so results can be viewed in the browser.
+    """
+    print("\n" + "=" * 60)
+    print("  BTC TRADER v15 — BACKTEST MODE")
+    print("=" * 60)
+    print("  Strategy map:")
+    print("    CHOPPY → ChoppyStrategy")
+    print("    BEAR   → BearStrategy")
+    print("    BULL   → (no trades / flat)")
+    print(f"\n  Period: 2023-01-01 → {datetime.now():%Y-%m-%d}")
+    print("  Fetching data from Yahoo Finance...\n")
+
+    # Import BacktestEngine from parent directory
+    try:
+        from backtest_engine import BacktestEngine
+    except ImportError as e:
+        logger.error(f"Could not import BacktestEngine: {e}")
+        print(f"\n  ERROR: Could not import BacktestEngine from {_PARENT_DIR}")
+        print(f"  Make sure backtest_engine.py exists in: {_PARENT_DIR}")
         return
 
-    if regime == "choppy":
-        strategy_class = ChoppyStrategy
-        strategy_params = None
-    elif regime == "bear":
-        strategy_class = BearStrategy
-        strategy_params = cfg.BEARISH
+    strategy_map = {
+        "choppy": ChoppyStrategy,
+        "bear": BearStrategy,
+        "bull": None,
+    }
+
+    engine = BacktestEngine(strategy_map=strategy_map)
+
+    try:
+        results = await engine.run(start_date="2023-01-01")
+    except Exception as e:
+        logger.error(f"Backtest failed: {e}", exc_info=True)
+        print(f"\n  ERROR: Backtest engine failed: {e}")
+        results = {
+            "error": str(e),
+            "start_date": "2023-01-01",
+            "end_date": str(datetime.now().date()),
+        }
+
+    # Save full backtest results
+    results_path = Path(_PROJECT_DIR) / "backtest_results.json"
+    with open(results_path, "w") as f:
+        json.dump(results, f, indent=2, default=str)
+    print(f"\n  Results saved to: {results_path}")
+
+    # Write state.json so dashboard can display backtest results
+    state = {
+        "mode": "backtest",
+        "backtest_results": results,
+        "running": False,
+        "regime": "auto",
+        "saved_at": str(datetime.now()),
+    }
+    state_path = Path(_PROJECT_DIR) / cfg.STATE_FILE
+    with open(state_path, "w") as f:
+        json.dump(state, f, indent=2, default=str)
+
+    # Print summary
+    print("\n" + "=" * 60)
+    print("  BACKTEST COMPLETE")
+    print("=" * 60)
+    if "error" not in results:
+        summary = results.get("summary", {})
+        if summary:
+            total_return = summary.get("total_return_pct", summary.get("total_return", "N/A"))
+            total_trades = summary.get("total_trades", "N/A")
+            win_rate = summary.get("win_rate", "N/A")
+            sharpe = summary.get("sharpe_ratio", summary.get("sharpe", "N/A"))
+            max_dd = summary.get("max_drawdown_pct", summary.get("max_drawdown", "N/A"))
+            print(f"  Total Return:   {total_return}")
+            print(f"  Total Trades:   {total_trades}")
+            print(f"  Win Rate:       {win_rate}")
+            print(f"  Sharpe Ratio:   {sharpe}")
+            print(f"  Max Drawdown:   {max_dd}")
+        else:
+            # Print top-level keys if no summary
+            for k, v in results.items():
+                if not isinstance(v, (dict, list)):
+                    print(f"  {k}: {v}")
     else:
-        print(f"  ERROR: Unknown regime '{regime}'")
-        await ib_exec.disconnect()
-        return
+        print(f"  ERROR: {results['error']}")
+    print("=" * 60)
 
-    engine = BacktestEngine(ib_exec, strategy_class, strategy_params)
+    # Launch dashboard to view results
+    print(f"\n  Launching dashboard at http://localhost:8080 ...")
+    dashboard_thread = threading.Thread(
+        target=run_dashboard, args=(8080,), daemon=True)
+    dashboard_thread.start()
+    print(f"  Dashboard: http://localhost:8080")
+    print("\n  Press Ctrl+C to exit.\n")
 
-    def progress(info):
-        pct = info.get("pct", 0)
-        msg = info.get("msg", "")
-        bar_len = 30
-        filled = int(bar_len * pct / 100)
-        bar = "█" * filled + "░" * (bar_len - filled)
-        print(f"\r  [{bar}] {pct:3d}% {msg}", end="", flush=True)
-
-    results = await engine.run(start_date, end_date, progress_callback=progress)
-    print()  # newline after progress bar
-
-    if results.get("status") == "error":
-        print(f"\n  BACKTEST ERROR: {results.get('error', 'unknown')}")
-    else:
-        m = results.get("metrics", {})
-        print(f"\n  ══════════════════════════════════════════")
-        print(f"  BACKTEST RESULTS — {regime.upper()} regime")
-        print(f"  Period: {start_date} → {end_date}")
-        print(f"  ──────────────────────────────────────────")
-        print(f"  Total Trades:    {m.get('total_trades', 0)}")
-        print(f"  Win Rate:        {m.get('win_rate', 0):.1f}%")
-        print(f"  Cumulative PnL:  ${m.get('cumulative_pnl', 0):,.2f}")
-        print(f"  Max Drawdown:    ${m.get('max_drawdown', 0):,.2f}")
-        print(f"  Profit Factor:   {m.get('profit_factor', 0):.2f}")
-        print(f"  Best Trade:      ${m.get('best_trade', 0):,.2f}")
-        print(f"  Worst Trade:     ${m.get('worst_trade', 0):,.2f}")
-        print(f"  Long: {m.get('long_trades', 0)} trades, ${m.get('long_pnl', 0):,.2f}")
-        print(f"  Short: {m.get('short_trades', 0)} trades, ${m.get('short_pnl', 0):,.2f}")
-        print(f"  ══════════════════════════════════════════")
-        print(f"\n  Results saved to: backtest_results.json")
-
-    await ib_exec.disconnect()
+    # Wait for keyboard interrupt
+    try:
+        while True:
+            await asyncio.sleep(1.0)
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        print("\n\nBacktest viewer stopped.")
 
 
-# ══════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════
 # INTERACTIVE CONTROL LOOP
-# ══════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════
 
-async def run_interactive(trader: Trader, regime: str):
+async def run_interactive(trader: Trader):
     """Run the trader with an interactive command loop."""
 
-    started = await trader.start(regime)
+    started = await trader.start()
     if not started:
         return
 
@@ -1070,25 +1131,14 @@ async def run_interactive(trader: Trader, regime: str):
             # Process IB network messages (nest_asyncio allows this
             # nested run_until_complete call inside our async context)
             try:
-                if trader.ib_exec.connected:
-                    trader.ib_exec.ib.sleep(0.1)
-                else:
-                    # TWS disconnected — auto-reconnect is handled by ib_exec
-                    # Just sleep so we don't spin-loop burning CPU
-                    await asyncio.sleep(1)
-            except (ConnectionError, OSError, EOFError) as e:
-                logger.warning(f"TWS connection error (reconnecting): {e}")
-                trader.ib_exec.connected = False
-                await asyncio.sleep(2)  # brief pause before retry loop kicks in
+                trader.ib_exec.ib.sleep(0.1)
             except Exception as e:
                 logger.warning(f"IB sleep error (usually harmless): {e}")
-                await asyncio.sleep(0.5)
 
             # Check for dashboard commands (control file)
             ctrl = trader._read_control()
             if ctrl:
                 cmd_type = ctrl.get("command", "")
-                allowed = {"stop", "flatten_stop", "pause", "resume", "flatten", "regime_switch"}
                 if cmd_type == "stop":
                     logger.info("STOP command received from dashboard")
                     print("\n  STOP received from dashboard — stopping (keeping positions)...")
@@ -1119,16 +1169,6 @@ async def run_interactive(trader: Trader, regime: str):
                             await trader._execute_cover("DASHBOARD_FLATTEN")
                     else:
                         print("  No position to flatten.")
-                elif cmd_type == "regime_switch":
-                    new_regime = ctrl.get("regime", "choppy")
-                    if new_regime in ("choppy", "bear"):
-                        old_regime = trader.regime
-                        logger.info(f"Regime switch from dashboard: {trader.regime} → {new_regime}")
-                        print(f"\n  Switching to {new_regime.upper()} regime...")
-                        trader.regime = new_regime
-                        await trader._calibrate(new_regime)
-                        await trader._recover_position()
-                        print(f"  Regime switched to {new_regime.upper()}")
 
             # Check for config updates from dashboard
             config_update_file = Path("config_update.json")
@@ -1154,20 +1194,6 @@ async def run_interactive(trader: Trader, regime: str):
                         old = cfg.MAX_CONTRACTS
                         cfg.MAX_CONTRACTS = int(float(updates["max_contracts"]))
                         logger.info(f"Config update: MAX_CONTRACTS {old} -> {cfg.MAX_CONTRACTS}")
-                    if "target_exposure" in updates:
-                        old = getattr(cfg, "TARGET_EXPOSURE_USD", 0)
-                        cfg.TARGET_EXPOSURE_USD = int(float(updates["target_exposure"]))
-                        logger.info(f"Config update: TARGET_EXPOSURE_USD {old:,} -> {cfg.TARGET_EXPOSURE_USD:,}")
-                    if "regime" in updates:
-                        new_regime = updates["regime"]
-                        if new_regime in ("choppy", "bear"):
-                            old_regime = trader.regime
-                            logger.info(f"Regime switch requested: {old_regime} → {new_regime}")
-                            trader.regime = new_regime
-                            # Re-calibrate with new strategy
-                            await trader._calibrate(new_regime)
-                            await trader._recover_position()
-                            logger.info(f"Regime switched to {new_regime}")
                     trader._save_state()  # Persist immediately so dashboard sees it
                 except Exception as e:
                     logger.error(f"Config update error: {e}", exc_info=True)
@@ -1200,19 +1226,6 @@ async def run_interactive(trader: Trader, regime: str):
                     trader.paused = False
                     print("  Trading RESUMED.")
 
-                elif cmd.startswith("regime "):
-                    new_regime = cmd.split()[1]
-                    if new_regime in ("choppy", "bear"):
-                        print(f"\n  Switching to {new_regime.upper()} regime...")
-                        trader.regime = new_regime
-                        await trader._calibrate(new_regime)
-                        await trader._recover_position()
-                        print(f"  Regime switched to {new_regime.upper()}")
-                    elif new_regime == "bullish":
-                        print(f"  WARNING: bullish strategy not yet implemented!")
-                    else:
-                        print(f"  Unknown regime: {new_regime}. Use: choppy, bear, bullish")
-
                 elif cmd in ("h", "help"):
                     print("\n  Commands:")
                     print("    s / status   — Show current trading status")
@@ -1220,7 +1233,6 @@ async def run_interactive(trader: Trader, regime: str):
                     print("    r / resume   — Resume trading")
                     print("    q / quit     — Stop (keep position)")
                     print("    f / flatten  — Close position and stop")
-                    print("    regime X     — Switch regime (choppy/bear/bullish)")
                     print("    h / help     — Show this help\n")
 
                 else:
@@ -1242,28 +1254,33 @@ def _get_input_nonblocking():
     return None
 
 
-# ══════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════
 # ENTRY POINT
-# ══════════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════════
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="BTC Trader v15 — Config I: Long+Short Trading via IB")
-    parser.add_argument("--regime", choices=["choppy", "bear", "bullish"],
-                        default=None, help="Start directly in this regime")
-    parser.add_argument("--status", action="store_true",
-                        help="Show saved state and exit")
-    parser.add_argument("--port", type=int, default=None,
-                        help="TWS port (default: 7497 for paper)")
-    parser.add_argument("--mode", choices=["live", "backtest"], default="live",
-                        help="Run mode: live (paper trading) or backtest")
-    parser.add_argument("--start-date", default=None, help="Backtest start date (YYYY-MM-DD)")
-    parser.add_argument("--end-date", default=None, help="Backtest end date (YYYY-MM-DD)")
+    parser = argparse.ArgumentParser(
+        description="BTC Trader v15 — Auto-Regime Long+Short Trading via IB"
+    )
+    parser.add_argument(
+        "--backtest", action="store_true",
+        help="Run backtest from 2023-01-01 to today (no IB connection required)"
+    )
+    parser.add_argument(
+        "--status", action="store_true",
+        help="Show saved state and exit"
+    )
+    parser.add_argument(
+        "--port", type=int, default=None,
+        help="TWS port (default: 7497 for paper trading)"
+    )
     args = parser.parse_args()
 
     if args.port:
         cfg.IB_PORT = args.port
 
+    # ── --status mode ──────────────────────────
     if args.status:
         state_file = Path(cfg.STATE_FILE)
         if state_file.exists():
@@ -1274,42 +1291,33 @@ def main():
             print("No saved state found.")
         return
 
-    if args.mode == "backtest":
-        if not args.start_date or not args.end_date:
-            print("  ERROR: --start-date and --end-date required for backtest mode")
-            return
-        if not args.regime:
-            print("  ERROR: --regime required for backtest mode (choppy or bear)")
-            return
-
-        print(f"\n  Starting BACKTEST mode: {args.regime.upper()} regime")
-        print(f"  Period: {args.start_date} → {args.end_date}\n")
-
-        from ib_async import util
-        util.patchAsyncio()
-        util.run(_run_backtest(args.regime, args.start_date, args.end_date))
+    # ── --backtest mode ────────────────────────
+    if args.backtest:
+        print("\n  Starting backtest mode (no IB connection)...")
+        # Use ib_async's patched event loop for consistency
+        try:
+            from ib_async import util
+            util.patchAsyncio()
+            util.run(run_backtest())
+        except (KeyboardInterrupt, SystemExit):
+            pass
+        except Exception as e:
+            # Fallback to plain asyncio if ib_async unavailable
+            logger.warning(f"ib_async util.run failed ({e}), falling back to asyncio.run")
+            try:
+                asyncio.run(run_backtest())
+            except (KeyboardInterrupt, SystemExit):
+                pass
         return
 
-    # Select regime
-    regime = args.regime
-    if not regime:
-        print("\n" + "=" * 60)
-        print("  BTC TRADER v15 — Config I: Long+Short Trading")
-        print("=" * 60)
-        print("\n  Strategy: Asymmetric range trading")
-        print("    LONGS:  Patient — no stops, ride out dips, 14d max hold")
-        print("    SHORTS: Defensive — 2.5% stop, 3% trail, ADX exit")
-        print("\n  Select market regime:")
-        print("    1) CHOPPY  — Range-bound sideways market")
-        print("    2) BEARISH — Trending down (ML ensemble)")
-        print("    3) BULLISH — Trending up (not yet implemented)")
-        print()
-
-        choice = input("  Enter choice (1/2/3): ").strip()
-        regime_map = {"1": "choppy", "2": "bear", "3": "bullish"}
-        regime = regime_map.get(choice, "choppy")
-
-    print(f"\n  Starting in {regime.upper()} regime...\n")
+    # ── Live trading mode (auto regime detection) ──────
+    print("\n" + "=" * 60)
+    print("  BTC TRADER v15 — Config I: Long+Short Trading")
+    print("=" * 60)
+    print("\n  Mode: AUTO regime detection via Gaussian HMM")
+    print("    The strategy is chosen automatically based on current")
+    print("    market conditions (CHOPPY / BULL / BEAR).")
+    print()
 
     # Create and run trader
     trader = Trader()
@@ -1327,7 +1335,7 @@ def main():
     # and cooperates with nest_asyncio patching
     from ib_async import util
     util.patchAsyncio()  # ensure nest_asyncio is applied
-    util.run(run_interactive(trader, regime))
+    util.run(run_interactive(trader))
 
 
 if __name__ == "__main__":
