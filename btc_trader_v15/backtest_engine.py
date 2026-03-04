@@ -522,7 +522,8 @@ class BacktestEngine:
             if duration_days < 1:
                 duration_days = 1
 
-            end_dt_str = chunk_end.strftime("%Y%m%d %H:%M:%S")
+            # Use IB's preferred UTC format to avoid warning 2174
+            end_dt_str = chunk_end.strftime("%Y%m%d-%H:%M:%S") + " UTC"
             duration_str = f"{duration_days} D"
 
             # Resolve the correct MBT contract for this chunk's time period
@@ -568,8 +569,11 @@ class BacktestEngine:
             if bars:
                 for b in bars:
                     bar_time = pd.Timestamp(b.date)
+                    # Strip timezone so all comparisons are tz-naive
+                    if bar_time.tzinfo is not None:
+                        bar_time = bar_time.tz_convert("UTC").tz_localize(None)
                     # Only keep bars within [start_dt, end_dt]
-                    if bar_time.to_pydatetime().replace(tzinfo=None) < start_dt:
+                    if bar_time < start_dt:
                         continue
                     all_records.append({
                         "time": bar_time,
@@ -595,6 +599,10 @@ class BacktestEngine:
         df = pd.DataFrame(all_records)
         df = df.drop_duplicates(subset=["time"])
         df = df.sort_values("time").reset_index(drop=True)
+
+        # Ensure all timestamps are tz-naive UTC for consistent comparison
+        if df["time"].dt.tz is not None:
+            df["time"] = df["time"].dt.tz_convert("UTC").dt.tz_localize(None)
 
         # Trim to [start_dt, end_dt]
         start_ts = pd.Timestamp(start_dt)
