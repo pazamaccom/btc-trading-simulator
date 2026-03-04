@@ -43,15 +43,15 @@ try:
     from sklearn.feature_selection import mutual_info_classif
     from sklearn.preprocessing import StandardScaler
     ML_AVAILABLE = True
-except ImportError:
-    logger.warning("scikit-learn not available — BearStrategy will hold (no signals)")
+except (ImportError, OSError) as e:
+    logger.warning(f"scikit-learn not available — BearStrategy will hold (no signals): {e}")
 
 LGB_AVAILABLE = False
 try:
     import lightgbm as lgb
     LGB_AVAILABLE = True
-except ImportError:
-    logger.warning("lightgbm not available — BearStrategy will use RF+GB only")
+except (ImportError, OSError) as e:
+    logger.warning(f"lightgbm not available — BearStrategy will use RF+GB only: {e}")
 
 
 # ── Inline helpers not in indicators.py ─────────────────────────────────────
