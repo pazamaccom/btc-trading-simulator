@@ -1,11 +1,19 @@
 """
-backtest_engine.py — BTC Futures Backtest Engine
-=================================================
-Backtests ChoppyStrategy or BearStrategy on IB historical hourly bars.
+backtest_engine.py — BTC Futures Multi-Regime Backtest Engine
+=============================================================
+Backtests multiple strategies on Yahoo Finance BTC-USD hourly bars,
+automatically detecting regimes with RegimeDetector and switching
+strategies per regime period.
 
 Usage:
-    engine = BacktestEngine(ib_exec, ChoppyStrategy)
-    results = await engine.run("2025-01-01", "2025-06-01")
+    engine = BacktestEngine(
+        strategy_map={
+            'choppy': ChoppyStrategy,
+            'bear': BearStrategy,
+            'bull': None,        # no trading in bull regime
+        }
+    )
+    results = await engine.run(start_date="2023-01-01")
 """
 
 import asyncio
@@ -13,7 +21,7 @@ import json
 import time
 import logging
 from datetime import datetime, timedelta
-from typing import Optional, Callable, Type
+from typing import Optional, Callable, Type, Dict
 import sys
 import os
 
@@ -26,100 +34,82 @@ if _V15_DIR not in sys.path:
     sys.path.insert(0, _V15_DIR)
 
 import config as cfg
-
-try:
-    from ib_async import Future
-except ImportError:
-    from ib_insync import Future
+from regime_detector import RegimeDetector
 
 logger = logging.getLogger("backtest_engine")
 
-# MBT monthly contract month codes
-_MONTH_CODES = {
-    1: "F", 2: "G", 3: "H", 4: "J", 5: "K", 6: "M",
-    7: "N", 8: "Q", 9: "U", 10: "V", 11: "X", 12: "Z",
-}
-
-
-def _mbt_contract_for_date(dt: datetime) -> Future:
-    """
-    Return the MBT Future contract that would be the front-month
-    for a given date.  MBT contracts expire on the last Friday of
-    the contract month, so data during month M is typically on the
-    M-contract (or M+1 near expiry).  For simplicity we use the
-    contract whose expiry month matches the *next* month from dt,
-    because traders usually roll a few days before expiry.
-    E.g. dt = 2025-11-15 → use 202512 (Z5) contract.
-    """
-    # Use next month's contract (front-month is usually next month)
-    y, m = dt.year, dt.month
-    m += 1
-    if m > 12:
-        m = 1
-        y += 1
-    expiry_str = f"{y}{m:02d}"
-    return Future(cfg.SYMBOL, expiry_str, cfg.EXCHANGE, currency=cfg.CURRENCY)
-
-# ── Constants (from config) ───────────────────────────────────────────────────
+# ── Constants (from config) ─────────────────────────────────────────────────
 MULTIPLIER = cfg.MULTIPLIER                 # 0.1 BTC per contract
 COMMISSION_PER_SIDE = cfg.COMMISSION_PER_SIDE  # $1.25 per contract per side
 
-# Calibration windows
-CHOPPY_CALIB_DAYS = cfg.CALIBRATION_MAX_DAYS  # 14 days
-BEAR_CALIB_DAYS = 90                          # 90 days for ML training
+# Calibration windows (in hours, assuming hourly bars)
+CHOPPY_CALIB_BARS = cfg.CALIBRATION_MAX_DAYS * 24   # 14 days × 24 h = 336 bars
+BEAR_CALIB_BARS = 90 * 24                            # 90 days × 24 h = 2160 bars
 
-# IB historical data chunk size (days per request — safe limit for 1h bars)
-_IB_CHUNK_DAYS = 30
+# Default calibration bars by regime
+_REGIME_CALIB_BARS: Dict[str, int] = {
+    "choppy": CHOPPY_CALIB_BARS,
+    "bear": BEAR_CALIB_BARS,
+    "bull": 0,   # no trading in bull; no calibration needed
+}
 
 
 class BacktestEngine:
     """
-    Backtests a strategy on IB historical data.
+    Multi-regime backtest engine.
+
+    Uses RegimeDetector (HMM-based) to label every bar as 'bull', 'bear',
+    or 'choppy', then routes each regime period to the appropriate strategy
+    class supplied in strategy_map.
 
     Usage:
-        engine = BacktestEngine(ib_exec, ChoppyStrategy)
-        results = await engine.run("2025-01-01", "2025-06-01")
+        engine = BacktestEngine(
+            strategy_map={
+                'choppy': ChoppyStrategy,
+                'bear': BearStrategy,
+                'bull': None,   # skip / hold flat
+            }
+        )
+        results = await engine.run(start_date="2023-01-01")
 
     Args:
-        ib_exec: IBExecution instance (already connected and qualified)
-        strategy_class: ChoppyStrategy or BearStrategy class
-        strategy_params: optional params dict passed to strategy constructor
+        strategy_map: dict mapping regime label → strategy class (or None to
+                      hold flat in that regime).  Missing regimes default to
+                      None (hold flat).
     """
 
-    def __init__(self, ib_exec, strategy_class, strategy_params: Optional[dict] = None):
-        self.ib_exec = ib_exec
-        self.strategy_class = strategy_class
-        self.strategy_params = strategy_params  # may be None; strategy handles defaults
+    def __init__(self, strategy_map: Optional[dict] = None):
+        self.strategy_map: dict = strategy_map or {}
 
-        # Detect regime from class name
-        name = strategy_class.__name__.lower()
-        if "bear" in name:
-            self.regime = "bear"
-            self.calibration_days = BEAR_CALIB_DAYS
-        else:
-            self.regime = "choppy"
-            self.calibration_days = CHOPPY_CALIB_DAYS
-
-    # ── Public Entry Point ────────────────────────────────────────────────────
+    # ── Public Entry Point ──────────────────────────────────────────────────────
 
     async def run(
         self,
-        start_date: str,
-        end_date: str,
+        start_date: str = "2023-01-01",
+        end_date: Optional[str] = None,
         progress_callback: Optional[Callable] = None,
     ) -> dict:
         """
-        Run the backtest over [start_date, end_date].
+        Run the multi-regime backtest.
 
         Args:
-            start_date: "YYYY-MM-DD"
-            end_date:   "YYYY-MM-DD"
+            start_date: "YYYY-MM-DD" (default "2023-01-01")
+            end_date:   "YYYY-MM-DD" or None (default: today)
             progress_callback: optional callable({"pct": int, "msg": str})
 
         Returns:
-            Results dict (see module docstring for schema).
+            Results dict with keys:
+                - 'regimes': regime periods with start/end/bars/return
+                - 'trades': all trades with regime label
+                - 'metrics': overall metrics
+                - 'metrics_by_regime': {regime: metrics_dict}
+                - 'equity_curve': [{time, pnl, regime}]
+                - 'regime_summary': [{regime, periods, total_bars, trades, pnl, win_rate}]
         """
         t_start = time.time()
+
+        if end_date is None:
+            end_date = datetime.utcnow().strftime("%Y-%m-%d")
 
         def _progress(pct: int, msg: str):
             if progress_callback:
@@ -129,107 +119,214 @@ class BacktestEngine:
                     pass
             logger.info(f"[{pct:3d}%] {msg}")
 
-        _progress(0, f"Starting {self.regime} backtest: {start_date} → {end_date}")
+        _progress(0, f"Starting multi-regime backtest: {start_date} → {end_date}")
 
-        # ── 1. Fetch historical bars ──────────────────────────────────────────
-        _progress(2, "Fetching historical bars from IB...")
+        # ── 1. Fetch historical bars ──────────────────────────────────────────────────
+        _progress(2, "Fetching BTC-USD historical bars from Yahoo Finance...")
         try:
             bars_df = await self._fetch_historical_bars(start_date, end_date)
         except Exception as exc:
             logger.error(f"Failed to fetch historical bars: {exc}")
             return self._error_result(
-                start_date, end_date, f"Failed to fetch IB data: {exc}",
+                start_date, end_date, f"Failed to fetch Yahoo Finance data: {exc}",
                 time.time() - t_start,
             )
 
         if bars_df is None or len(bars_df) == 0:
             return self._error_result(
-                start_date, end_date, "IB returned no bars for the date range",
+                start_date, end_date, "Yahoo Finance returned no bars for the date range",
                 time.time() - t_start,
             )
 
-        _progress(10, f"Fetched {len(bars_df)} hourly bars")
+        total_bars = len(bars_df)
+        _progress(10, f"Fetched {total_bars} bars")
 
-        # ── 2. Convert to list of dicts ───────────────────────────────────────
-        bars_list = self._df_to_bar_list(bars_df)
-        total_bars = len(bars_list)
-
-        # ── 3. Split calibration vs. trading bars ─────────────────────────────
-        calib_bars_count = self.calibration_days * 24
-        if len(bars_list) <= calib_bars_count:
-            return self._error_result(
-                start_date, end_date,
-                f"Not enough bars for calibration + trading. "
-                f"Have {len(bars_list)} bars, need >{calib_bars_count} for "
-                f"{self.calibration_days}-day calibration.",
-                time.time() - t_start,
-            )
-
-        calib_bars = bars_list[:calib_bars_count]
-        trade_bars = bars_list[calib_bars_count:]
-        trading_bars_count = len(trade_bars)
-
-        _progress(12, f"Split: {calib_bars_count} calib bars + {trading_bars_count} trading bars")
-
-        # ── 4. Instantiate strategy ───────────────────────────────────────────
-        if self.strategy_params is not None:
-            strategy = self.strategy_class(params=self.strategy_params)
-        else:
-            strategy = self.strategy_class()
-
-        # ── 5. Calibrate ──────────────────────────────────────────────────────
-        _progress(14, f"Calibrating strategy on {len(calib_bars)} bars...")
-        calib_df = pd.DataFrame(calib_bars)
+        # ── 2. Fit RegimeDetector on full dataset ───────────────────────────────────────
+        _progress(12, "Fitting RegimeDetector on full dataset...")
+        detector = RegimeDetector()
         try:
-            calib_info = strategy.calibrate(calib_df)
-            logger.info(f"Calibration result: {calib_info}")
+            fit_result = detector.fit(bars_df)
         except Exception as exc:
-            logger.error(f"Strategy calibration failed: {exc}", exc_info=True)
+            logger.error(f"RegimeDetector.fit() failed: {exc}", exc_info=True)
             return self._error_result(
-                start_date, end_date, f"Calibration failed: {exc}",
+                start_date, end_date, f"RegimeDetector failed: {exc}",
                 time.time() - t_start,
             )
 
-        _progress(18, "Calibration complete — beginning walk-forward simulation")
+        if fit_result.get("status") != "ok":
+            msg = fit_result.get("message", "RegimeDetector fit returned non-ok status")
+            return self._error_result(
+                start_date, end_date, msg, time.time() - t_start,
+            )
 
-        # ── 6. Walk-forward simulation ────────────────────────────────────────
-        trades = []           # completed round-trip trade records
-        equity_curve = []     # {time, pnl (cumulative), trade_pnl (for this bar)}
+        regime_labels = fit_result["regimes"]          # list[str|None], len == total_bars
+        regime_periods = fit_result["regime_periods"]  # list[dict]
+        current_regime = fit_result["current_regime"]
+
+        _progress(20, (
+            f"Regime detection complete. Current: {current_regime}. "
+            f"{len(regime_periods)} regime periods found."
+        ))
+
+        # ── 3. Convert DataFrame to bar list ────────────────────────────────────────────
+        bars_list = self._df_to_bar_list(bars_df)
+
+        # ── 4. Walk-forward simulation ──────────────────────────────────────────────────
+        trades = []          # all completed trades (with 'regime' field)
+        equity_curve = []    # {time, pnl, regime}
         cumulative_pnl = 0.0
 
-        # Virtual position tracker (independent of strategy.position —
-        # used by the engine to compute PnL)
-        virt = {
-            "side": "flat",       # "flat" | "long" | "short"
-            "entry_price": 0.0,
-            "avg_entry": 0.0,
-            "contracts": 0,
-            "entry_time": None,
-        }
+        # Virtual position tracker
+        virt = _flat_position()
 
-        progress_step = max(1, trading_bars_count // 20)  # ~20 updates
+        # Active strategy state
+        active_strategy = None
+        active_regime: Optional[str] = None
 
-        for i, bar in enumerate(trade_bars):
-            # Progress reporting
+        progress_step = max(1, total_bars // 40)
+
+        _progress(22, "Beginning walk-forward simulation...")
+
+        for i, bar in enumerate(bars_list):
             if i % progress_step == 0:
-                pct = 18 + int(80 * i / trading_bars_count)
-                _progress(pct, f"Processing bar {i + 1}/{trading_bars_count}")
+                pct = 22 + int(70 * i / total_bars)
+                _progress(pct, f"Bar {i + 1}/{total_bars}")
 
-            # Feed bar to strategy
-            try:
-                signal = strategy.on_bar(bar)
-            except Exception as exc:
-                logger.warning(f"on_bar error at bar {i}: {exc}")
+            bar_regime = regime_labels[i]  # may be None for leading bars
+
+            # ── Regime switch detection ───────────────────────────────────────────────
+            if bar_regime is not None and bar_regime != active_regime:
+                # Force-close any open position at the current bar's close price
+                if virt["side"] != "flat":
+                    force_close_price = bar.get("close", 0.0)
+                    bar_pnl_close = 0.0
+
+                    if virt["side"] == "long":
+                        contracts = virt["contracts"]
+                        entry = virt["avg_entry"]
+                        bar_pnl_close = _long_pnl(entry, force_close_price, contracts)
+                        cumulative_pnl += bar_pnl_close
+                        trades.append({
+                            "time": _ts_str(bar.get("time", "")),
+                            "action": "SELL",
+                            "price": round(force_close_price, 2),
+                            "contracts": contracts,
+                            "entry_price": round(entry, 2),
+                            "pnl": round(bar_pnl_close, 2),
+                            "reason": f"regime_switch:{active_regime}→{bar_regime}",
+                            "regime": active_regime,
+                        })
+                        if active_strategy is not None:
+                            try:
+                                active_strategy.record_fill(
+                                    "SELL", force_close_price, contracts, bar.get("time")
+                                )
+                            except Exception:
+                                pass
+
+                    elif virt["side"] == "short":
+                        contracts = virt["contracts"]
+                        entry = virt["avg_entry"]
+                        bar_pnl_close = _short_pnl(entry, force_close_price, contracts)
+                        cumulative_pnl += bar_pnl_close
+                        trades.append({
+                            "time": _ts_str(bar.get("time", "")),
+                            "action": "COVER",
+                            "price": round(force_close_price, 2),
+                            "contracts": contracts,
+                            "entry_price": round(entry, 2),
+                            "pnl": round(bar_pnl_close, 2),
+                            "reason": f"regime_switch:{active_regime}→{bar_regime}",
+                            "regime": active_regime,
+                        })
+                        if active_strategy is not None:
+                            try:
+                                active_strategy.record_fill(
+                                    "COVER", force_close_price, contracts, bar.get("time")
+                                )
+                            except Exception:
+                                pass
+
+                    virt = _flat_position()
+
+                    # Emit an equity curve point for the force-close
+                    equity_curve.append({
+                        "time": _ts_str(bar.get("time", "")),
+                        "pnl": round(cumulative_pnl, 2),
+                        "trade_pnl": round(bar_pnl_close, 2),
+                        "regime": active_regime,
+                    })
+
+                # Switch to new regime
+                prev_regime = active_regime
+                active_regime = bar_regime
+                active_strategy = None
+
+                # Attempt to build and calibrate new strategy
+                strategy_class = self.strategy_map.get(bar_regime)
+                if strategy_class is not None:
+                    calib_bars_needed = _REGIME_CALIB_BARS.get(bar_regime, CHOPPY_CALIB_BARS)
+                    if i >= calib_bars_needed:
+                        # Use preceding bars for calibration
+                        calib_slice = bars_list[i - calib_bars_needed: i]
+                        calib_df = pd.DataFrame(calib_slice)
+                        try:
+                            strategy = strategy_class()
+                            calib_info = strategy.calibrate(calib_df)
+                            active_strategy = strategy
+                            logger.info(
+                                f"Regime switch {prev_regime}→{bar_regime} at bar {i}: "
+                                f"calibrated on {calib_bars_needed} bars. "
+                                f"calib_info={calib_info}"
+                            )
+                        except Exception as exc:
+                            logger.warning(
+                                f"Calibration failed for {bar_regime} at bar {i}: {exc}"
+                            )
+                            active_strategy = None
+                    else:
+                        logger.info(
+                            f"Regime {bar_regime} at bar {i}: not enough preceding bars "
+                            f"for calibration (need {calib_bars_needed}, have {i}). Skipping."
+                        )
+                        active_strategy = None
+                else:
+                    # bull or unmapped regime — hold flat
+                    logger.info(
+                        f"Regime {bar_regime} at bar {i}: no strategy mapped (hold flat)."
+                    )
+                    active_strategy = None
+
+            # ── Feed bar to active strategy ───────────────────────────────────────────────
+            bar_pnl = 0.0
+
+            if active_strategy is None:
+                # Hold flat or waiting for calibration
+                equity_curve.append({
+                    "time": _ts_str(bar.get("time", "")),
+                    "pnl": round(cumulative_pnl, 2),
+                    "trade_pnl": 0.0,
+                    "regime": active_regime or bar_regime,
+                })
                 continue
 
-            bar_pnl = 0.0
+            try:
+                signal = active_strategy.on_bar(bar)
+            except Exception as exc:
+                logger.warning(f"on_bar error at bar {i}: {exc}")
+                equity_curve.append({
+                    "time": _ts_str(bar.get("time", "")),
+                    "pnl": round(cumulative_pnl, 2),
+                    "trade_pnl": 0.0,
+                    "regime": active_regime,
+                })
+                continue
 
             if signal is None or signal.action == "HOLD":
                 pass
 
             elif signal.action == "BUY":
                 if virt["side"] == "flat":
-                    # Fresh long entry
                     virt["side"] = "long"
                     virt["entry_price"] = signal.price
                     virt["avg_entry"] = signal.price
@@ -243,8 +340,9 @@ class BacktestEngine:
                         "contracts": signal.contracts,
                         "pnl": None,
                         "reason": signal.reason,
+                        "regime": active_regime,
                     })
-                    strategy.record_fill(
+                    active_strategy.record_fill(
                         "BUY", signal.price, signal.contracts, signal.timestamp
                     )
 
@@ -264,8 +362,9 @@ class BacktestEngine:
                         "contracts": signal.contracts,
                         "pnl": None,
                         "reason": signal.reason,
+                        "regime": active_regime,
                     })
-                    strategy.record_fill(
+                    active_strategy.record_fill(
                         "BUY", signal.price, signal.contracts, signal.timestamp
                     )
 
@@ -285,8 +384,9 @@ class BacktestEngine:
                         "entry_price": round(entry, 2),
                         "pnl": round(bar_pnl, 2),
                         "reason": signal.reason,
+                        "regime": active_regime,
                     })
-                    strategy.record_fill(
+                    active_strategy.record_fill(
                         "SELL", signal.price, contracts, signal.timestamp
                     )
                     virt = _flat_position()
@@ -306,8 +406,9 @@ class BacktestEngine:
                         "contracts": signal.contracts,
                         "pnl": None,
                         "reason": signal.reason,
+                        "regime": active_regime,
                     })
-                    strategy.record_fill(
+                    active_strategy.record_fill(
                         "SHORT", signal.price, signal.contracts, signal.timestamp
                     )
 
@@ -327,22 +428,24 @@ class BacktestEngine:
                         "entry_price": round(entry, 2),
                         "pnl": round(bar_pnl, 2),
                         "reason": signal.reason,
+                        "regime": active_regime,
                     })
-                    strategy.record_fill(
+                    active_strategy.record_fill(
                         "COVER", signal.price, contracts, signal.timestamp
                     )
                     virt = _flat_position()
 
-            # Equity curve entry (one per trading bar)
+            # Equity curve entry
             equity_curve.append({
                 "time": _ts_str(bar.get("time", "")),
                 "pnl": round(cumulative_pnl, 2),
                 "trade_pnl": round(bar_pnl, 2),
+                "regime": active_regime,
             })
 
-        _progress(98, "Simulation complete — computing metrics")
+        _progress(92, "Simulation complete — computing metrics")
 
-        # ── 7. Handle open position at end of backtest ─────────────────────────
+        # ── 5. Handle open position at end of backtest ────────────────────────────────────
         final_position = "flat"
         if virt["side"] != "flat":
             final_position = {
@@ -353,36 +456,77 @@ class BacktestEngine:
                 "note": "Open at backtest end — PnL not realized",
             }
 
-        # ── 8. Compute metrics ─────────────────────────────────────────────────
+        # ── 6. Compute overall metrics ───────────────────────────────────────────────────
         metrics = _compute_metrics(trades)
+
+        # ── 7. Compute per-regime metrics ────────────────────────────────────────────────
+        all_regimes = sorted({r for r in regime_labels if r is not None})
+        metrics_by_regime: Dict[str, dict] = {}
+        for regime in all_regimes:
+            regime_trades = [t for t in trades if t.get("regime") == regime]
+            metrics_by_regime[regime] = _compute_metrics(regime_trades)
+
+        # ── 8. Build regime_summary ───────────────────────────────────────────────────────
+        regime_summary = []
+        for regime in all_regimes:
+            regime_trades_closed = [
+                t for t in trades
+                if t.get("regime") == regime and t["action"] in ("SELL", "COVER")
+                and t.get("pnl") is not None
+            ]
+            regime_bars = sum(1 for r in regime_labels if r == regime)
+            regime_periods_count = sum(
+                1 for p in regime_periods if p.get("regime") == regime
+            )
+            rm = metrics_by_regime[regime]
+            regime_summary.append({
+                "regime": regime,
+                "periods": regime_periods_count,
+                "total_bars": regime_bars,
+                "trades": rm["total_trades"],
+                "pnl": rm["cumulative_pnl"],
+                "win_rate": rm["win_rate"],
+            })
 
         elapsed = round(time.time() - t_start, 2)
 
         results = {
-            "mode": "backtest",
-            "regime": self.regime,
+            "mode": "backtest_multi_regime",
             "start_date": start_date,
             "end_date": end_date,
             "total_bars": total_bars,
-            "calibration_bars": calib_bars_count,
-            "trading_bars": trading_bars_count,
+            "current_regime": current_regime,
+            "regimes": [
+                {
+                    "regime": p["regime"],
+                    "start": _ts_str(p["start"]),
+                    "end": _ts_str(p["end"]),
+                    "bars": p["bars"],
+                    "return_pct": p.get("return_pct"),
+                }
+                for p in regime_periods
+            ],
             "trades": trades,
             "metrics": metrics,
+            "metrics_by_regime": metrics_by_regime,
             "equity_curve": equity_curve,
+            "regime_summary": regime_summary,
             "final_position": final_position,
             "status": "completed",
             "elapsed_seconds": elapsed,
         }
 
-        _progress(100, f"Done. {metrics['total_trades']} trades, "
-                       f"PnL=${metrics['cumulative_pnl']:,.2f} in {elapsed}s")
-
-        # ── 9. Save results to JSON ────────────────────────────────────────────
+        _progress(98, "Saving results...")
         _save_results(results)
+
+        _progress(100, (
+            f"Done. {metrics['total_trades']} total trades, "
+            f"PnL=${metrics['cumulative_pnl']:,.2f} in {elapsed}s"
+        ))
 
         return results
 
-    # ── Historical Data Fetching ──────────────────────────────────────────────
+    # ── Historical Data Fetching ────────────────────────────────────────────────────────
 
     async def _fetch_historical_bars(
         self, start_date: str, end_date: str
@@ -538,7 +682,7 @@ class BacktestEngine:
         )
         return df
 
-    # ── Helpers ───────────────────────────────────────────────────────────────
+    # ── Helpers ───────────────────────────────────────────────────────────────────────────
 
     @staticmethod
     def _df_to_bar_list(df: pd.DataFrame) -> list:
@@ -560,16 +704,17 @@ class BacktestEngine:
         """Return a standardised error results dict."""
         logger.error(f"Backtest error: {msg}")
         return {
-            "mode": "backtest",
-            "regime": "unknown",
+            "mode": "backtest_multi_regime",
             "start_date": start_date,
             "end_date": end_date,
             "total_bars": 0,
-            "calibration_bars": 0,
-            "trading_bars": 0,
+            "current_regime": "unknown",
+            "regimes": [],
             "trades": [],
             "metrics": _empty_metrics(),
+            "metrics_by_regime": {},
             "equity_curve": [],
+            "regime_summary": [],
             "final_position": "flat",
             "status": "error",
             "error": msg,
@@ -577,7 +722,7 @@ class BacktestEngine:
         }
 
 
-# ── PnL Helpers ───────────────────────────────────────────────────────────────
+# ── PnL Helpers ───────────────────────────────────────────────────────────────────────────
 
 def _long_pnl(entry: float, exit_px: float, contracts: int) -> float:
     """Net PnL for a closed long position."""
@@ -603,7 +748,7 @@ def _flat_position() -> dict:
     }
 
 
-# ── Metrics ───────────────────────────────────────────────────────────────────
+# ── Metrics ────────────────────────────────────────────────────────────────────────────────
 
 def _compute_metrics(trades: list) -> dict:
     """
@@ -687,7 +832,7 @@ def _empty_metrics() -> dict:
     }
 
 
-# ── Result Persistence ────────────────────────────────────────────────────────
+# ── Result Persistence ──────────────────────────────────────────────────────────────────
 
 def _save_results(results: dict, path: str = "backtest_results.json"):
     """Save results dict to JSON, stripping non-serialisable objects."""
@@ -712,7 +857,7 @@ def _json_default(obj):
     return str(obj)
 
 
-# ── Timestamp Helper ──────────────────────────────────────────────────────────
+# ── Timestamp Helper ────────────────────────────────────────────────────────────────────────
 
 def _ts_str(ts) -> str:
     """Convert various timestamp types to a consistent string."""
