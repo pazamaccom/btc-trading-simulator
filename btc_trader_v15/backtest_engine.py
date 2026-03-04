@@ -135,7 +135,7 @@ class BacktestEngine:
         # ── 1. Fetch historical bars ──────────────────────────────────────────
         _progress(2, "Fetching BTC-USD historical bars from Yahoo Finance...")
         try:
-            bars_df = await self._fetch_historical_bars(start_date, end_date)
+            bars_df, data_interval = await self._fetch_historical_bars(start_date, end_date)
         except Exception as exc:
             logger.error(f"Failed to fetch historical bars: {exc}")
             return self._error_result(
@@ -152,11 +152,27 @@ class BacktestEngine:
         total_bars = len(bars_df)
         _progress(10, f"Fetched {total_bars} bars")
 
-        # ── 2. Fit RegimeDetector on full dataset ─────────────────────────────
-        _progress(12, "Fitting RegimeDetector on full dataset...")
-        detector = RegimeDetector()
+        # ── 2. Fit RegimeDetector ─────────────────────────────────────────────
+        # When data is daily (forward-filled to hourly), run regime detection
+        # on the ORIGINAL daily bars to avoid the HMM being confused by 23/24
+        # zero-return bars per day.  Then expand daily regime labels to hourly.
+        _progress(12, "Fitting RegimeDetector on dataset...")
+
+        if data_interval == "1d":
+            # Build daily-only DataFrame for regime detection
+            # (pick every 24th bar starting at 0 — these are the day-boundary bars)
+            daily_df = bars_df.iloc[::24].reset_index(drop=True).copy()
+            _progress(14, f"Fitting HMM on {len(daily_df)} daily bars (not forward-filled)")
+            # Use min_regime_bars=7 for daily bars (= 1 week, same as 168h)
+            detector = RegimeDetector(min_regime_bars=7)
+        else:
+            daily_df = None
+            detector = RegimeDetector()  # default min_regime_bars=168
+
+        regime_input_df = daily_df if daily_df is not None else bars_df
+
         try:
-            fit_result = detector.fit(bars_df)
+            fit_result = detector.fit(regime_input_df)
         except Exception as exc:
             logger.error(f"RegimeDetector.fit() failed: {exc}", exc_info=True)
             return self._error_result(
@@ -170,8 +186,23 @@ class BacktestEngine:
                 start_date, end_date, msg, time.time() - t_start,
             )
 
-        regime_labels = fit_result["regimes"]          # list[str|None], len == total_bars
-        regime_periods = fit_result["regime_periods"]  # list[dict]
+        if data_interval == "1d" and daily_df is not None:
+            # Expand daily regime labels → hourly (repeat each label 24 times)
+            daily_regimes = fit_result["regimes"]  # len == len(daily_df)
+            regime_labels = []
+            for label in daily_regimes:
+                regime_labels.extend([label] * 24)
+            # Trim or pad to match bars_df length
+            regime_labels = regime_labels[:total_bars]
+            while len(regime_labels) < total_bars:
+                regime_labels.append(regime_labels[-1] if regime_labels else None)
+
+            # Rebuild regime_periods on the hourly bars_df using expanded labels
+            regime_periods = detector.get_regime_periods(bars_df, regime_labels)
+        else:
+            regime_labels = fit_result["regimes"]
+            regime_periods = fit_result["regime_periods"]
+
         current_regime = fit_result["current_regime"]
 
         # Print concise regime summary
@@ -186,7 +217,7 @@ class BacktestEngine:
             pct = regime_bar_counts[r] / total_bars * 100 if total_bars > 0 else 0
             summary_parts.append(f"{r.upper()}: {regime_counts[r]} periods ({regime_bar_counts[r]} bars, {pct:.0f}%)")
         _progress(20, (
-            f"Regime detection: {len(regime_periods)} periods. "
+            f"Regime detection ({data_interval} input): {len(regime_periods)} periods. "
             + " | ".join(summary_parts)
         ))
 
@@ -673,7 +704,7 @@ class BacktestEngine:
 
         # ── Normalise the DataFrame ──────────────────────────────────────────
         df = self._normalise_yahoo_df(raw_df, interval, start_dt, end_dt)
-        return df
+        return df, interval
 
     # ── Direct Yahoo Finance chart API ───────────────────────────────────────
 
