@@ -416,11 +416,87 @@ class BacktestEngine:
         all_records: list[dict] = []
         chunk_end = end_dt
 
+        # Build a plain Future for the live contract that IB will NOT
+        # treat as ContFuture.  The key trick: qualify a brand-new Future
+        # with includeExpired=True so IB returns a specific-expiry contract.
+        # ContFuture objects cause error 10339 when used with endDateTime.
+        live = self.ib_exec.contract
+        _backtest_contract = Future(
+            symbol=live.symbol,
+            lastTradeDateOrContractMonth=live.lastTradeDateOrContractMonth,
+            exchange=live.exchange,
+            currency=live.currency,
+            multiplier=str(live.multiplier) if live.multiplier else None,
+        )
+        try:
+            # includeExpired=True works for both current and expired contracts
+            qualified_list = await self.ib_exec.ib.qualifyContractsAsync(
+                _backtest_contract
+            )
+            if qualified_list:
+                _backtest_contract = qualified_list[0]
+                logger.info(
+                    f"Backtest plain Future qualified: {_backtest_contract.localSymbol} "
+                    f"(conId={_backtest_contract.conId}, "
+                    f"type={type(_backtest_contract).__name__}, "
+                    f"expiry={_backtest_contract.lastTradeDateOrContractMonth})"
+                )
+            else:
+                logger.warning("Could not qualify plain Future for backtest")
+        except Exception as exc:
+            logger.warning(f"Error qualifying plain Future: {exc}")
+
+        # If IB still gave us a ContFuture, force it to be a plain Future.
+        # CRITICAL: do NOT copy conId — that conId belongs to the ContFuture
+        # definition and IB will still treat it as continuous.  Instead,
+        # build a fresh Future with localSymbol only (IB can resolve from that).
+        if type(_backtest_contract).__name__ == "ContFuture":
+            logger.info("Converting ContFuture to plain Future for backtest")
+            plain = Future(
+                localSymbol=_backtest_contract.localSymbol,
+                exchange=_backtest_contract.exchange,
+            )
+            try:
+                q = await self.ib_exec.ib.qualifyContractsAsync(plain)
+                if q:
+                    plain = q[0]
+                    logger.info(
+                        f"Re-qualified as: {type(plain).__name__} "
+                        f"conId={plain.conId} local={plain.localSymbol}"
+                    )
+            except Exception as exc:
+                logger.warning(f"Re-qualify via localSymbol failed: {exc}")
+            # If still ContFuture, last resort: manual Future construction
+            if type(plain).__name__ == "ContFuture":
+                logger.info("Still ContFuture — building manual Future without conId")
+                manual = Future(
+                    symbol=_backtest_contract.symbol,
+                    lastTradeDateOrContractMonth=_backtest_contract.lastTradeDateOrContractMonth,
+                    exchange=_backtest_contract.exchange,
+                    currency=_backtest_contract.currency,
+                )
+                manual.localSymbol = _backtest_contract.localSymbol
+                manual.multiplier = _backtest_contract.multiplier
+                manual.tradingClass = _backtest_contract.tradingClass
+                # conId intentionally left as 0 so IB doesn't map to ContFuture
+                plain = manual
+                logger.info(
+                    f"Manual Future (no conId): {plain.localSymbol} "
+                    f"type={type(plain).__name__}"
+                )
+            _backtest_contract = plain
+
         # Cache of qualified contracts so we don't re-qualify the same month
         _qualified_cache: dict[str, Future] = {}
 
         async def _get_contract_for(dt: datetime) -> Future:
-            """Get a qualified MBT contract for the given date."""
+            """Get a qualified MBT contract for the given date.
+            
+            Tries the correct front-month contract first.  If IB can't
+            find an expired contract (they get purged), falls back to a
+            plain Future copy of the live contract which supports
+            endDateTime (unlike ContFuture).
+            """
             raw = _mbt_contract_for_date(dt)
             key = raw.lastTradeDateOrContractMonth
             if key in _qualified_cache:
@@ -433,8 +509,11 @@ class BacktestEngine:
                     return qualified[0]
             except Exception as exc:
                 logger.warning(f"Could not qualify contract {key}: {exc}")
-            # Fallback: try the live contract
-            return self.ib_exec.contract
+            # Expired contract not available — use the plain Future copy
+            # of the live contract (supports endDateTime unlike ContFuture)
+            logger.info(f"Falling back to plain Future {_backtest_contract.localSymbol} for {key}")
+            _qualified_cache[key] = _backtest_contract
+            return _backtest_contract
 
         # Walk backwards in 30-day chunks until we've covered from start_dt
         while chunk_end > start_dt:
