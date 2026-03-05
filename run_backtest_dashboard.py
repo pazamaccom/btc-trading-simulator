@@ -203,6 +203,8 @@ def enrich_equity_curve(equity_curve, trades):
     Add notional exposure to each equity curve point.
     Tracks the current open position's notional value.
     """
+    # Build a timeline of position changes from trades
+    # For each entry/exit, track the notional exposure
     current_notional = 0
     current_contracts = 0
 
@@ -257,8 +259,8 @@ def enrich_trades(trades):
     return enriched
 
 
-def compute_exposure_stats(trades):
-    """Compute exposure statistics from entry trades."""
+def compute_exposure_stats(trades, total_pnl, start_date_str, end_date_str):
+    """Compute exposure statistics and ROI metrics from entry trades."""
     entries = [t for t in trades if t["action"] in ("BUY", "SHORT", "PYRAMID")]
     if not entries:
         return {}
@@ -269,17 +271,46 @@ def compute_exposure_stats(trades):
     margins = [t["contracts"] * 1500 for t in entries]
     margin_arr = np.array(margins)
 
+    notional_max = float(exp_arr.max())
+    notional_mean = float(exp_arr.mean())
+    margin_max = float(margin_arr.max())
+
+    # Compute backtest duration in years for annualized ROI
+    from datetime import datetime as _dt
+    try:
+        d0 = _dt.strptime(start_date_str[:10], "%Y-%m-%d")
+        d1 = _dt.strptime(end_date_str[:10], "%Y-%m-%d")
+        years = max((d1 - d0).days / 365.25, 0.01)
+    except Exception:
+        years = 1.0
+
+    # ROI calculations
+    roi_max_notional = (total_pnl / notional_max * 100) if notional_max > 0 else 0
+    roi_max_margin   = (total_pnl / margin_max * 100)   if margin_max > 0 else 0
+    roi_avg_notional = (total_pnl / notional_mean * 100) if notional_mean > 0 else 0
+
+    roi_max_notional_ann = roi_max_notional / years
+    roi_max_margin_ann   = roi_max_margin / years
+    roi_avg_notional_ann = roi_avg_notional / years
+
     return {
         "notional_min": round(float(exp_arr.min()), 2),
-        "notional_max": round(float(exp_arr.max()), 2),
-        "notional_mean": round(float(exp_arr.mean()), 2),
+        "notional_max": round(notional_max, 2),
+        "notional_mean": round(notional_mean, 2),
         "notional_median": round(float(np.median(exp_arr)), 2),
         "margin_min": round(float(margin_arr.min()), 2),
-        "margin_max": round(float(margin_arr.max()), 2),
+        "margin_max": round(margin_max, 2),
         "margin_mean": round(float(margin_arr.mean()), 2),
         "contracts_min": min(t["contracts"] for t in entries),
         "contracts_max": max(t["contracts"] for t in entries),
         "total_entries": len(entries),
+        "backtest_years": round(years, 2),
+        "roi_max_notional": round(roi_max_notional, 1),
+        "roi_max_notional_ann": round(roi_max_notional_ann, 1),
+        "roi_max_margin": round(roi_max_margin, 1),
+        "roi_max_margin_ann": round(roi_max_margin_ann, 1),
+        "roi_avg_notional": round(roi_avg_notional, 1),
+        "roi_avg_notional_ann": round(roi_avg_notional_ann, 1),
     }
 
 
@@ -293,7 +324,7 @@ def main():
     print("  3-REGIME BACKTEST → DASHBOARD")
     print("=" * 75)
 
-    # ── 1. Pre-compute regime cache ────────────────────────────────────────
+    # ── 1. Pre-compute regime cache ──────────────────────────────────────
     print("\n  [1/4] Computing regime cache...")
     t0 = time.time()
     cache_result = compute_regime_cache()
@@ -317,7 +348,7 @@ def main():
     metrics = result.get("metrics", {})
     equity_curve = result.get("equity_curve", [])
 
-    # ── 3. Build dashboard data ─────────────────────────────────────────
+    # ── 3. Build dashboard data ──────────────────────────────────────────
     print("  [3/4] Building dashboard data...")
 
     # Load daily bars for regime period construction
@@ -353,10 +384,13 @@ def main():
     # Enrich trades with notional
     enriched_trades = enrich_trades(trades)
 
-    # Exposure stats
-    exposure_stats = compute_exposure_stats(trades)
+    # Exposure stats (with ROI)
+    total_pnl = metrics.get("cumulative_pnl", 0)
+    start_d = result.get("start_date", "2023-01-01")
+    end_d = result.get("end_date", datetime.now().strftime("%Y-%m-%d"))
+    exposure_stats = compute_exposure_stats(trades, total_pnl, start_d, end_d)
 
-    # ── 4. Write JSON files ─────────────────────────────────────────────
+    # ── 4. Write JSON files ──────────────────────────────────────────────
     print("\n  [4/4] Writing output files...")
 
     # backtest_results.json — main dashboard data
@@ -409,7 +443,7 @@ def main():
         json.dump(enriched_trades, f, default=str)
     print(f"    trades.json: {os.path.getsize(trades_path):,} bytes")
 
-    # ── Summary ───────────────────────────────────────────────────────
+    # ── Summary ──────────────────────────────────────────────────────────
     print(f"\n{'='*75}")
     print(f"  BACKTEST COMPLETE")
     print(f"{'='*75}")
@@ -421,9 +455,11 @@ def main():
     if exposure_stats:
         print(f"  Max Notional:  ${exposure_stats.get('notional_max', 0):>10,.2f}")
         print(f"  Avg Notional:  ${exposure_stats.get('notional_mean', 0):>10,.2f}")
-        total_pnl = metrics.get("cumulative_pnl", 0)
-        max_not = exposure_stats.get("notional_max", 1)
-        print(f"  ROI (on max):  {total_pnl/max_not*100:.1f}% cumulative")
+        print(f"  Max Margin:    ${exposure_stats.get('margin_max', 0):>10,.2f}")
+        print(f"  Exposure Range: ${exposure_stats.get('notional_min',0):,.0f} — ${exposure_stats.get('notional_max',0):,.0f}")
+        print(f"  ROI (max not): {exposure_stats.get('roi_max_notional',0):.1f}% cum / {exposure_stats.get('roi_max_notional_ann',0):.1f}% ann")
+        print(f"  ROI (max mrg): {exposure_stats.get('roi_max_margin',0):.1f}% cum / {exposure_stats.get('roi_max_margin_ann',0):.1f}% ann")
+        print(f"  ROI (avg not): {exposure_stats.get('roi_avg_notional',0):.1f}% cum / {exposure_stats.get('roi_avg_notional_ann',0):.1f}% ann")
     print(f"\n  Dashboard files written. Start dashboard with:")
     print(f"    python dashboard.py --port 8080")
     print(f"  Then open http://localhost:8080")
