@@ -1,7 +1,7 @@
 """
 	v15 Configuration — Human-Directed BTC Trading via IB
-=====================================================
-Config I: Long+Short, rolling calibration, asymmetric risk
+	=====================================================
+	Config I: Long+Short, rolling calibration, asymmetric risk
 """
 
 # ── IB Connection ──────────────────────────────────────
@@ -24,17 +24,9 @@ MAX_EXPOSURE_USD = 500_000      # Maximum notional exposure allowed ($)
 MBT_NOTIONAL_PER_CT = 6_900     # Approximate notional per MBT contract (0.1 BTC)
 
 # ── Position Sizing ────────────────────────────────────
-MAX_CONTRACTS = 20      # Absolute safety cap (exposure ceiling is the real limit)
-DEFAULT_CONTRACTS = 1   # Default order size (fallback when exposure sizing is off)
+MAX_CONTRACTS = 3       # Hard cap on total contracts at any time
+DEFAULT_CONTRACTS = 1   # Default order size (overridden by conviction)
 POSITION_LIMIT_USD = 50_000  # Hard dollar limit
-
-# ── Exposure-Based Sizing ──────────────────────────────
-# When enabled, contract count is calculated from a target dollar exposure:
-#   base_contracts = round(TARGET_EXPOSURE_USD / (price × MULTIPLIER))
-# Conviction scales up: high = 1.5×, very_high = 2× the base.
-# Final cap = min(contracts, MAX_EXPOSURE_USD / notional_per_ct, MAX_CONTRACTS)
-EXPOSURE_SIZING_ENABLED = True
-TARGET_EXPOSURE_USD = 40_000    # Target notional exposure per trade ($)
 
 # ── Conviction Sizing ──────────────────────────────────
 # Trade 2-3 contracts when range is tight and well-tested
@@ -69,9 +61,8 @@ BAR_SIZE = "1 hour"         # IB bar size for historical data
 LIVE_BAR_SECONDS = 300      # Re-check every 5 minutes in live trading
 
 # ── Calibration (rolling/expanding window) ─────────────
-# Note: choppy strategy uses 14 days max; bear ML strategy uses 90 days (BEAR_CALIBRATION_DAYS)
 CALIBRATION_MIN_DAYS = 7    # Start with 7 days of training data
-CALIBRATION_MAX_DAYS = 14   # Cap at 14 days (then roll forward) — choppy strategy
+CALIBRATION_MAX_DAYS = 14   # Cap at 14 days (then roll forward)
 SR_PERCENTILE_LOW = 5       # 5th percentile of lows → support
 SR_PERCENTILE_HIGH = 95     # 95th percentile of highs → resistance
 MIN_RANGE_PCT = 0.03        # Minimum 3% range to trade
@@ -86,7 +77,9 @@ CHOPPY = {
     # ── LONG exits (patient — let trades breathe) ──
     "long_target_zone":     0.75,   # exit long when price reaches top 75% of range
     "long_rsi_overbought":  68,     # RSI exit when overbought + in profit
-    "long_max_hold_hours":  336,    # 14 days max hold (patient)
+    "long_max_hold_hours":  336,    # 14 days — triggers re-evaluation, not auto-exit
+    "long_max_hold_hard_cap_hours": 672,  # 28 days — absolute backstop, exit regardless
+    "long_max_hold_adverse_pct": 0.05,    # 5% — exit if regime unchanged but loss exceeds this
     # NO hard stop-loss on longs — building exposure is OK
     # NO ADX exit on longs — let them ride
 
@@ -104,7 +97,7 @@ CHOPPY = {
     "short_max_hold_hours": 168,    # 7 days max hold for shorts
 
     # ── Risk ──
-    "cooldown_hours":       2,      # hours between trades
+    "cooldown_hours":       3,      # hours between trades
     "dynamic_cooldown":     True,   # 12h cooldown after 2+ consecutive short losses
     "dynamic_cooldown_hrs": 12,     # cooldown used after repeated short losses
     "consecutive_loss_trigger": 2,  # how many consecutive short losses to trigger
@@ -115,58 +108,10 @@ BULLISH = {
     # To be implemented
 }
 
-# ── Bearish Strategy — v11 Conservative ML Ensemble ────
+# ── Bearish Strategy (placeholder for future) ──────────
 BEARISH = {
-    # ── ML Ensemble ──
-    "rf_n_estimators": 35,
-    "rf_max_depth": 3,
-    "rf_min_samples_leaf": 25,
-    "gb_n_estimators": 35,
-    "gb_max_depth": 2,
-    "gb_min_samples_leaf": 25,
-    "lgb_n_estimators": 50,
-    "lgb_max_depth": 3,
-    "lgb_min_samples_leaf": 25,
-
-    # ── Feature Selection ──
-    "top_features": 35,
-
-    # ── Walk-Forward ──
-    "refit_interval_bars": 480,     # Refit every 20 days of hourly bars
-    "lookback_bars": 2160,          # 90 days of hourly bars for training
-
-    # ── Signal Thresholds ──
-    "base_confidence": 0.50,        # Minimum ensemble probability to trade
-    "prediction_horizon": 8,        # Predict 8 bars ahead
-    "threshold_pct": 0.02,          # 2% move threshold for labeling
-
-    # ── Risk Management ──
-    "bear_tp_mult": 3.0,            # Take-profit ATR multiplier (bearish bias)
-    "bear_sl_mult": 2.0,            # Stop-loss ATR multiplier (bearish bias)
-    "bull_tp_mult": 2.0,            # Take-profit ATR multiplier (bullish signal)
-    "bull_sl_mult": 1.5,            # Stop-loss ATR multiplier (bullish signal)
-
-    # ── Position Management ──
-    "cooldown_bars": 24,            # 24 bars (1 day) between trades
-    "max_hold_long_bars": 168,      # 7 days max hold for longs
-    "max_hold_short_bars": 96,      # 4 days max hold for shorts
-
-    # ── Regime Classifier ──
-    "regime_sma_short": 20,
-    "regime_sma_long": 50,
-    "regime_adx_threshold": 25,
-    "regime_lookback": 50,
+    # To be implemented
 }
-
-# ── Backtest Mode ──────────────────────────────────────
-BACKTEST = {
-    "enabled": False,               # Set True when running in backtest mode
-    "start_date": "",               # "YYYY-MM-DD" start date for backtest
-    "end_date": "",                 # "YYYY-MM-DD" end date for backtest
-    "regime": "choppy",             # Which strategy to backtest
-    "results_file": "backtest_results.json",
-}
-BEAR_CALIBRATION_DAYS = 90          # 90 days for ML training (vs 14 for choppy)
 
 # ── Logging ────────────────────────────────────────────
 LOG_DIR = "logs"

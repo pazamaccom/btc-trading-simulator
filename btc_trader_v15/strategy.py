@@ -1,9 +1,9 @@
 """
-v15 Strategy — Choppy/Sideways Range Trading (Long + Short)
-============================================================
-Asymmetric risk management:
-  LONGS:  Patient — no hard stops, ride out dips, exit at target/RSI/max-hold
-  SHORTS: Defensive — tight stops, quick ADX exits, protect against upswings
+	v15 Strategy — Choppy/Sideways Range Trading (Long + Short)
+	============================================================
+	Asymmetric risk management:
+	  LONGS:  Patient — no hard stops, ride out dips, exit at target/RSI/max-hold
+	  SHORTS: Defensive — tight stops, quick ADX exits, protect against upswings
 
 Rolling calibration:
   - Percentile-based support/resistance (5th/95th)
@@ -20,7 +20,7 @@ from indicators import calc_rsi, calc_adx, calc_stochastic
 import config as cfg
 
 
-# ── Signal types ─────────────────────────────────────
+# ── Signal types ───────────────────────────────────────
 
 @dataclass
 class Signal:
@@ -58,6 +58,8 @@ class Position:
     resistance: float = 0.0
     conviction: str = "normal"  # "normal", "high", "very_high"
 
+    entry_regime: str = ""          # regime at time of entry (for MAX_HOLD logic)
+
     @property
     def is_flat(self):
         return self.side == "flat" or self.contracts == 0
@@ -77,6 +79,7 @@ class Position:
             "resistance": self.resistance,
             "conviction": self.conviction,
             "long_peak": self.long_peak,
+            "entry_regime": self.entry_regime,
         }
 
 
@@ -120,7 +123,7 @@ class ChoppyStrategy:
         # Last signal reason (for dashboard display)
         self._last_signal_reason = ""
 
-    # ── Calibration ───────────────────────────────────
+    # ── Calibration ────────────────────────────────────
 
     def calibrate(self, bars_df: pd.DataFrame):
         """
@@ -157,10 +160,11 @@ class ChoppyStrategy:
 
     # ── Live Bar Processing ────────────────────────────
 
-    def on_bar(self, bar: dict) -> Signal:
+    def on_bar(self, bar: dict, current_regime: str = "") -> Signal:
         """
         Process a new bar and return a trading signal.
         bar: {time, open, high, low, close, volume}
+        current_regime: current regime label (passed by backtest engine)
         """
         if not self.calibrated:
             return Signal("HOLD", "Not calibrated yet", bar.get("close", 0),
@@ -188,7 +192,7 @@ class ChoppyStrategy:
         # ══════════ EXIT LOGIC ══════════
         if not self.position.is_flat:
             if self.position.side == "long":
-                sig = self._check_long_exit(price, high_val, low_val, now, adx_val, rsi_val)
+                sig = self._check_long_exit(price, high_val, low_val, now, adx_val, rsi_val, current_regime)
             elif self.position.side == "short":
                 sig = self._check_short_exit(price, high_val, low_val, now, adx_val, rsi_val)
             else:
@@ -200,7 +204,7 @@ class ChoppyStrategy:
         self._last_signal_reason = sig.reason if sig else ""
         return sig
 
-    # ── Range Detection (percentile-based) ───────────────
+    # ── Range Detection (percentile-based) ─────────────
 
     def _update_range(self):
         """Detect support/resistance using percentiles and count S/R touches."""
@@ -250,7 +254,7 @@ class ChoppyStrategy:
             return 0.5
         return (price - self.support) / (self.resistance - self.support)
 
-    # ── Conviction & Pyramid Helpers ─────────────────────
+    # ── Conviction & Pyramid Helpers ───────────────────
 
     @staticmethod
     def _count_touches(lows, highs, support, resistance,
@@ -278,71 +282,38 @@ class ChoppyStrategy:
 
         return s_t, r_t
 
-    def _conviction_contracts(self, rng_pos, side, price=0.0):
+    def _conviction_contracts(self, rng_pos, side):
         """
-        Determine contract count based on conviction level and target exposure.
-
-        When EXPOSURE_SIZING_ENABLED (config), the base contract count is
-        derived from  TARGET_EXPOSURE_USD / (price * MULTIPLIER).
-        Conviction still qualifies the trade (normal / high / very_high)
-        and can scale the base count up, always capped at MAX_CONTRACTS.
-
+        Determine contract count based on conviction level.
         Returns (contracts, conviction_label).
         """
-        # ── Exposure-based base contracts ──
-        exposure_sizing = getattr(cfg, "EXPOSURE_SIZING_ENABLED", False)
-        if exposure_sizing and price > 0:
-            notional_per_ct = price * cfg.MULTIPLIER
-            base_cts = max(1, round(
-                getattr(cfg, "TARGET_EXPOSURE_USD", 40_000) / notional_per_ct
-            )) if notional_per_ct > 0 else 1
-        else:
-            base_cts = cfg.DEFAULT_CONTRACTS
-
         if not cfg.CONVICTION_ENABLED:
-            return min(base_cts, cfg.MAX_CONTRACTS), "normal"
+            return cfg.DEFAULT_CONTRACTS, "normal"
 
         range_pct = self.range_pct * 100  # convert to percentage
         total_touches = self.support_touches + self.resistance_touches
 
+        contracts = cfg.DEFAULT_CONTRACTS
         label = "normal"
 
-        # Level 1: high conviction
+        # Level 1: 2 contracts
         if (range_pct < cfg.CONV_L1_RANGE_MAX_PCT
                 and total_touches >= cfg.CONV_L1_MIN_TOUCHES):
             if ((side == "LONG" and rng_pos <= cfg.CONV_L1_EXTREME_PCT)
                     or (side == "SHORT" and rng_pos >= (1 - cfg.CONV_L1_EXTREME_PCT))):
+                contracts = 2
                 label = "high"
 
-        # Level 2: very_high conviction (stricter)
+        # Level 2: 3 contracts (stricter)
         if (range_pct < cfg.CONV_L2_RANGE_MAX_PCT
                 and total_touches >= cfg.CONV_L2_MIN_TOUCHES):
             if ((side == "LONG" and rng_pos <= cfg.CONV_L2_EXTREME_PCT)
                     or (side == "SHORT" and rng_pos >= (1 - cfg.CONV_L2_EXTREME_PCT))):
+                contracts = 3
                 label = "very_high"
 
-        # ── Scale contracts by conviction ──
-        if exposure_sizing and price > 0:
-            contracts = base_cts
-            if label == "very_high":
-                contracts = max(base_cts, round(base_cts * 2))
-            elif label == "high":
-                contracts = max(base_cts, round(base_cts * 1.5))
-        else:
-            # Legacy fixed sizing
-            contracts = base_cts
-            if label == "high":
-                contracts = 2
-            elif label == "very_high":
-                contracts = 3
-
-        # Hard cap: use MAX_EXPOSURE safety ceiling when exposure sizing is on
-        if exposure_sizing and price > 0:
-            notional_per_ct = price * cfg.MULTIPLIER
-            max_from_exposure = int(cfg.MAX_EXPOSURE_USD / notional_per_ct) if notional_per_ct > 0 else cfg.MAX_CONTRACTS
-            contracts = min(contracts, max_from_exposure, cfg.MAX_CONTRACTS)
-        else:
-            contracts = min(contracts, cfg.MAX_CONTRACTS)
+        # Hard cap
+        contracts = min(contracts, cfg.MAX_CONTRACTS)
         return contracts, label
 
     def _check_pyramid(self, price, rng_pos, rsi_val) -> Optional[Signal]:
@@ -412,12 +383,11 @@ class ChoppyStrategy:
 
         # ── LONG entry: price near support ──
         if rng_pos <= p["long_entry_zone"] and rsi_val < p["long_rsi_max"]:
-            contracts, conviction = self._conviction_contracts(rng_pos, "LONG", price)
+            contracts, conviction = self._conviction_contracts(rng_pos, "LONG")
             target = self.support + (self.resistance - self.support) * p["long_target_zone"]
-            notional = contracts * price * cfg.MULTIPLIER
             reason = (f"LONG entry ({conviction}): price in bottom {rng_pos*100:.0f}% of "
                       f"${self.support:,.0f}-${self.resistance:,.0f} "
-                      f"(RSI={rsi_val:.1f}, {contracts}ct, ${notional:,.0f} exposure)")
+                      f"(RSI={rsi_val:.1f}, {contracts}ct)")
 
             return Signal(
                 action="BUY", reason=reason, price=price, timestamp=now,
@@ -428,13 +398,12 @@ class ChoppyStrategy:
         if (rng_pos >= p["short_entry_zone"]
                 and rsi_val > p["short_rsi_min"]
                 and adx_val < p["short_adx_max"]):
-            contracts, conviction = self._conviction_contracts(rng_pos, "SHORT", price)
+            contracts, conviction = self._conviction_contracts(rng_pos, "SHORT")
             target = self.support + (self.resistance - self.support) * p["short_target_zone"]
             stop = price * (1 + p["short_stop_pct"])
-            notional = contracts * price * cfg.MULTIPLIER
             reason = (f"SHORT entry ({conviction}): price in top {(1-rng_pos)*100:.0f}% of "
                       f"${self.support:,.0f}-${self.resistance:,.0f} "
-                      f"(RSI={rsi_val:.1f}, ADX={adx_val:.1f}, {contracts}ct, ${notional:,.0f} exposure)")
+                      f"(RSI={rsi_val:.1f}, ADX={adx_val:.1f}, {contracts}ct)")
 
             return Signal(
                 action="SHORT", reason=reason, price=price, timestamp=now,
@@ -447,7 +416,7 @@ class ChoppyStrategy:
 
     # ── Long Exit Logic (patient) ──────────────────────
 
-    def _check_long_exit(self, price, high_val, low_val, now, adx_val, rsi_val) -> Signal:
+    def _check_long_exit(self, price, high_val, low_val, now, adx_val, rsi_val, current_regime="") -> Signal:
         """Check if we should exit or pyramid a long position. Patient — no hard stops."""
         p = self.p
         pos = self.position
@@ -476,11 +445,38 @@ class ChoppyStrategy:
                                    f"RSI={rsi_val:.1f} overbought + profitable",
                                    price, now, bars_held)
 
-        # 3. Max hold time
-        if bars_held >= p["long_max_hold_hours"]:
+        # 3. Max hold — regime-aware logic
+        #    a) Hard cap (28 days): exit regardless
+        #    b) Standard MAX_HOLD + regime changed: exit
+        #    c) Standard MAX_HOLD + regime same + loss > 5%: exit (safety valve)
+        #    d) Standard MAX_HOLD + regime same + loss < 5%: keep holding
+        hard_cap = p.get("long_max_hold_hard_cap_hours", 672)
+        adverse_pct = p.get("long_max_hold_adverse_pct", 0.05)
+        unrealized_loss_pct = (avg - price) / avg if avg > 0 else 0  # positive = losing
+
+        if bars_held >= hard_cap:
+            # Absolute backstop — exit no matter what
             return self._exit_long("MAX_HOLD",
-                                   f"Max hold {p['long_max_hold_hours']}h exceeded",
+                                   f"Hard cap {hard_cap}h reached",
                                    price, now, bars_held)
+
+        if bars_held >= p["long_max_hold_hours"]:
+            entry_regime = pos.entry_regime or ""
+            regime_changed = current_regime and entry_regime and current_regime != entry_regime
+
+            if regime_changed:
+                # Regime changed — original thesis invalidated
+                return self._exit_long("MAX_HOLD",
+                                       f"Max hold {p['long_max_hold_hours']}h + regime changed ({entry_regime}→{current_regime})",
+                                       price, now, bars_held)
+            elif unrealized_loss_pct >= adverse_pct:
+                # Same regime but bleeding too much
+                return self._exit_long("MAX_HOLD",
+                                       f"Max hold {p['long_max_hold_hours']}h + adverse {unrealized_loss_pct*100:.1f}% > {adverse_pct*100:.0f}% limit",
+                                       price, now, bars_held)
+            else:
+                # Same regime, loss within tolerance — keep holding
+                pass  # fall through to HOLD
 
         # Hold — report status
         pnl_pct = (price / avg - 1) * 100 if avg > 0 else 0
@@ -488,7 +484,7 @@ class ChoppyStrategy:
                        f"LONG {bars_held}h, {pos.contracts}ct, PnL={pnl_pct:+.2f}%, RSI={rsi_val:.1f}",
                        price, now)
 
-    # ── Short Exit Logic (defensive) ─────────────────────
+    # ── Short Exit Logic (defensive) ───────────────────
 
     def _check_short_exit(self, price, high_val, low_val, now, adx_val, rsi_val) -> Signal:
         """Check if we should exit a short position. Defensive — tight stops."""
@@ -592,7 +588,7 @@ class ChoppyStrategy:
 
     # ── Position Management (called by execution layer) ─
 
-    def record_fill(self, action, price, contracts, timestamp, conviction="normal"):
+    def record_fill(self, action, price, contracts, timestamp, conviction="normal", regime=""):
         """Called by execution layer when an order is filled."""
         if action == "BUY":
             if self.position.side == "long" and self.position.contracts > 0:
@@ -628,6 +624,7 @@ class ChoppyStrategy:
                     support=self.support,
                     resistance=self.resistance,
                     conviction=conviction,
+                    entry_regime=regime,
                 )
                 self.trade_log.append({
                     "action": "BUY", "price": price, "contracts": contracts,
@@ -652,6 +649,7 @@ class ChoppyStrategy:
                 support=self.support,
                 resistance=self.resistance,
                 conviction=conviction,
+                entry_regime=regime,
             )
             self.trade_log.append({
                 "action": "SHORT", "price": price, "contracts": contracts,
