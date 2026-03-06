@@ -37,8 +37,13 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
-# Add project to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add project to path — config.py lives inside btc_trader_v15/
+_DASH_DIR = os.path.dirname(os.path.abspath(__file__))
+_DASH_V15 = os.path.join(_DASH_DIR, "btc_trader_v15")
+if _DASH_V15 not in sys.path:
+    sys.path.insert(0, _DASH_V15)
+if _DASH_DIR not in sys.path:
+    sys.path.insert(0, _DASH_DIR)
 import config as cfg
 
 DASHBOARD_PORT = 8080
