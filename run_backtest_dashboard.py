@@ -322,6 +322,7 @@ def main():
 
     print("=" * 75)
     print("  3-REGIME BACKTEST → DASHBOARD")
+    print(f"  Config: {cfg.__file__}")
     print("=" * 75)
 
     # ── 1. Pre-compute regime cache ──────────────────────────────────────
@@ -407,11 +408,11 @@ def main():
         "regime_summary": regime_summary,
         "exposure": exposure_stats,
         "config": {
-            "target_exposure_usd": cfg.TARGET_EXPOSURE_USD,
-            "max_contracts": cfg.MAX_CONTRACTS,
-            "max_exposure_usd": cfg.MAX_EXPOSURE_USD,
-            "multiplier": cfg.MULTIPLIER,
-            "commission_per_side": cfg.COMMISSION_PER_SIDE,
+            "target_exposure_usd": getattr(cfg, 'TARGET_EXPOSURE_USD', getattr(cfg, 'MAX_EXPOSURE_USD', 0)),
+            "max_contracts": getattr(cfg, 'MAX_CONTRACTS', 0),
+            "max_exposure_usd": getattr(cfg, 'MAX_EXPOSURE_USD', 0),
+            "multiplier": getattr(cfg, 'MULTIPLIER', 0.1),
+            "commission_per_side": getattr(cfg, 'COMMISSION_PER_SIDE', 1.25),
         },
     }
 
@@ -426,11 +427,11 @@ def main():
         "running": False,
         "paused": False,
         "regime": "backtest",
-        "paper_balance": cfg.PAPER_BALANCE,
-        "max_exposure": cfg.MAX_EXPOSURE_USD,
+        "paper_balance": getattr(cfg, 'PAPER_BALANCE', 1_000_000),
+        "max_exposure": getattr(cfg, 'MAX_EXPOSURE_USD', 500_000),
         "current_exposure": 0,
         "current_contracts": 0,
-        "max_contracts": cfg.MAX_CONTRACTS,
+        "max_contracts": getattr(cfg, 'MAX_CONTRACTS', 20),
     }
     state_path = os.path.join(_DIR, "state.json")
     with open(state_path, "w") as f:
