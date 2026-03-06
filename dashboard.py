@@ -2228,6 +2228,24 @@ function updateBacktestView(data) {
     summaryData = Object.values(byRegime);
   }
 
+  // Enrich summaryData with periods/bars from regimes array if not already present
+  if (summaryData && regimes && regimes.length > 0) {
+    const periodsByRegime = {};
+    for (const rp of regimes) {
+      const r = rp.regime || 'Unknown';
+      if (!periodsByRegime[r]) periodsByRegime[r] = { periods: 0, bars: 0 };
+      periodsByRegime[r].periods++;
+      periodsByRegime[r].bars += rp.bars || rp.duration_bars || 0;
+    }
+    for (const s of summaryData) {
+      const r = s.regime || 'Unknown';
+      if (periodsByRegime[r]) {
+        if (!s.periods && !s.total_periods) s.periods = periodsByRegime[r].periods;
+        if (!s.bars && !s.total_bars) s.bars = periodsByRegime[r].bars;
+      }
+    }
+  }
+
   if (summaryData && summaryData.length > 0) {
     let cardsHtml = '';
     for (const s of summaryData) {
