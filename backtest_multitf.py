@@ -2,7 +2,7 @@
 backtest_multitf.py — Multi-Timeframe Backtest Engine (Option A)
 ================================================================
 Daily bars generate BUY/SELL/SHORT/COVER signals (preserving the
-strategy’s designed timeframe).  Hourly bars provide precise
+strategy's designed timeframe).  Hourly bars provide precise
 execution timing within the signal day.
 
 Data: local CSV with true hourly bars → resampled to daily for
@@ -35,8 +35,10 @@ if _DIR not in sys.path:
 import config as cfg
 from regime_detector import RegimeDetector
 from strategy import ChoppyStrategy, Signal
+from bull_strategy import BullStrategy, BullSignal
 # BearStrategy no longer used — bear regime now uses ChoppyStrategy
 # with separate (wider) parameters.  See bear_* param keys.
+# Bull regime uses BullStrategy (momentum breakout).  See bull_* param keys.
 
 logger = logging.getLogger("backtest_multitf")
 
@@ -45,19 +47,85 @@ COMMISSION_PER_SIDE = cfg.COMMISSION_PER_SIDE
 
 
 def _load_hourly_csv():
-    """Load the local hourly CSV data."""
-    candidates = [
+    """Load local hourly CSV data.
+
+    Search order:
+      1. btc_hourly.csv in data/ directories (canonical location)
+      2. Any mbt_hourly_*.csv chunk files in cache/ directories → merge them
+      3. Auto-fetch from IB TWS if available and nothing found
+
+    After loading from cache or IB, the merged result is saved to
+    btc_trader_v15/data/btc_hourly.csv so subsequent runs are instant.
+    """
+    # ── 1. Check canonical CSV locations ────────────────────────────────
+    canonical_candidates = [
         os.path.join(_V15_DIR, "data", "btc_hourly.csv"),
         os.path.join(_DIR, "data", "btc_hourly.csv"),
         os.path.join(_DIR, "btc_trader_v15", "data", "btc_hourly.csv"),
     ]
-    for path in candidates:
+    for path in canonical_candidates:
         if os.path.exists(path):
             df = pd.read_csv(path, parse_dates=["time"])
             if df["time"].dt.tz is not None:
                 df["time"] = df["time"].dt.tz_convert("UTC").dt.tz_localize(None)
             return df
-    raise FileNotFoundError(f"No hourly CSV found. Checked: {candidates}")
+
+    # ── 2. Scan cache directories for chunk files ───────────────────────
+    import glob as _glob
+    cache_dirs = [
+        os.path.join(_V15_DIR, "cache"),
+        os.path.join(_DIR, "cache"),
+        os.path.join(_DIR, "btc_trader_v15", "cache"),
+    ]
+    chunk_files = []
+    for cdir in cache_dirs:
+        chunk_files.extend(sorted(_glob.glob(os.path.join(cdir, "mbt_hourly_*.csv"))))
+
+    if chunk_files:
+        frames = []
+        for cf in chunk_files:
+            try:
+                part = pd.read_csv(cf, parse_dates=["time"])
+                frames.append(part)
+            except Exception as e:
+                logger.warning(f"Skipping corrupt cache file {cf}: {e}")
+        if frames:
+            df = pd.concat(frames, ignore_index=True)
+            df = df.drop_duplicates(subset=["time"]).sort_values("time").reset_index(drop=True)
+            if df["time"].dt.tz is not None:
+                df["time"] = df["time"].dt.tz_convert("UTC").dt.tz_localize(None)
+            # Save merged result to canonical location for fast future loads
+            save_path = os.path.join(_V15_DIR, "data", "btc_hourly.csv")
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            df.to_csv(save_path, index=False)
+            print(f"  Merged {len(chunk_files)} cache chunks → {len(df)} bars → {save_path}")
+            return df
+
+    # ── 3. Auto-fetch from IB TWS ───────────────────────────────────────
+    try:
+        from data_fetcher import fetch_hourly_btc
+        print("  No local data found — fetching from IB TWS...")
+        df = fetch_hourly_btc("2023-01-01")
+        # Save to canonical location
+        save_path = os.path.join(_V15_DIR, "data", "btc_hourly.csv")
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        df.to_csv(save_path, index=False)
+        print(f"  Saved {len(df)} bars → {save_path}")
+        return df
+    except ImportError:
+        pass
+    except Exception as e:
+        print(f"  Warning: IB auto-fetch failed: {e}")
+
+    raise FileNotFoundError(
+        f"No hourly CSV found.\n"
+        f"  Checked canonical: {canonical_candidates}\n"
+        f"  Checked cache dirs: {cache_dirs}\n"
+        f"  IB auto-fetch also failed.\n"
+        f"\n  To fix, run with TWS open:\n"
+        f"    cd btc_trader_v15 && python data_fetcher.py 2023-01-01\n"
+        f"  Then copy the output to btc_trader_v15/data/btc_hourly.csv"
+    )
 
 
 def resample_to_daily(hourly_df: pd.DataFrame) -> pd.DataFrame:
@@ -158,7 +226,7 @@ def run_multitf_backtest(
     start_dt = datetime.strptime(start_date, "%Y-%m-%d")
     end_dt = datetime.strptime(end_date, "%Y-%m-%d")
     
-    # ── 1. Load hourly data ────────────────────────────────────────────────────────────
+    # ── 1. Load hourly data ──────────────────────────────────────────────────
     hourly_df = _load_hourly_csv()
     hourly_df = hourly_df[
         (hourly_df["time"] >= pd.Timestamp(start_dt)) &
@@ -170,13 +238,13 @@ def run_multitf_backtest(
                            f"Not enough hourly bars: {len(hourly_df)}", 
                            time.time() - t_start)
     
-    # ── 2. Resample to daily ─────────────────────────────────────────────────────────
+    # ── 2. Resample to daily ─────────────────────────────────────────────────
     daily_df = resample_to_daily(hourly_df)
     
     if verbose:
         print(f"  Loaded {len(hourly_df)} hourly bars → {len(daily_df)} daily bars")
     
-    # ── 3. Build date→hourly lookup ──────────────────────────────────────────────────
+    # ── 3. Build date→hourly lookup ──────────────────────────────────────────
     # Group hourly bars by date for execution precision
     hourly_df["date"] = hourly_df["time"].dt.date
     hourly_by_date: Dict[object, pd.DataFrame] = {
@@ -184,7 +252,7 @@ def run_multitf_backtest(
         for d, group in hourly_df.groupby("date")
     }
     
-    # ── 4. Fit RegimeDetector on daily bars ──────────────────────────────────────────
+    # ── 4. Fit RegimeDetector on daily bars ──────────────────────────────────
     # Check for pre-computed regime cache (from optimizer)
     regime_cache = p.get("_regime_cache")
     if regime_cache is not None:
@@ -240,7 +308,7 @@ def run_multitf_backtest(
             refit_info = f" ({fit_result.get('refit_count', '?')} refits, {fit_result.get('refit_rejects', '?')} rejected)"
             print(f"  Regimes: {regime_counts}{refit_info}")
     
-    # ── 5. Apply parameter overrides ─────────────────────────────────────────────────
+    # ── 5. Apply parameter overrides ─────────────────────────────────────────
     # Override config values from params
     calib_days = p.get("calib_days", cfg.CALIBRATION_MAX_DAYS)
     
@@ -292,6 +360,25 @@ def run_multitf_backtest(
     
     bear_ind_period = p.get("bear_ind_period", p.get("ind_period", 14))
     
+    # -- Bull params (prefixed with "bull_") → BullStrategy instance --
+    # Bull regime uses momentum breakout. If no bull_* keys, bull regime is inactive.
+    bull_calib_days = p.get("bull_calib_days", None)
+    bull_enabled = bull_calib_days is not None  # explicit opt-in
+    
+    bull_params = None
+    if bull_enabled:
+        bull_params = {
+            "lookback":       p.get("bull_lookback", 20),
+            "atr_period":     p.get("bull_atr_period", 14),
+            "atr_trail_mult": p.get("bull_atr_trail_mult", 2.5),
+            "stop_pct":       p.get("bull_stop_pct", 0.05),
+            "adx_min":        p.get("bull_adx_min", 20),
+            "adx_exit":       p.get("bull_adx_exit", 15),
+            "max_hold_days":  p.get("bull_max_hold_days", 30),
+            "cooldown_hours": p.get("bull_cooldown_hours", 48),
+            "calib_days":     bull_calib_days,
+        }
+    
     # RSI/ADX indicator period — for daily bars, 14 is the standard
     ind_period = p.get("ind_period", 14)
     
@@ -302,11 +389,12 @@ def run_multitf_backtest(
     # "first_signal" = execute at the first hourly bar that meets threshold
     # "close" = just use the daily close (baseline, like the original)
     
-    # ── 6. Walk-forward on daily bars ────────────────────────────────────────────────
+    # ── 6. Walk-forward on daily bars ────────────────────────────────────────
     # Build the strategy operating on daily bars
     # We need enough daily bars for calibration before we start
     calib_bars_daily = calib_days  # calibration window in daily bars
     bear_calib_bars_daily = bear_calib_days if bear_enabled else 90
+    bull_calib_bars_daily = bull_calib_days if bull_enabled else 90
     
     daily_dates = daily_df["time"].dt.date.tolist()
     daily_bars = []
@@ -338,7 +426,7 @@ def run_multitf_backtest(
         if bar_regime is None:
             continue
         
-        # ── Regime switch ────────────────────────────────────────────────────
+        # ── Regime switch ────────────────────────────────────────────────
         if bar_regime != active_regime:
             # Force close open position
             if virt["side"] != "flat":
@@ -406,8 +494,22 @@ def run_multitf_backtest(
                         if verbose:
                             print(f"  Calibration failed for bear at day {i}: {exc}")
                         active_strategy = None
+            
+            elif bar_regime == "bull" and bull_enabled:
+                needed = bull_calib_bars_daily
+                if i >= needed:
+                    calib_slice = daily_bars[i - needed: i]
+                    calib_df = pd.DataFrame(calib_slice)
+                    try:
+                        strategy = BullStrategy(params=bull_params)
+                        strategy.calibrate(calib_df)
+                        active_strategy = strategy
+                    except Exception as exc:
+                        if verbose:
+                            print(f"  Calibration failed for bull at day {i}: {exc}")
+                        active_strategy = None
         
-        # ── Feed daily bar to strategy ───────────────────────────────────────
+        # ── Feed daily bar to strategy ───────────────────────────────────
         if active_strategy is None:
             equity_curve.append({
                 "time": str(daily_bar["time"]),
@@ -458,7 +560,7 @@ def run_multitf_backtest(
             })
             active_strategy.record_fill(
                 "BUY", exec_price, signal.contracts, daily_bar["time"],
-                regime=active_regime or "")
+                **_record_fill_kwargs(active_strategy, active_regime, daily_bar))
         
         elif signal.action == "BUY" and virt["side"] == "long":
             # Pyramid
@@ -484,7 +586,7 @@ def run_multitf_backtest(
             })
             active_strategy.record_fill(
                 "BUY", exec_price, signal.contracts, daily_bar["time"],
-                regime=active_regime or "")
+                **_record_fill_kwargs(active_strategy, active_regime, daily_bar))
         
         elif signal.action == "SELL" and virt["side"] == "long":
             # Close long — find best hourly exit
@@ -536,7 +638,7 @@ def run_multitf_backtest(
             })
             active_strategy.record_fill(
                 "SHORT", exec_price, signal.contracts, daily_bar["time"],
-                regime=active_regime or "")
+                **_record_fill_kwargs(active_strategy, active_regime, daily_bar))
         
         elif signal.action == "COVER" and virt["side"] == "short":
             exec_price, exec_hour = _find_exit_price(
@@ -570,7 +672,7 @@ def run_multitf_backtest(
             "regime": active_regime,
         })
     
-    # ── 7. Compute metrics ─────────────────────────────────────────────────────────
+    # ── 7. Compute metrics ───────────────────────────────────────────────────
     metrics = _compute_metrics(trades)
     elapsed = round(time.time() - t_start, 2)
     
@@ -601,7 +703,16 @@ def run_multitf_backtest(
     return results
 
 
-# ── Hourly Execution Helpers ─────────────────────────────────────────────────────
+# ── Hourly Execution Helpers ─────────────────────────────────────────────────
+
+def _record_fill_kwargs(strategy, regime, daily_bar):
+    """Build the right keyword args for record_fill depending on strategy type."""
+    if isinstance(strategy, BullStrategy):
+        # BullStrategy needs atr_val for trailing stop setup
+        atr_val = float(strategy._atr[-1]) if len(strategy._atr) > 0 else 0
+        return {"regime": regime or "", "atr_val": atr_val}
+    else:
+        return {"regime": regime or ""}
 
 def _find_entry_price(
     hourly_bars_df: Optional[pd.DataFrame],
@@ -983,7 +1094,7 @@ def _patch_for_daily_bars(strategy, calib_days=14):
     strategy._exit_short = types.MethodType(patched_exit_short, strategy)
 
 
-# ── PnL Helpers ──────────────────────────────────────────────────────────────────
+# ── PnL Helpers ──────────────────────────────────────────────────────────────
 
 def _long_pnl(entry, exit_px, contracts):
     gross = (exit_px - entry) * MULTIPLIER * contracts
