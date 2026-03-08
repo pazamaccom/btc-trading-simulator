@@ -1,5 +1,8 @@
 # BTC Trading Simulator — Python Dependencies
 # Install with: pip install -r requirements.txt
+#
+# For live/paper trading with IB, also install:
+#   pip install ib_async nest_asyncio
 
 # Core
 pandas>=2.0
@@ -14,11 +17,7 @@ scipy>=1.11
 requests>=2.28
 
 # GARCH volatility (optional — graceful fallback if missing)
-arch>=6.0
-
-# IB execution (only needed for live/paper trading, not backtesting)
-ib_async>=1.0.0
-nest_asyncio>=1.5.0
+# arch>=6.0
 
 # Alternate data source (legacy scripts)
 yfinance>=0.2.31
