@@ -37,8 +37,13 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
 
-# Add project to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Add project to path — config.py lives inside btc_trader_v15/
+_DASH_DIR = os.path.dirname(os.path.abspath(__file__))
+_DASH_V15 = os.path.join(_DASH_DIR, "btc_trader_v15")
+if _DASH_V15 not in sys.path:
+    sys.path.insert(0, _DASH_V15)
+if _DASH_DIR not in sys.path:
+    sys.path.insert(0, _DASH_DIR)
 import config as cfg
 
 DASHBOARD_PORT = 8080
@@ -140,6 +145,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Type", "application/json")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Content-Length", len(body))
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        self.send_header("Pragma", "no-cache")
         self.end_headers()
         self.wfile.write(body)
 
@@ -148,6 +155,9 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", len(html))
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
         self.end_headers()
         self.wfile.write(html)
 
@@ -315,6 +325,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     --bull: #22c55e;
     --bear: #ef4444;
     --choppy: #3b82f6;
+    --neg-momentum: #f97316;
     --font: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   }
 
@@ -329,7 +340,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     -webkit-font-smoothing: antialiased;
   }
 
-  /* ── Header ────────────────────────────────────────────── */
+  /* ── Header ─────────────────────────────────────── */
   .header {
     position: sticky;
     top: 0;
@@ -399,7 +410,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     50% { opacity: 0.4; }
   }
 
-  /* ── Mode Badge ────────────────────────────────────────── */
+  /* ── Mode Badge ──────────────────────────────────── */
   .mode-badge {
     display: inline-flex;
     align-items: center;
@@ -425,7 +436,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     border: 1px solid rgba(245, 158, 11, 0.25);
   }
 
-  /* ── Regime Indicator (live mode) ──────────────────── */
+  /* ── Regime Indicator (live mode) ───────────────── */
   .regime-indicator {
     display: inline-flex;
     align-items: center;
@@ -442,6 +453,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   .regime-indicator.bull  { color: var(--bull);   border-color: rgba(34, 197, 94, 0.3); }
   .regime-indicator.bear  { color: var(--bear);   border-color: rgba(239, 68, 68, 0.3); }
   .regime-indicator.choppy { color: var(--choppy); border-color: rgba(59, 130, 246, 0.3); }
+  .regime-indicator.neg_momentum { color: var(--neg-momentum); border-color: rgba(249, 115, 22, 0.3); }
 
   .regime-dot {
     width: 5px; height: 5px;
@@ -449,7 +461,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     background: currentColor;
   }
 
-  /* ── Control Bar ─────────────────────────────────────────── */
+  /* ── Control Bar ─────────────────────────────────── */
   .control-bar {
     padding: 10px 24px 12px;
     border-top: 1px solid rgba(45, 49, 65, 0.6);
@@ -545,14 +557,14 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   /* Pause/Resume toggle wrapper */
   .btn-toggle-wrap { display: contents; }
 
-  /* ── Main Container ────────────────────────────────────────── */
+  /* ── Main Container ──────────────────────────────── */
   .container {
     max-width: 1200px;
     margin: 0 auto;
     padding: 20px 24px;
   }
 
-  /* ── KPI Cards ─────────────────────────────────────────── */
+  /* ── KPI Cards ───────────────────────────────────── */
   .kpi-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -592,7 +604,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   .pos { color: var(--green); }
   .neg { color: var(--red); }
 
-  /* ── Account & Exposure Panel ──────────────────────────── */
+  /* ── Account & Exposure Panel ────────────────────── */
   .account-panel {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -727,7 +739,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   .gauge-pct.amber { color: var(--amber); }
   .gauge-pct.red   { color: var(--red); }
 
-  /* ── Entry Parameters Panel ─────────────────────────────────────── */
+  /* ── Entry Parameters Panel ────────────────────────────────────── */
   .params-grid {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
@@ -776,7 +788,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   .expiry-amber { color: var(--amber); }
   .expiry-red   { color: var(--red); }
 
-  /* ── Two-column layout ─────────────────────────────────────── */
+  /* ── Two-column layout ───────────────────────────── */
   .grid-2 {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -791,7 +803,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     .ctrl-divider { display: none; }
   }
 
-  /* ── Card ────────────────────────────────────────────────────── */
+  /* ── Card ────────────────────────────────────────── */
   .card {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -811,7 +823,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 
   .card-body { padding: 16px; }
 
-  /* ── Position card ─────────────────────────────────────────── */
+  /* ── Position card ───────────────────────────────── */
   .position-row {
     display: flex;
     justify-content: space-between;
@@ -854,14 +866,14 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     font-weight: 600;
   }
 
-  /* ── Chart ────────────────────────────────────────────────────── */
+  /* ── Chart ───────────────────────────────────────── */
   .chart-container {
     position: relative;
     height: 220px;
     padding: 12px 16px 16px;
   }
 
-  /* ── Trade table ────────────────────────────────────────────────── */
+  /* ── Trade table ─────────────────────────────────── */
   .trade-table {
     width: 100%;
     border-collapse: collapse;
@@ -893,7 +905,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   .trade-table .action-short { color: var(--red); font-weight: 600; }
   .trade-table .action-cover { color: var(--accent); font-weight: 600; }
 
-  /* ── Long/Short breakdown ────────────────────────────────────── */
+  /* ── Long/Short breakdown ────────────────────────── */
   .breakdown {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -936,7 +948,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     margin-top: 2px;
   }
 
-  /* ── Range bar ─────────────────────────────────────────────────── */
+  /* ── Range bar ───────────────────────────────────── */
   .range-bar {
     height: 6px;
     background: var(--surface2);
@@ -964,7 +976,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     transition: left 0.5s ease;
   }
 
-  /* ── Footer ────────────────────────────────────────────────────── */
+  /* ── Footer ──────────────────────────────────────── */
   .footer {
     text-align: center;
     padding: 16px;
@@ -979,7 +991,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     font-size: 13px;
   }
 
-  /* ── Toast notification ──────────────────────────────────────────── */
+  /* ── Toast notification ──────────────────────────── */
   #toast {
     position: fixed;
     bottom: 24px;
@@ -1007,7 +1019,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   #toast.ok   { border-color: var(--green); color: var(--green); }
   #toast.err  { border-color: var(--red);   color: var(--red); }
 
-  /* ── Regime tag chip ────────────────────────────────────────────── */
+  /* ── Regime tag chip ─────────────────────────────── */
   .regime-chip {
     display: inline-flex;
     align-items: center;
@@ -1022,8 +1034,9 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   .regime-chip.bull   { background: rgba(34, 197, 94, 0.12); color: var(--bull); }
   .regime-chip.bear   { background: rgba(239, 68, 68, 0.12); color: var(--bear); }
   .regime-chip.choppy { background: rgba(59, 130, 246, 0.12); color: var(--choppy); }
+  .regime-chip.neg_momentum { background: rgba(249, 115, 22, 0.12); color: var(--neg-momentum); }
 
-  /* ── Backtest view ─────────────────────────────────────────────── */
+  /* ── Backtest view ───────────────────────────────── */
   #bt-view { display: none; }
   #live-view { display: block; }
 
@@ -1074,6 +1087,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   .regime-card-title.bull   { color: var(--bull); }
   .regime-card-title.bear   { color: var(--bear); }
   .regime-card-title.choppy { color: var(--choppy); }
+  .regime-card-title.neg_momentum { color: var(--neg-momentum); }
 
   .regime-card-stat {
     display: flex;
@@ -1087,6 +1101,58 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   .regime-card-stat .rcs-val {
     font-family: 'JetBrains Mono', monospace;
     font-weight: 500;
+  }
+
+  /* ── Exposure & ROI Panel (backtest) ────────────── */
+  .exposure-roi-panel {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .exp-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+
+  .exp-card-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+    margin-bottom: 10px;
+  }
+
+  .exp-stat {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    font-size: 12px;
+    border-bottom: 1px solid rgba(45, 49, 65, 0.4);
+  }
+
+  .exp-stat:last-child { border-bottom: none; }
+  .exp-stat .es-label { color: var(--text-dim); }
+  .exp-stat .es-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 500;
+  }
+
+  .roi-highlight {
+    font-size: 18px;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    margin-top: 4px;
+  }
+
+  .roi-ann {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: 'JetBrains Mono', monospace;
   }
 
   /* Backtest banner */
@@ -1120,7 +1186,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 </head>
 <body>
 
-<!-- ── Header + Control Bar ──────────────────────────────────────────── -->
+<!-- ── Header + Control Bar ───────────────────────── -->
 <div class="header">
   <div class="header-top">
     <h1>BTC Trader <span>v15</span> — Config I</h1>
@@ -1182,12 +1248,12 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   </div>
 </div>
 
-<!-- ── Main Content ───────────────────────────────────────────────── -->
+<!-- ── Main Content ────────────────────────────────── -->
 <div class="container">
 
-  <!-- ══════════════════════════════════════════════════════
+  <!-- ════════════════════════════════════════════════
        LIVE VIEW (shown when mode = "live" or missing)
-       ══════════════════════════════════════════════════════ -->
+       ════════════════════════════════════════════════ -->
   <div id="live-view">
 
     <!-- KPI Row -->
@@ -1436,16 +1502,16 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   </div><!-- /#live-view -->
 
 
-  <!-- ══════════════════════════════════════════════════════
+  <!-- ════════════════════════════════════════════════
        BACKTEST VIEW (shown when mode = "backtest")
-       ══════════════════════════════════════════════════════ -->
+       ════════════════════════════════════════════════ -->
   <div id="bt-view">
 
     <!-- Backtest info banner -->
     <div class="bt-banner" id="bt-banner">
       <span class="bt-banner-icon">📊</span>
       <div class="bt-banner-text">
-        <strong>Backtest Results</strong>
+        <strong>Backtest Results</strong> <span style="font-size:10px;color:#888;">(v3.1)</span>
         <small id="bt-banner-sub">Loading backtest data...</small>
       </div>
     </div>
@@ -1506,9 +1572,18 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       </div>
     </div>
 
+    <!-- Exposure & ROI Summary -->
+    <div style="margin-bottom: 16px;">
+      <div class="bt-section-title">Exposure, Capital Utilization & ROI</div>
+      <div class="exposure-roi-panel" id="bt-exposure-roi">
+        <!-- Populated by JS -->
+        <div class="empty-state" style="padding:20px;">No exposure data available</div>
+      </div>
+    </div>
+
     <!-- Performance by Regime -->
     <div style="margin-bottom: 16px;">
-      <div class="bt-section-title">Performance by Regime</div>
+      <div class="bt-section-title">Performance by Cluster</div>
       <div class="regime-cards" id="bt-regime-cards">
         <!-- Populated by JS -->
         <div class="empty-state" style="padding:20px;">No regime data available</div>
@@ -1580,7 +1655,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 <div id="toast"></div>
 
 <script>
-// ── Chart setup (Live) ───────────────────────────────────────────────
+// ── Chart setup (Live) ───────────────────────────────
 const ctx = document.getElementById('equityChart').getContext('2d');
 const chart = new Chart(ctx, {
   type: 'line',
@@ -1638,7 +1713,7 @@ const chart = new Chart(ctx, {
   }
 });
 
-// ── Chart setup (Backtest) ───────────────────────────────────────────
+// ── Chart setup (Backtest) ───────────────────────────
 const btCtx = document.getElementById('btEquityChart').getContext('2d');
 const btChart = new Chart(btCtx, {
   type: 'line',
@@ -1697,7 +1772,7 @@ const btChart = new Chart(btCtx, {
   }
 });
 
-// ── Chart setup (Backtest Notional Exposure) ──────────────────────
+// ── Chart setup (Backtest Notional Exposure) ───────────
 const ntCtx = document.getElementById('btNotionalChart').getContext('2d');
 const ntChart = new Chart(ntCtx, {
   type: 'line',
@@ -1753,7 +1828,7 @@ const ntChart = new Chart(ntCtx, {
   }
 });
 
-// ── Formatters ─────────────────────────────────────────────────────
+// ── Formatters ───────────────────────────────────────
 function fmt(n) {
   if (n === undefined || n === null) return '—';
   const s = Math.abs(n).toFixed(2);
@@ -1795,29 +1870,43 @@ function actionClass(a) {
   return 'action-' + (a || '').toLowerCase();
 }
 
-// ── Regime helpers ─────────────────────────────────────────────────────
+// ── Regime helpers ────────────────────────────────────
+const CLUSTER_DISPLAY = {
+  bull: 'Positive Momentum',
+  choppy: 'Range',
+  bear: 'Volatile',
+  neg_momentum_skip: 'Negative Momentum',
+};
+
+function regimeDisplayName(r) {
+  return (r && CLUSTER_DISPLAY[r]) ? CLUSTER_DISPLAY[r] : (r || 'Unknown');
+}
+
 function regimeClass(r) {
   if (!r) return '';
   const l = r.toLowerCase();
-  if (l.includes('bull')) return 'bull';
-  if (l.includes('bear')) return 'bear';
+  if (l.includes('bull') || l === 'positive momentum') return 'bull';
+  if (l.includes('neg_momentum') || l === 'negative momentum') return 'neg_momentum';
+  if (l.includes('bear') || l === 'volatile') return 'bear';
   return 'choppy';
 }
 
 function regimeColor(r) {
   const c = regimeClass(r);
-  if (c === 'bull')   return '#22c55e';
-  if (c === 'bear')   return '#ef4444';
+  if (c === 'bull')           return '#22c55e';
+  if (c === 'bear')           return '#ef4444';
+  if (c === 'neg_momentum')   return '#f97316';
   return '#3b82f6';
 }
 
 function regimeChip(r) {
   if (!r) return '—';
   const c = regimeClass(r);
-  return `<span class="regime-chip ${c}">${r}</span>`;
+  const name = regimeDisplayName(r);
+  return `<span class="regime-chip ${c}">${name}</span>`;
 }
 
-// ── Toast ─────────────────────────────────────────────────────────
+// ── Toast ─────────────────────────────────────────────
 let toastTimer = null;
 function showToast(msg, type) {
   const el = document.getElementById('toast');
@@ -1827,7 +1916,7 @@ function showToast(msg, type) {
   toastTimer = setTimeout(() => { el.className = ''; }, 3000);
 }
 
-// ── Config editing ──────────────────────────────────────────────────
+// ── Config editing ───────────────────────────────────
 let currentConfigValues = {
   paper_balance: 1000000,
   max_exposure: 500000,
@@ -1930,7 +2019,7 @@ function cancelEdit(field) {
   }
 }
 
-// ── Control commands ──────────────────────────────────────────────────
+// ── Control commands ──────────────────────────────────
 async function sendCommand(command, requireConfirm) {
   if (requireConfirm) {
     if (!confirm('Are you sure you want to send: ' + command.toUpperCase().replace('_', ' & ') + '?')) return;
@@ -1952,7 +2041,7 @@ async function sendCommand(command, requireConfirm) {
   }
 }
 
-// ── Gauge helpers ────────────────────────────────────────────────────────
+// ── Gauge helpers ─────────────────────────────────────
 function updateGauge(currentExposure, maxExposure) {
   const pct = maxExposure > 0 ? Math.min(100, (currentExposure / maxExposure) * 100) : 0;
   const fill = document.getElementById('gauge-fill');
@@ -1967,7 +2056,7 @@ function updateGauge(currentExposure, maxExposure) {
   pctLabel.textContent = pct.toFixed(1) + '% used';
 }
 
-// ── Backtest view updater ───────────────────────────────────────────
+// ── Backtest view updater ────────────────────────────
 function updateBacktestView(data) {
   const bt = data.backtest_results || {};
   const metrics = bt.metrics || data.metrics || {};
@@ -2047,6 +2136,129 @@ function updateBacktestView(data) {
       'Peak: ' + fmtK(maxNotional) + ' \u00b7 ' + sampled.length + ' samples';
   }
 
+  // ── Exposure & ROI panel ──
+  const exposure = bt.exposure || {};
+  const expPanel = document.getElementById('bt-exposure-roi');
+  if (exposure.notional_max) {
+    const pnl = metrics.cumulative_pnl ?? metrics.total_pnl ?? 0;
+    let html = '';
+
+    // Card 1: Exposure Range
+    html += `
+      <div class="exp-card">
+        <div class="exp-card-title">Notional Exposure</div>
+        <div class="exp-stat"><span class="es-label">Range</span>
+          <span class="es-val">${fmtK(exposure.notional_min)} \u2014 ${fmtK(exposure.notional_max)}</span></div>
+        <div class="exp-stat"><span class="es-label">Average</span>
+          <span class="es-val">${fmtK(exposure.notional_mean)}</span></div>
+        <div class="exp-stat"><span class="es-label">Median</span>
+          <span class="es-val">${fmtK(exposure.notional_median)}</span></div>
+        <div class="exp-stat"><span class="es-label">Entries</span>
+          <span class="es-val">${exposure.total_entries}</span></div>
+      </div>`;
+
+    // Card 2: Margin Requirement
+    html += `
+      <div class="exp-card">
+        <div class="exp-card-title">Margin Requirement</div>
+        <div class="exp-stat"><span class="es-label">Max Margin</span>
+          <span class="es-val">${fmtK(exposure.margin_max)}</span></div>
+        <div class="exp-stat"><span class="es-label">Avg Margin</span>
+          <span class="es-val">${fmtK(exposure.margin_mean)}</span></div>
+        <div class="exp-stat"><span class="es-label">Contracts Range</span>
+          <span class="es-val">${exposure.contracts_min} \u2014 ${exposure.contracts_max}</span></div>
+        <div class="exp-stat"><span class="es-label">@ $1,500/ct</span>
+          <span class="es-val es-dim" style="color:var(--text-dim);">${fmtK(exposure.margin_min)} \u2014 ${fmtK(exposure.margin_max)}</span></div>
+      </div>`;
+
+    // Card 3: ROI on Max Notional
+    const roiNotCls = (exposure.roi_max_notional || 0) >= 0 ? 'pos' : 'neg';
+    html += `
+      <div class="exp-card">
+        <div class="exp-card-title">ROI on Max Notional</div>
+        <div class="roi-highlight ${roiNotCls}">${(exposure.roi_max_notional || 0).toFixed(1)}%</div>
+        <div class="roi-ann">${(exposure.roi_max_notional_ann || 0).toFixed(1)}% annualized</div>
+        <div class="exp-stat" style="margin-top:8px;"><span class="es-label">Base</span>
+          <span class="es-val">${fmtK(exposure.notional_max)}</span></div>
+        <div class="exp-stat"><span class="es-label">PnL</span>
+          <span class="es-val ${colorClass(pnl)}">${fmt(pnl)}</span></div>
+      </div>`;
+
+    // Card 4: ROI on Max Margin
+    const roiMrgCls = (exposure.roi_max_margin || 0) >= 0 ? 'pos' : 'neg';
+    html += `
+      <div class="exp-card">
+        <div class="exp-card-title">ROI on Max Margin</div>
+        <div class="roi-highlight ${roiMrgCls}">${(exposure.roi_max_margin || 0).toFixed(1)}%</div>
+        <div class="roi-ann">${(exposure.roi_max_margin_ann || 0).toFixed(1)}% annualized</div>
+        <div class="exp-stat" style="margin-top:8px;"><span class="es-label">Base</span>
+          <span class="es-val">${fmtK(exposure.margin_max)}</span></div>
+        <div class="exp-stat"><span class="es-label">PnL</span>
+          <span class="es-val ${colorClass(pnl)}">${fmt(pnl)}</span></div>
+      </div>`;
+
+    // Card 5: ROI on Avg Notional
+    const roiAvgCls = (exposure.roi_avg_notional || 0) >= 0 ? 'pos' : 'neg';
+    html += `
+      <div class="exp-card">
+        <div class="exp-card-title">ROI on Avg Notional</div>
+        <div class="roi-highlight ${roiAvgCls}">${(exposure.roi_avg_notional || 0).toFixed(1)}%</div>
+        <div class="roi-ann">${(exposure.roi_avg_notional_ann || 0).toFixed(1)}% annualized</div>
+        <div class="exp-stat" style="margin-top:8px;"><span class="es-label">Base</span>
+          <span class="es-val">${fmtK(exposure.notional_mean)}</span></div>
+        <div class="exp-stat"><span class="es-label">PnL</span>
+          <span class="es-val ${colorClass(pnl)}">${fmt(pnl)}</span></div>
+      </div>`;
+
+    // Card 6: Capital Utilization
+    const tradeable = exposure.tradeable_days || 0;
+    const exposed = exposure.days_exposed || 0;
+    const notExposed = exposure.days_not_exposed || 0;
+    const negMomDays = exposure.neg_momentum_days || 0;
+    const totalCal = exposure.total_calendar_days || 0;
+    const utilPct = exposure.utilization_pct || 0;
+    const utilTotalPct = exposure.utilization_total_pct || 0;
+    html += `
+      <div class="exp-card">
+        <div class="exp-card-title">Capital Utilization</div>
+        <div class="roi-highlight ${utilPct >= 50 ? 'pos' : 'neg'}">${utilPct.toFixed(1)}%</div>
+        <div class="roi-ann">of tradeable days with capital at risk</div>
+        <div class="exp-stat" style="margin-top:8px;"><span class="es-label">Calendar Days</span>
+          <span class="es-val">${totalCal.toLocaleString()}</span></div>
+        <div class="exp-stat"><span class="es-label">Neg-Momentum (no trade)</span>
+          <span class="es-val">${negMomDays.toLocaleString()}</span></div>
+        <div class="exp-stat"><span class="es-label">Tradeable Days</span>
+          <span class="es-val">${tradeable.toLocaleString()}</span></div>
+        <div class="exp-stat"><span class="es-label">Days Exposed</span>
+          <span class="es-val">${exposed.toLocaleString()}</span></div>
+        <div class="exp-stat"><span class="es-label">Days Not Exposed</span>
+          <span class="es-val">${notExposed.toLocaleString()}</span></div>
+        <div class="exp-stat"><span class="es-label">% of Total Calendar</span>
+          <span class="es-val">${utilTotalPct.toFixed(1)}%</span></div>
+      </div>`;
+
+    // Card 7: ROI on Peak/Avg Capital Invested
+    const peakCap = exposure.peak_capital_invested || 0;
+    const avgCap = exposure.avg_capital_invested || 0;
+    const roiPeakCls = (exposure.roi_peak_capital || 0) >= 0 ? 'pos' : 'neg';
+    html += `
+      <div class="exp-card">
+        <div class="exp-card-title">ROI on Capital Invested</div>
+        <div class="roi-highlight ${roiPeakCls}">${(exposure.roi_peak_capital || 0).toFixed(1)}%</div>
+        <div class="roi-ann">${(exposure.roi_peak_capital_ann || 0).toFixed(1)}% ann. on peak capital</div>
+        <div class="exp-stat" style="margin-top:8px;"><span class="es-label">Peak Capital</span>
+          <span class="es-val">${fmtK(peakCap)}</span></div>
+        <div class="exp-stat"><span class="es-label">Avg Capital</span>
+          <span class="es-val">${fmtK(avgCap)}</span></div>
+        <div class="exp-stat"><span class="es-label">ROI on Avg Capital</span>
+          <span class="es-val ${(exposure.roi_avg_capital || 0) >= 0 ? 'pos' : 'neg'}">${(exposure.roi_avg_capital || 0).toFixed(1)}%</span></div>
+        <div class="exp-stat"><span class="es-label">Ann. on Avg Capital</span>
+          <span class="es-val ${(exposure.roi_avg_capital_ann || 0) >= 0 ? 'pos' : 'neg'}">${(exposure.roi_avg_capital_ann || 0).toFixed(1)}%</span></div>
+      </div>`;
+
+    expPanel.innerHTML = html;
+  }
+
   // ── Performance by regime cards ──
   const cardsEl = document.getElementById('bt-regime-cards');
   // Build from regime_summary / metrics_by_regime or derive from trades
@@ -2085,30 +2297,63 @@ function updateBacktestView(data) {
     summaryData = Object.values(byRegime);
   }
 
+  // Enrich summaryData with periods/bars from regimes array if not already present
+  if (summaryData && regimes && regimes.length > 0) {
+    const periodsByRegime = {};
+    for (const rp of regimes) {
+      const r = rp.regime || 'Unknown';
+      if (!periodsByRegime[r]) periodsByRegime[r] = { periods: 0, bars: 0 };
+      periodsByRegime[r].periods++;
+      periodsByRegime[r].bars += rp.bars || rp.duration_bars || 0;
+    }
+    for (const s of summaryData) {
+      const r = s.regime || 'Unknown';
+      if (periodsByRegime[r]) {
+        if (!s.periods && !s.total_periods) s.periods = periodsByRegime[r].periods;
+        if (!s.bars && !s.total_bars) s.bars = periodsByRegime[r].bars;
+      }
+    }
+  }
+
   if (summaryData && summaryData.length > 0) {
     let cardsHtml = '';
     for (const s of summaryData) {
       const r = s.regime || 'Unknown';
       const rc = regimeClass(r);
+      const dname = s.display_name || regimeDisplayName(r);
       const totalTrades = s.trades ?? s.total_trades ?? 0;
       const wr = s.win_rate ?? (totalTrades > 0 ? (((s.wins ?? s.winning_trades ?? 0) / totalTrades) * 100).toFixed(1) : '0.0');
       const totalPnl = s.pnl ?? s.total_pnl ?? s.cumulative_pnl ?? 0;
       const periods = s.periods ?? s.total_periods ?? 0;
       const bars = s.bars ?? s.total_bars ?? 0;
+      const clusterDays = s.cluster_days ?? 0;
+      const daysExposed = s.days_exposed ?? 0;
+      const utilPct = s.utilization_pct ?? 0;
+      const peakCap = s.peak_capital ?? 0;
+      const avgCap = s.avg_capital ?? 0;
+      const roiPeak = s.roi_peak ?? 0;
+      const roiPeakAnn = s.roi_peak_ann ?? 0;
+      const roiAvg = s.roi_avg ?? 0;
+      const roiAvgAnn = s.roi_avg_ann ?? 0;
+      const bestTrade = s.best_trade ?? 0;
+      const worstTrade = s.worst_trade ?? 0;
+      const profitFactor = s.profit_factor ?? 0;
+      const avgPnl = s.avg_pnl ?? 0;
+      const isNegMom = (r === 'neg_momentum_skip');
 
       cardsHtml += `
         <div class="regime-card">
           <div class="regime-card-header">
-            <span class="regime-card-title ${rc}">${r}</span>
+            <span class="regime-card-title ${rc}">${dname}</span>
             ${regimeChip(r)}
           </div>
           <div class="regime-card-stat">
-            <span class="rcs-label">Periods / Bars</span>
-            <span class="rcs-val">${periods} / ${bars}</span>
+            <span class="rcs-label">Periods / Days</span>
+            <span class="rcs-val">${periods} / ${clusterDays.toLocaleString()}</span>
           </div>
           <div class="regime-card-stat">
             <span class="rcs-label">Trades</span>
-            <span class="rcs-val">${totalTrades}</span>
+            <span class="rcs-val">${totalTrades}${isNegMom ? ' (no trading)' : ''}</span>
           </div>
           <div class="regime-card-stat">
             <span class="rcs-label">Win Rate</span>
@@ -2117,8 +2362,60 @@ function updateBacktestView(data) {
           <div class="regime-card-stat">
             <span class="rcs-label">Total PnL</span>
             <span class="rcs-val ${colorClass(totalPnl)}">${fmt(totalPnl)}</span>
+          </div>`;
+
+      // Extra trade stats (non-neg_momentum only)
+      if (totalTrades > 0) {
+        cardsHtml += `
+          <div class="regime-card-stat">
+            <span class="rcs-label">Avg PnL / Trade</span>
+            <span class="rcs-val ${colorClass(avgPnl)}">${fmt(avgPnl)}</span>
           </div>
-        </div>`;
+          <div class="regime-card-stat">
+            <span class="rcs-label">Profit Factor</span>
+            <span class="rcs-val">${profitFactor === Infinity ? '\u221e' : Number(profitFactor).toFixed(2)}</span>
+          </div>
+          <div class="regime-card-stat">
+            <span class="rcs-label">Best / Worst</span>
+            <span class="rcs-val"><span class="pos">${fmt(bestTrade)}</span> / <span class="neg">${fmt(worstTrade)}</span></span>
+          </div>`;
+      }
+
+      // Capital utilization section
+      cardsHtml += `
+          <div style="border-top: 1px solid rgba(45,49,65,0.5); margin-top:8px; padding-top:8px;">
+            <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-dim); margin-bottom:6px;">Capital Utilization</div>
+          </div>
+          <div class="regime-card-stat">
+            <span class="rcs-label">Days Exposed / Available</span>
+            <span class="rcs-val">${daysExposed} / ${clusterDays}</span>
+          </div>
+          <div class="regime-card-stat">
+            <span class="rcs-label">Utilization</span>
+            <span class="rcs-val">${utilPct.toFixed ? utilPct.toFixed(1) : utilPct}%</span>
+          </div>`;
+
+      if (peakCap > 0) {
+        cardsHtml += `
+          <div class="regime-card-stat">
+            <span class="rcs-label">Peak Capital</span>
+            <span class="rcs-val">${fmtK(peakCap)}</span>
+          </div>
+          <div class="regime-card-stat">
+            <span class="rcs-label">Avg Capital</span>
+            <span class="rcs-val">${fmtK(avgCap)}</span>
+          </div>
+          <div class="regime-card-stat">
+            <span class="rcs-label">ROI (peak cap)</span>
+            <span class="rcs-val ${colorClass(roiPeak)}">${roiPeak.toFixed ? roiPeak.toFixed(1) : roiPeak}% / ${roiPeakAnn.toFixed ? roiPeakAnn.toFixed(1) : roiPeakAnn}% ann</span>
+          </div>
+          <div class="regime-card-stat">
+            <span class="rcs-label">ROI (avg cap)</span>
+            <span class="rcs-val ${colorClass(roiAvg)}">${roiAvg.toFixed ? roiAvg.toFixed(1) : roiAvg}% / ${roiAvgAnn.toFixed ? roiAvgAnn.toFixed(1) : roiAvgAnn}% ann</span>
+          </div>`;
+      }
+
+      cardsHtml += `</div>`;
     }
     cardsEl.innerHTML = cardsHtml;
   } else {
@@ -2194,7 +2491,7 @@ function updateBacktestView(data) {
   }
 }
 
-// ── Update UI (live mode) ─────────────────────────────────────────────────
+// ── Update UI (live mode) ─────────────────────────────
 function updateLiveView(data) {
   const m = data.metrics || {};
   const s = data.state || {};
@@ -2233,7 +2530,7 @@ function updateLiveView(data) {
   const regimeConf = s.regime_confidence;
   if (detectedRegime) {
     const rc = regimeClass(detectedRegime);
-    let text = 'Regime: ' + detectedRegime.toUpperCase();
+    let text = 'Regime: ' + regimeDisplayName(detectedRegime);
     if (regimeConf !== undefined && regimeConf !== null) {
       text += ' (' + Math.round(Number(regimeConf) * 100) + '%)';
     }
@@ -2510,7 +2807,7 @@ function updateLiveView(data) {
   chkShortCd.className = 'param-check ' + (!cooldownActive ? 'pass' : 'fail');
 }
 
-// ── Top-level update dispatcher ──────────────────────────────────────────
+// ── Top-level update dispatcher ──────────────────────
 let currentMode = null;
 
 function update(data) {
@@ -2560,7 +2857,7 @@ function row(label, value) {
   return `<div class="position-row"><span class="label">${label}</span><span class="value">${value}</span></div>`;
 }
 
-// ── Polling ─────────────────────────────────────────────────────────
+// ── Polling ───────────────────────────────────────────
 let failCount = 0;
 
 async function poll() {

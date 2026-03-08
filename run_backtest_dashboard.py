@@ -39,10 +39,12 @@ for root, dirs, files in os.walk(_DIR):
         if d == "__pycache__":
             shutil.rmtree(os.path.join(root, d), ignore_errors=True)
 
-if _V15 not in sys.path:
-    sys.path.insert(0, _V15)
-if _DIR not in sys.path:
-    sys.path.insert(0, _DIR)
+# Ensure _DIR is always first so root dashboard.py takes priority
+for p in [_V15, _DIR]:
+    if p in sys.path:
+        sys.path.remove(p)
+sys.path.insert(0, _V15)
+sys.path.insert(0, _DIR)  # _DIR at index 0 = highest priority
 
 import config as cfg
 from backtest_multitf import run_multitf_backtest
