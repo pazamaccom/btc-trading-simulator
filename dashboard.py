@@ -1511,7 +1511,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     <div class="bt-banner" id="bt-banner">
       <span class="bt-banner-icon">📊</span>
       <div class="bt-banner-text">
-        <strong>Backtest Results</strong>
+        <strong>Backtest Results</strong> <span style="font-size:10px;color:#888;">(v3.1)</span>
         <small id="bt-banner-sub">Loading backtest data...</small>
       </div>
     </div>
