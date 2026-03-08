@@ -166,15 +166,47 @@ def build_regime_periods(date_to_regime, daily_bars):
     return periods
 
 
-def build_regime_summary(trades):
-    """Build per-regime performance summary from closed trades."""
+# Display names for the 4 clusters (engine label → user-facing name)
+CLUSTER_DISPLAY = {
+    "bull": "Positive Momentum",
+    "choppy": "Range",
+    "bear": "Volatile",
+    "neg_momentum_skip": "Negative Momentum",
+}
+
+# Desired display order
+CLUSTER_ORDER = ["bull", "choppy", "bear", "neg_momentum_skip"]
+
+
+def build_regime_summary(trades, regime_periods=None, regime_cache=None,
+                         total_pnl=None, start_date_str=None, end_date_str=None):
+    """Build per-regime performance summary from closed trades, including
+    all 4 clusters (even neg_momentum_skip with 0 trades) and per-cluster
+    capital utilization stats."""
+    from datetime import datetime as _dt, timedelta
+    import numpy as np
+
+    # Initialise all 4 clusters so they always appear
     by_regime = {}
+    for eng in CLUSTER_ORDER:
+        by_regime[eng] = {
+            "regime": eng,
+            "display_name": CLUSTER_DISPLAY.get(eng, eng),
+            "trades": 0,
+            "wins": 0,
+            "pnl": 0,
+            "best_trade": 0,
+            "worst_trade": 0,
+            "gross_profit": 0,
+            "gross_loss": 0,
+        }
 
     for t in trades:
         regime = t.get("regime", "Unknown")
         if regime not in by_regime:
             by_regime[regime] = {
                 "regime": regime,
+                "display_name": CLUSTER_DISPLAY.get(regime, regime),
                 "trades": 0,
                 "wins": 0,
                 "pnl": 0,
@@ -209,12 +241,116 @@ def build_regime_summary(trades):
         ) if entry["trades"] > 0 else 0
         entry["profit_factor"] = round(
             entry["gross_profit"] / entry["gross_loss"], 2
-        ) if entry["gross_loss"] > 0 else float("inf")
+        ) if entry["gross_loss"] > 0 else (float("inf") if entry["gross_profit"] > 0 else 0)
         entry["pnl"] = round(entry["pnl"], 2)
         entry["best_trade"] = round(entry["best_trade"], 2)
         entry["worst_trade"] = round(entry["worst_trade"], 2)
 
-    return list(by_regime.values())
+    # ── Enrich with periods / bars from regime_periods ──
+    if regime_periods:
+        for rp in regime_periods:
+            eng = rp.get("regime", "Unknown")
+            if eng in by_regime:
+                by_regime[eng].setdefault("periods", 0)
+                by_regime[eng].setdefault("total_bars", 0)
+                by_regime[eng]["periods"] += 1
+                by_regime[eng]["total_bars"] += rp.get("bars", 0)
+
+    # ── Per-cluster capital utilization ──
+    if regime_cache and start_date_str and end_date_str:
+        try:
+            d0 = _dt.strptime(start_date_str[:10], "%Y-%m-%d")
+            d1 = _dt.strptime(end_date_str[:10], "%Y-%m-%d")
+            bt_years = max((d1 - d0).days / 365.25, 0.01)
+        except Exception:
+            bt_years = 1.0
+
+        # Count days per regime
+        days_per_regime = {}
+        for d_date, eng in regime_cache.items():
+            days_per_regime.setdefault(eng, 0)
+            days_per_regime[eng] += 1
+
+        # Per-regime trade→day exposure
+        sorted_trades = sorted(trades, key=lambda t: t["time"])
+        regime_exposed = {}    # eng → set of dates
+        regime_notional = {}   # eng → {date: notional}
+        current_notional = 0.0
+        open_date = None
+        open_regime = None
+        for t in sorted_trades:
+            t_date = t["time"][:10]
+            action = t["action"]
+            price = t.get("price", 0)
+            contracts = t.get("contracts", 0)
+            notional = price * MULTIPLIER * contracts
+            r = t.get("regime", "Unknown")
+
+            if action in ("BUY", "SHORT"):
+                current_notional = notional
+                open_date = t_date
+                open_regime = r
+            elif action == "PYRAMID":
+                current_notional += notional
+            elif action in ("SELL", "COVER"):
+                if open_date and open_regime:
+                    od = _dt.strptime(open_date, "%Y-%m-%d").date()
+                    cd = _dt.strptime(t_date, "%Y-%m-%d").date()
+                    regime_exposed.setdefault(open_regime, set())
+                    regime_notional.setdefault(open_regime, {})
+                    d = od
+                    while d <= cd:
+                        regime_exposed[open_regime].add(d)
+                        if d not in regime_notional[open_regime] or current_notional > regime_notional[open_regime][d]:
+                            regime_notional[open_regime][d] = current_notional
+                        d += timedelta(days=1)
+                current_notional = 0.0
+                open_date = None
+                open_regime = None
+
+        # Attach per-cluster stats
+        for eng, entry in by_regime.items():
+            cluster_days = days_per_regime.get(eng, 0)
+            exp_set = regime_exposed.get(eng, set())
+            days_exp = len(exp_set)
+            entry["cluster_days"] = cluster_days
+            entry["days_exposed"] = days_exp
+            entry["days_not_exposed"] = max(0, cluster_days - days_exp)
+            entry["utilization_pct"] = round(
+                days_exp / cluster_days * 100, 1) if cluster_days > 0 else 0
+
+            # Capital stats for this cluster
+            nt = regime_notional.get(eng, {})
+            if nt:
+                vals = list(nt.values())
+                entry["peak_capital"] = round(max(vals), 2)
+                entry["avg_capital"] = round(float(np.mean(vals)), 2)
+            else:
+                entry["peak_capital"] = 0
+                entry["avg_capital"] = 0
+
+            # ROI for this cluster
+            cluster_pnl = entry["pnl"]
+            if entry["peak_capital"] > 0:
+                entry["roi_peak"] = round(cluster_pnl / entry["peak_capital"] * 100, 1)
+                entry["roi_peak_ann"] = round(entry["roi_peak"] / bt_years, 1)
+            else:
+                entry["roi_peak"] = 0
+                entry["roi_peak_ann"] = 0
+            if entry["avg_capital"] > 0:
+                entry["roi_avg"] = round(cluster_pnl / entry["avg_capital"] * 100, 1)
+                entry["roi_avg_ann"] = round(entry["roi_avg"] / bt_years, 1)
+            else:
+                entry["roi_avg"] = 0
+                entry["roi_avg_ann"] = 0
+
+    # Return in the agreed display order
+    ordered = [by_regime[eng] for eng in CLUSTER_ORDER if eng in by_regime]
+    # Append any unexpected regimes at the end
+    for eng, entry in by_regime.items():
+        if eng not in CLUSTER_ORDER:
+            ordered.append(entry)
+    return ordered
 
 
 def enrich_equity_curve(equity_curve, trades):
@@ -483,11 +619,22 @@ def main():
     regime_periods = build_regime_periods(regime_cache, daily_bars)
     print(f"    Regime periods: {len(regime_periods)}")
 
-    # Build per-regime summary
-    regime_summary = build_regime_summary(trades)
+    # Build per-regime summary (with capital utilization per cluster)
+    total_pnl = metrics.get("cumulative_pnl", 0)
+    start_d = result.get("start_date", "2020-01-01")
+    end_d = result.get("end_date", datetime.now().strftime("%Y-%m-%d"))
+    regime_summary = build_regime_summary(
+        trades,
+        regime_periods=regime_periods,
+        regime_cache=regime_cache,
+        total_pnl=total_pnl,
+        start_date_str=start_d,
+        end_date_str=end_d,
+    )
     for s in regime_summary:
-        print(f"    {s['regime']}: {s['trades']} trades, "
-              f"${s['pnl']:,.2f} PnL, {s['win_rate']}% WR")
+        print(f"    {s['display_name']} ({s['regime']}): {s['trades']} trades, "
+              f"${s['pnl']:,.2f} PnL, {s['win_rate']}% WR, "
+              f"{s.get('days_exposed',0)}/{s.get('cluster_days',0)} days exposed")
 
     # Enrich equity curve with notional exposure
     enriched_curve = enrich_equity_curve(equity_curve, trades)
@@ -497,10 +644,7 @@ def main():
     # Enrich trades with notional
     enriched_trades = enrich_trades(trades)
 
-    # Exposure stats (with ROI)
-    total_pnl = metrics.get("cumulative_pnl", 0)
-    start_d = result.get("start_date", "2020-01-01")
-    end_d = result.get("end_date", datetime.now().strftime("%Y-%m-%d"))
+    # Exposure stats (with ROI) — total_pnl, start_d, end_d already defined above
     exposure_stats = compute_exposure_stats(trades, total_pnl, start_d, end_d, regime_cache)
 
     # ── 4. Write JSON files ──────────────────────────────────────────────

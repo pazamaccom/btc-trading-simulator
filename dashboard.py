@@ -320,6 +320,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     --bull: #22c55e;
     --bear: #ef4444;
     --choppy: #3b82f6;
+    --neg-momentum: #f97316;
     --font: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   }
 
@@ -447,6 +448,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   .regime-indicator.bull  { color: var(--bull);   border-color: rgba(34, 197, 94, 0.3); }
   .regime-indicator.bear  { color: var(--bear);   border-color: rgba(239, 68, 68, 0.3); }
   .regime-indicator.choppy { color: var(--choppy); border-color: rgba(59, 130, 246, 0.3); }
+  .regime-indicator.neg_momentum { color: var(--neg-momentum); border-color: rgba(249, 115, 22, 0.3); }
 
   .regime-dot {
     width: 5px; height: 5px;
@@ -1027,6 +1029,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   .regime-chip.bull   { background: rgba(34, 197, 94, 0.12); color: var(--bull); }
   .regime-chip.bear   { background: rgba(239, 68, 68, 0.12); color: var(--bear); }
   .regime-chip.choppy { background: rgba(59, 130, 246, 0.12); color: var(--choppy); }
+  .regime-chip.neg_momentum { background: rgba(249, 115, 22, 0.12); color: var(--neg-momentum); }
 
   /* ── Backtest view ───────────────────────────────── */
   #bt-view { display: none; }
@@ -1079,6 +1082,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   .regime-card-title.bull   { color: var(--bull); }
   .regime-card-title.bear   { color: var(--bear); }
   .regime-card-title.choppy { color: var(--choppy); }
+  .regime-card-title.neg_momentum { color: var(--neg-momentum); }
 
   .regime-card-stat {
     display: flex;
@@ -1574,7 +1578,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 
     <!-- Performance by Regime -->
     <div style="margin-bottom: 16px;">
-      <div class="bt-section-title">Performance by Regime</div>
+      <div class="bt-section-title">Performance by Cluster</div>
       <div class="regime-cards" id="bt-regime-cards">
         <!-- Populated by JS -->
         <div class="empty-state" style="padding:20px;">No regime data available</div>
@@ -1862,25 +1866,39 @@ function actionClass(a) {
 }
 
 // ── Regime helpers ────────────────────────────────────
+const CLUSTER_DISPLAY = {
+  bull: 'Positive Momentum',
+  choppy: 'Range',
+  bear: 'Volatile',
+  neg_momentum_skip: 'Negative Momentum',
+};
+
+function regimeDisplayName(r) {
+  return (r && CLUSTER_DISPLAY[r]) ? CLUSTER_DISPLAY[r] : (r || 'Unknown');
+}
+
 function regimeClass(r) {
   if (!r) return '';
   const l = r.toLowerCase();
-  if (l.includes('bull')) return 'bull';
-  if (l.includes('bear')) return 'bear';
+  if (l.includes('bull') || l === 'positive momentum') return 'bull';
+  if (l.includes('neg_momentum') || l === 'negative momentum') return 'neg_momentum';
+  if (l.includes('bear') || l === 'volatile') return 'bear';
   return 'choppy';
 }
 
 function regimeColor(r) {
   const c = regimeClass(r);
-  if (c === 'bull')   return '#22c55e';
-  if (c === 'bear')   return '#ef4444';
+  if (c === 'bull')           return '#22c55e';
+  if (c === 'bear')           return '#ef4444';
+  if (c === 'neg_momentum')   return '#f97316';
   return '#3b82f6';
 }
 
 function regimeChip(r) {
   if (!r) return '—';
   const c = regimeClass(r);
-  return `<span class="regime-chip ${c}">${r}</span>`;
+  const name = regimeDisplayName(r);
+  return `<span class="regime-chip ${c}">${name}</span>`;
 }
 
 // ── Toast ─────────────────────────────────────────────
@@ -2297,25 +2315,40 @@ function updateBacktestView(data) {
     for (const s of summaryData) {
       const r = s.regime || 'Unknown';
       const rc = regimeClass(r);
+      const dname = s.display_name || regimeDisplayName(r);
       const totalTrades = s.trades ?? s.total_trades ?? 0;
       const wr = s.win_rate ?? (totalTrades > 0 ? (((s.wins ?? s.winning_trades ?? 0) / totalTrades) * 100).toFixed(1) : '0.0');
       const totalPnl = s.pnl ?? s.total_pnl ?? s.cumulative_pnl ?? 0;
       const periods = s.periods ?? s.total_periods ?? 0;
       const bars = s.bars ?? s.total_bars ?? 0;
+      const clusterDays = s.cluster_days ?? 0;
+      const daysExposed = s.days_exposed ?? 0;
+      const utilPct = s.utilization_pct ?? 0;
+      const peakCap = s.peak_capital ?? 0;
+      const avgCap = s.avg_capital ?? 0;
+      const roiPeak = s.roi_peak ?? 0;
+      const roiPeakAnn = s.roi_peak_ann ?? 0;
+      const roiAvg = s.roi_avg ?? 0;
+      const roiAvgAnn = s.roi_avg_ann ?? 0;
+      const bestTrade = s.best_trade ?? 0;
+      const worstTrade = s.worst_trade ?? 0;
+      const profitFactor = s.profit_factor ?? 0;
+      const avgPnl = s.avg_pnl ?? 0;
+      const isNegMom = (r === 'neg_momentum_skip');
 
       cardsHtml += `
         <div class="regime-card">
           <div class="regime-card-header">
-            <span class="regime-card-title ${rc}">${r}</span>
+            <span class="regime-card-title ${rc}">${dname}</span>
             ${regimeChip(r)}
           </div>
           <div class="regime-card-stat">
-            <span class="rcs-label">Periods / Bars</span>
-            <span class="rcs-val">${periods} / ${bars}</span>
+            <span class="rcs-label">Periods / Days</span>
+            <span class="rcs-val">${periods} / ${clusterDays.toLocaleString()}</span>
           </div>
           <div class="regime-card-stat">
             <span class="rcs-label">Trades</span>
-            <span class="rcs-val">${totalTrades}</span>
+            <span class="rcs-val">${totalTrades}${isNegMom ? ' (no trading)' : ''}</span>
           </div>
           <div class="regime-card-stat">
             <span class="rcs-label">Win Rate</span>
@@ -2324,8 +2357,60 @@ function updateBacktestView(data) {
           <div class="regime-card-stat">
             <span class="rcs-label">Total PnL</span>
             <span class="rcs-val ${colorClass(totalPnl)}">${fmt(totalPnl)}</span>
+          </div>`;
+
+      // Extra trade stats (non-neg_momentum only)
+      if (totalTrades > 0) {
+        cardsHtml += `
+          <div class="regime-card-stat">
+            <span class="rcs-label">Avg PnL / Trade</span>
+            <span class="rcs-val ${colorClass(avgPnl)}">${fmt(avgPnl)}</span>
           </div>
-        </div>`;
+          <div class="regime-card-stat">
+            <span class="rcs-label">Profit Factor</span>
+            <span class="rcs-val">${profitFactor === Infinity ? '\u221e' : Number(profitFactor).toFixed(2)}</span>
+          </div>
+          <div class="regime-card-stat">
+            <span class="rcs-label">Best / Worst</span>
+            <span class="rcs-val"><span class="pos">${fmt(bestTrade)}</span> / <span class="neg">${fmt(worstTrade)}</span></span>
+          </div>`;
+      }
+
+      // Capital utilization section
+      cardsHtml += `
+          <div style="border-top: 1px solid rgba(45,49,65,0.5); margin-top:8px; padding-top:8px;">
+            <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-dim); margin-bottom:6px;">Capital Utilization</div>
+          </div>
+          <div class="regime-card-stat">
+            <span class="rcs-label">Days Exposed / Available</span>
+            <span class="rcs-val">${daysExposed} / ${clusterDays}</span>
+          </div>
+          <div class="regime-card-stat">
+            <span class="rcs-label">Utilization</span>
+            <span class="rcs-val">${utilPct.toFixed ? utilPct.toFixed(1) : utilPct}%</span>
+          </div>`;
+
+      if (peakCap > 0) {
+        cardsHtml += `
+          <div class="regime-card-stat">
+            <span class="rcs-label">Peak Capital</span>
+            <span class="rcs-val">${fmtK(peakCap)}</span>
+          </div>
+          <div class="regime-card-stat">
+            <span class="rcs-label">Avg Capital</span>
+            <span class="rcs-val">${fmtK(avgCap)}</span>
+          </div>
+          <div class="regime-card-stat">
+            <span class="rcs-label">ROI (peak cap)</span>
+            <span class="rcs-val ${colorClass(roiPeak)}">${roiPeak.toFixed ? roiPeak.toFixed(1) : roiPeak}% / ${roiPeakAnn.toFixed ? roiPeakAnn.toFixed(1) : roiPeakAnn}% ann</span>
+          </div>
+          <div class="regime-card-stat">
+            <span class="rcs-label">ROI (avg cap)</span>
+            <span class="rcs-val ${colorClass(roiAvg)}">${roiAvg.toFixed ? roiAvg.toFixed(1) : roiAvg}% / ${roiAvgAnn.toFixed ? roiAvgAnn.toFixed(1) : roiAvgAnn}% ann</span>
+          </div>`;
+      }
+
+      cardsHtml += `</div>`;
     }
     cardsEl.innerHTML = cardsHtml;
   } else {
