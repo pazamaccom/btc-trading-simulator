@@ -1,0 +1,11 @@
+{
+  "mode": "backtest",
+  "running": false,
+  "paused": false,
+  "regime": "backtest",
+  "paper_balance": 1000000,
+  "max_exposure": 500000,
+  "current_exposure": 0,
+  "current_contracts": 0,
+  "max_contracts": 50
+}

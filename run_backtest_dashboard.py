@@ -25,12 +25,20 @@ import sys
 import os
 import json
 import time
+import shutil
 import argparse
 from datetime import datetime
 from collections import OrderedDict
 
 _DIR = os.path.dirname(os.path.abspath(__file__))
 _V15 = os.path.join(_DIR, "btc_trader_v15")
+
+# Clean __pycache__ to ensure fresh imports (avoids stale .pyc issues)
+for root, dirs, files in os.walk(_DIR):
+    for d in dirs:
+        if d == "__pycache__":
+            shutil.rmtree(os.path.join(root, d), ignore_errors=True)
+
 if _V15 not in sys.path:
     sys.path.insert(0, _V15)
 if _DIR not in sys.path:
