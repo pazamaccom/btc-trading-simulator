@@ -1569,7 +1569,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     <!-- Notional Exposure Chart (Backtest) -->
     <div class="card" style="margin-bottom: 16px;">
       <div class="card-header">
-        <span>Capital Employed (Notional Exposure)</span>
+        <span>Investment Amount Over Time</span>
         <span id="bt-notional-label" style="font-size:11px; color:var(--text-dim);"></span>
       </div>
       <div class="chart-container">
@@ -1637,7 +1637,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
               <th>Side</th>
               <th>Price</th>
               <th>Entry</th>
-              <th>Notional</th>
+              <th>Investment</th>
               <th>PnL</th>
               <th>Regime</th>
               <th>Reason</th>
@@ -1784,7 +1784,7 @@ const ntChart = new Chart(ntCtx, {
   data: {
     labels: [],
     datasets: [{
-      label: 'Notional Exposure ($)',
+      label: 'Investment Amount ($)',
       data: [],
       borderColor: '#f59e0b',
       backgroundColor: 'rgba(245, 158, 11, 0.10)',
@@ -1811,7 +1811,7 @@ const ntChart = new Chart(ntCtx, {
         padding: 10,
         callbacks: {
           label: function(c) {
-            return 'Notional: $' + c.parsed.y.toLocaleString('en-US', {maximumFractionDigits: 0});
+            return 'Investment: $' + c.parsed.y.toLocaleString('en-US', {maximumFractionDigits: 0});
           }
         }
       }
@@ -2159,70 +2159,86 @@ function updateBacktestView(data) {
     const pnl = metrics.cumulative_pnl ?? metrics.total_pnl ?? 0;
     let html = '';
 
-    // Card 1: Exposure Range
+    // Card 1: Required Capital (the headline card)
+    const reqCap = exposure.required_capital || 0;
+    const reqMargin = exposure.required_capital_margin || 0;
+    const reqDD = exposure.required_capital_drawdown || 0;
+    const reqBuffer = reqCap - reqMargin - reqDD;
+    const roiReqAnn = exposure.roi_required_capital_ann || 0;
+    const roiReqCls = roiReqAnn >= 0 ? 'pos' : 'neg';
     html += `
-      <div class="exp-card">
-        <div class="exp-card-title">Notional Exposure</div>
-        <div class="exp-stat"><span class="es-label">Range</span>
-          <span class="es-val">${fmtK(exposure.notional_min)} \u2014 ${fmtK(exposure.notional_max)}</span></div>
-        <div class="exp-stat"><span class="es-label">Average</span>
-          <span class="es-val">${fmtK(exposure.notional_mean)}</span></div>
-        <div class="exp-stat"><span class="es-label">Median</span>
-          <span class="es-val">${fmtK(exposure.notional_median)}</span></div>
-        <div class="exp-stat"><span class="es-label">Entries</span>
-          <span class="es-val">${exposure.total_entries}</span></div>
+      <div class="exp-card" style="border:1px solid var(--accent);">
+        <div class="exp-card-title" style="color:var(--accent);">Required Capital</div>
+        <div class="roi-highlight ${roiReqCls}">${roiReqAnn.toFixed(1)}%/yr</div>
+        <div class="roi-ann">Annual return on capital needed to run this strategy</div>
+        <div class="exp-stat" style="margin-top:10px;"><span class="es-label">Peak Margin (broker deposit)</span>
+          <span class="es-val">${fmtK(reqMargin)}</span></div>
+        <div class="exp-stat"><span class="es-label">+ Max Drawdown (loss buffer)</span>
+          <span class="es-val">${fmtK(reqDD)}</span></div>
+        <div class="exp-stat"><span class="es-label">+ 25% Safety Buffer</span>
+          <span class="es-val">${fmtK(reqBuffer)}</span></div>
+        <div class="exp-stat" style="border-top:1px solid var(--border); padding-top:6px; margin-top:6px;"><span class="es-label" style="font-weight:600;">= Deposit at Broker</span>
+          <span class="es-val" style="font-weight:600;">${fmtK(reqCap)}</span></div>
+        <div class="exp-stat" style="margin-top:8px; font-size:11px; color:var(--text-dim);">This is the minimum you should deposit to run this strategy. It covers the margin IB holds as collateral, the worst historical loss, and a safety buffer for slippage and margin changes.</div>
       </div>`;
 
-    // Card 2: Margin Requirement
+    // Card 2: Investment Amount
+    html += `
+      <div class="exp-card">
+        <div class="exp-card-title">Investment Amount</div>
+        <div class="exp-stat"><span class="es-label">Range</span>
+          <span class="es-val">${fmtK(exposure.investment_min || exposure.notional_min)} \u2014 ${fmtK(exposure.investment_max || exposure.notional_max)}</span></div>
+        <div class="exp-stat"><span class="es-label">Average</span>
+          <span class="es-val">${fmtK(exposure.investment_mean || exposure.notional_mean)}</span></div>
+        <div class="exp-stat"><span class="es-label">Median</span>
+          <span class="es-val">${fmtK(exposure.investment_median || exposure.notional_median)}</span></div>
+        <div class="exp-stat"><span class="es-label">Entries</span>
+          <span class="es-val">${exposure.total_entries}</span></div>
+        <div class="exp-stat" style="margin-top:8px; font-size:11px; color:var(--text-dim);">The dollar value of each position at entry (contracts \u00d7 price \u00d7 multiplier). This is the market value at risk, not the margin deposit.</div>
+      </div>`;
+
+    // Card 3: Margin Requirement
     html += `
       <div class="exp-card">
         <div class="exp-card-title">Margin Requirement</div>
-        <div class="exp-stat"><span class="es-label">Max Margin</span>
+        <div class="exp-stat"><span class="es-label">Peak Margin</span>
           <span class="es-val">${fmtK(exposure.margin_max)}</span></div>
         <div class="exp-stat"><span class="es-label">Avg Margin</span>
           <span class="es-val">${fmtK(exposure.margin_mean)}</span></div>
         <div class="exp-stat"><span class="es-label">Contracts Range</span>
           <span class="es-val">${exposure.contracts_min} \u2014 ${exposure.contracts_max}</span></div>
-        <div class="exp-stat"><span class="es-label">@ $1,500/ct</span>
+        <div class="exp-stat"><span class="es-label">@ $${(exposure.margin_per_contract || 1500).toLocaleString()}/contract</span>
           <span class="es-val es-dim" style="color:var(--text-dim);">${fmtK(exposure.margin_min)} \u2014 ${fmtK(exposure.margin_max)}</span></div>
+        <div class="exp-stat" style="margin-top:8px; font-size:11px; color:var(--text-dim);">The deposit IB holds as collateral while the position is open. For futures, this is much less than the investment amount \u2014 you control a large position with a small deposit (leverage).</div>
       </div>`;
 
-    // Card 3: ROI on Max Notional
-    const roiNotCls = (exposure.roi_max_notional || 0) >= 0 ? 'pos' : 'neg';
+    // Card 4: Annualized ROI on Peak Investment
+    const roiInvAnn = exposure.roi_max_investment_ann || exposure.roi_max_notional_ann || 0;
+    const roiInvCls = roiInvAnn >= 0 ? 'pos' : 'neg';
     html += `
       <div class="exp-card">
-        <div class="exp-card-title">ROI on Max Notional</div>
-        <div class="roi-highlight ${roiNotCls}">${(exposure.roi_max_notional || 0).toFixed(1)}%</div>
-        <div class="roi-ann">${(exposure.roi_max_notional_ann || 0).toFixed(1)}% annualized</div>
-        <div class="exp-stat" style="margin-top:8px;"><span class="es-label">Base</span>
-          <span class="es-val">${fmtK(exposure.notional_max)}</span></div>
-        <div class="exp-stat"><span class="es-label">PnL</span>
+        <div class="exp-card-title">Annual ROI on Peak Investment</div>
+        <div class="roi-highlight ${roiInvCls}">${roiInvAnn.toFixed(1)}%/yr</div>
+        <div class="roi-ann">PnL \u00f7 peak investment \u00f7 years</div>
+        <div class="exp-stat" style="margin-top:8px;"><span class="es-label">Peak Investment</span>
+          <span class="es-val">${fmtK(exposure.investment_max || exposure.notional_max)}</span></div>
+        <div class="exp-stat"><span class="es-label">Total PnL</span>
           <span class="es-val ${colorClass(pnl)}">${fmt(pnl)}</span></div>
+        <div class="exp-stat"><span class="es-label">Period</span>
+          <span class="es-val">${(exposure.backtest_years || 0).toFixed(1)} years</span></div>
       </div>`;
 
-    // Card 4: ROI on Max Margin
-    const roiMrgCls = (exposure.roi_max_margin || 0) >= 0 ? 'pos' : 'neg';
+    // Card 5: Annualized ROI on Avg Investment
+    const roiAvgInvAnn = exposure.roi_avg_investment_ann || exposure.roi_avg_notional_ann || 0;
+    const roiAvgCls = roiAvgInvAnn >= 0 ? 'pos' : 'neg';
     html += `
       <div class="exp-card">
-        <div class="exp-card-title">ROI on Max Margin</div>
-        <div class="roi-highlight ${roiMrgCls}">${(exposure.roi_max_margin || 0).toFixed(1)}%</div>
-        <div class="roi-ann">${(exposure.roi_max_margin_ann || 0).toFixed(1)}% annualized</div>
-        <div class="exp-stat" style="margin-top:8px;"><span class="es-label">Base</span>
-          <span class="es-val">${fmtK(exposure.margin_max)}</span></div>
-        <div class="exp-stat"><span class="es-label">PnL</span>
-          <span class="es-val ${colorClass(pnl)}">${fmt(pnl)}</span></div>
-      </div>`;
-
-    // Card 5: ROI on Avg Notional
-    const roiAvgCls = (exposure.roi_avg_notional || 0) >= 0 ? 'pos' : 'neg';
-    html += `
-      <div class="exp-card">
-        <div class="exp-card-title">ROI on Avg Notional</div>
-        <div class="roi-highlight ${roiAvgCls}">${(exposure.roi_avg_notional || 0).toFixed(1)}%</div>
-        <div class="roi-ann">${(exposure.roi_avg_notional_ann || 0).toFixed(1)}% annualized</div>
-        <div class="exp-stat" style="margin-top:8px;"><span class="es-label">Base</span>
-          <span class="es-val">${fmtK(exposure.notional_mean)}</span></div>
-        <div class="exp-stat"><span class="es-label">PnL</span>
+        <div class="exp-card-title">Annual ROI on Avg Investment</div>
+        <div class="roi-highlight ${roiAvgCls}">${roiAvgInvAnn.toFixed(1)}%/yr</div>
+        <div class="roi-ann">PnL \u00f7 avg investment \u00f7 years</div>
+        <div class="exp-stat" style="margin-top:8px;"><span class="es-label">Avg Investment</span>
+          <span class="es-val">${fmtK(exposure.investment_mean || exposure.notional_mean)}</span></div>
+        <div class="exp-stat"><span class="es-label">Total PnL</span>
           <span class="es-val ${colorClass(pnl)}">${fmt(pnl)}</span></div>
       </div>`;
 
@@ -2253,23 +2269,23 @@ function updateBacktestView(data) {
           <span class="es-val">${utilTotalPct.toFixed(1)}%</span></div>
       </div>`;
 
-    // Card 7: ROI on Peak/Avg Capital Invested
+    // Card 7: Annualized ROI on Peak/Avg Capital Invested
     const peakCap = exposure.peak_capital_invested || 0;
     const avgCap = exposure.avg_capital_invested || 0;
-    const roiPeakCls = (exposure.roi_peak_capital || 0) >= 0 ? 'pos' : 'neg';
+    const roiPeakAnn = exposure.roi_peak_capital_ann || 0;
+    const roiAvgCapAnn = exposure.roi_avg_capital_ann || 0;
+    const roiPeakCls = roiPeakAnn >= 0 ? 'pos' : 'neg';
     html += `
       <div class="exp-card">
-        <div class="exp-card-title">ROI on Capital Invested</div>
-        <div class="roi-highlight ${roiPeakCls}">${(exposure.roi_peak_capital || 0).toFixed(1)}%</div>
-        <div class="roi-ann">${(exposure.roi_peak_capital_ann || 0).toFixed(1)}% ann. on peak capital</div>
-        <div class="exp-stat" style="margin-top:8px;"><span class="es-label">Peak Capital</span>
+        <div class="exp-card-title">Annual ROI on Daily Capital</div>
+        <div class="roi-highlight ${roiPeakCls}">${roiPeakAnn.toFixed(1)}%/yr</div>
+        <div class="roi-ann">on peak daily investment amount</div>
+        <div class="exp-stat" style="margin-top:8px;"><span class="es-label">Peak Daily Investment</span>
           <span class="es-val">${fmtK(peakCap)}</span></div>
-        <div class="exp-stat"><span class="es-label">Avg Capital</span>
+        <div class="exp-stat"><span class="es-label">Avg Daily Investment</span>
           <span class="es-val">${fmtK(avgCap)}</span></div>
-        <div class="exp-stat"><span class="es-label">ROI on Avg Capital</span>
-          <span class="es-val ${(exposure.roi_avg_capital || 0) >= 0 ? 'pos' : 'neg'}">${(exposure.roi_avg_capital || 0).toFixed(1)}%</span></div>
-        <div class="exp-stat"><span class="es-label">Ann. on Avg Capital</span>
-          <span class="es-val ${(exposure.roi_avg_capital_ann || 0) >= 0 ? 'pos' : 'neg'}">${(exposure.roi_avg_capital_ann || 0).toFixed(1)}%</span></div>
+        <div class="exp-stat"><span class="es-label">Annual ROI on Avg</span>
+          <span class="es-val ${roiAvgCapAnn >= 0 ? 'pos' : 'neg'}">${roiAvgCapAnn.toFixed(1)}%/yr</span></div>
       </div>`;
 
     expPanel.innerHTML = html;

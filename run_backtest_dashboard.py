@@ -435,7 +435,8 @@ def compute_exposure_stats(trades, total_pnl, start_date_str, end_date_str, regi
 
     exposures = [t["price"] * MULTIPLIER * t["contracts"] for t in entries]
     exp_arr = np.array(exposures)
-    margins = [t["contracts"] * 1500 for t in entries]
+    MARGIN_PER_CONTRACT = 1500  # CME initial margin for MBT
+    margins = [t["contracts"] * MARGIN_PER_CONTRACT for t in entries]
     margin_arr = np.array(margins)
 
     notional_max = float(exp_arr.max())
@@ -521,26 +522,26 @@ def compute_exposure_stats(trades, total_pnl, start_date_str, end_date_str, regi
         avg_daily_notional = 0.0
         peak_daily_notional = 0.0
 
-    # ── ROI calculations ──
-    roi_max_notional = (total_pnl / notional_max * 100) if notional_max > 0 else 0
-    roi_max_margin   = (total_pnl / margin_max * 100)   if margin_max > 0 else 0
-    roi_avg_notional = (total_pnl / notional_mean * 100) if notional_mean > 0 else 0
-    roi_peak_capital = (total_pnl / peak_daily_notional * 100) if peak_daily_notional > 0 else 0
-    roi_avg_capital  = (total_pnl / avg_daily_notional * 100) if avg_daily_notional > 0 else 0
-
-    roi_max_notional_ann = roi_max_notional / years
-    roi_max_margin_ann   = roi_max_margin / years
-    roi_avg_notional_ann = roi_avg_notional / years
-    roi_peak_capital_ann = roi_peak_capital / years
-    roi_avg_capital_ann  = roi_avg_capital / years
+    # ── ROI calculations (all annualized) ──
+    roi_max_notional_ann = (total_pnl / notional_max / years * 100) if notional_max > 0 else 0
+    roi_max_margin_ann   = (total_pnl / margin_max / years * 100)   if margin_max > 0 else 0
+    roi_avg_notional_ann = (total_pnl / notional_mean / years * 100) if notional_mean > 0 else 0
+    roi_peak_capital_ann = (total_pnl / peak_daily_notional / years * 100) if peak_daily_notional > 0 else 0
+    roi_avg_capital_ann  = (total_pnl / avg_daily_notional / years * 100) if avg_daily_notional > 0 else 0
 
     return {
-        # Notional exposure (per-entry)
+        # Investment amount (per-entry notional)
+        "investment_min": round(float(exp_arr.min()), 2),
+        "investment_max": round(notional_max, 2),
+        "investment_mean": round(notional_mean, 2),
+        "investment_median": round(float(np.median(exp_arr)), 2),
+        # Legacy keys (for backward compat)
         "notional_min": round(float(exp_arr.min()), 2),
         "notional_max": round(notional_max, 2),
         "notional_mean": round(notional_mean, 2),
         "notional_median": round(float(np.median(exp_arr)), 2),
-        # Margin
+        # Margin requirement (broker deposit per position)
+        "margin_per_contract": MARGIN_PER_CONTRACT,
         "margin_min": round(float(margin_arr.min()), 2),
         "margin_max": round(margin_max, 2),
         "margin_mean": round(float(margin_arr.mean()), 2),
@@ -558,17 +559,23 @@ def compute_exposure_stats(trades, total_pnl, start_date_str, end_date_str, regi
         # Capital invested (daily tracking)
         "peak_capital_invested": round(peak_daily_notional, 2),
         "avg_capital_invested": round(avg_daily_notional, 2),
-        # Time & ROI
+        # Time & annualized ROI
         "backtest_years": round(years, 2),
-        "roi_max_notional": round(roi_max_notional, 1),
-        "roi_max_notional_ann": round(roi_max_notional_ann, 1),
-        "roi_max_margin": round(roi_max_margin, 1),
-        "roi_max_margin_ann": round(roi_max_margin_ann, 1),
-        "roi_avg_notional": round(roi_avg_notional, 1),
-        "roi_avg_notional_ann": round(roi_avg_notional_ann, 1),
-        "roi_peak_capital": round(roi_peak_capital, 1),
+        "roi_max_investment_ann": round(roi_max_notional_ann, 1),
+        "roi_avg_investment_ann": round(roi_avg_notional_ann, 1),
         "roi_peak_capital_ann": round(roi_peak_capital_ann, 1),
-        "roi_avg_capital": round(roi_avg_capital, 1),
+        "roi_avg_capital_ann": round(roi_avg_capital_ann, 1),
+        "roi_max_margin_ann": round(roi_max_margin_ann, 1),
+        # Legacy keys
+        "roi_max_notional": round(roi_max_notional_ann * years, 1),
+        "roi_max_notional_ann": round(roi_max_notional_ann, 1),
+        "roi_max_margin": round(roi_max_margin_ann * years, 1),
+        "roi_max_margin_ann": round(roi_max_margin_ann, 1),
+        "roi_avg_notional": round(roi_avg_notional_ann * years, 1),
+        "roi_avg_notional_ann": round(roi_avg_notional_ann, 1),
+        "roi_peak_capital": round(roi_peak_capital_ann * years, 1),
+        "roi_peak_capital_ann": round(roi_peak_capital_ann, 1),
+        "roi_avg_capital": round(roi_avg_capital_ann * years, 1),
         "roi_avg_capital_ann": round(roi_avg_capital_ann, 1),
     }
 
@@ -657,6 +664,24 @@ def main():
     # Exposure stats (with ROI) — total_pnl, start_d, end_d already defined above
     exposure_stats = compute_exposure_stats(trades, total_pnl, start_d, end_d, regime_cache)
 
+    # Inject Required Capital (needs max_drawdown from metrics)
+    if exposure_stats:
+        max_dd = metrics.get("max_drawdown", 0)
+        peak_margin = exposure_stats.get("margin_max", 0)
+        # Required Capital = Peak Margin + Max Drawdown + 25% safety buffer
+        # This is the minimum you'd need to deposit at the broker:
+        #   - Peak margin: what IB holds as collateral at your largest position
+        #   - Max drawdown: worst peak-to-trough loss you must survive
+        #   - 25% buffer: for margin increases, slippage, overnight gaps
+        required_capital = peak_margin + max_dd + (peak_margin + max_dd) * 0.25
+        exposure_stats["required_capital"] = round(required_capital, 2)
+        exposure_stats["required_capital_margin"] = round(peak_margin, 2)
+        exposure_stats["required_capital_drawdown"] = round(max_dd, 2)
+        exposure_stats["required_capital_buffer_pct"] = 25
+        bt_years = exposure_stats.get("backtest_years", 1)
+        roi_required_ann = (total_pnl / required_capital / bt_years * 100) if required_capital > 0 else 0
+        exposure_stats["roi_required_capital_ann"] = round(roi_required_ann, 1)
+
     # ── 4. Write JSON files ──────────────────────────────────────────────
     print("\n  [4/4] Writing output files...")
 
@@ -720,20 +745,25 @@ def main():
     print(f"  Max Drawdown:  ${metrics.get('max_drawdown', 0):>10,.2f}")
     print(f"  Profit Factor: {metrics.get('profit_factor', 0):.2f}")
     if exposure_stats:
-        print(f"  Max Notional:  ${exposure_stats.get('notional_max', 0):>10,.2f}")
-        print(f"  Avg Notional:  ${exposure_stats.get('notional_mean', 0):>10,.2f}")
-        print(f"  Max Margin:    ${exposure_stats.get('margin_max', 0):>10,.2f}")
-        print(f"  Exposure Range: ${exposure_stats.get('notional_min',0):,.0f} — ${exposure_stats.get('notional_max',0):,.0f}")
-        print(f"  ROI (max not): {exposure_stats.get('roi_max_notional',0):.1f}% cum / {exposure_stats.get('roi_max_notional_ann',0):.1f}% ann")
-        print(f"  ROI (max mrg): {exposure_stats.get('roi_max_margin',0):.1f}% cum / {exposure_stats.get('roi_max_margin_ann',0):.1f}% ann")
-        print(f"  ROI (avg not): {exposure_stats.get('roi_avg_notional',0):.1f}% cum / {exposure_stats.get('roi_avg_notional_ann',0):.1f}% ann")
+        print(f"  ── Investment & Margin ──")
+        print(f"  Peak Investment: ${exposure_stats.get('investment_max', 0):>10,.2f}")
+        print(f"  Avg Investment:  ${exposure_stats.get('investment_mean', 0):>10,.2f}")
+        print(f"  Peak Margin:     ${exposure_stats.get('margin_max', 0):>10,.2f}  (broker deposit)")
+        print(f"  ── Required Capital (to run this strategy) ──")
+        print(f"  Peak Margin:     ${exposure_stats.get('required_capital_margin',0):>10,.2f}")
+        print(f"  + Max Drawdown:  ${exposure_stats.get('required_capital_drawdown',0):>10,.2f}")
+        print(f"  + 25% Buffer:    ${(exposure_stats.get('required_capital',0) - exposure_stats.get('required_capital_margin',0) - exposure_stats.get('required_capital_drawdown',0)):>10,.2f}")
+        print(f"  = Required:      ${exposure_stats.get('required_capital',0):>10,.2f}")
+        print(f"  Annual Return:   {exposure_stats.get('roi_required_capital_ann',0):.1f}% per year")
+        print(f"  ── Annualized ROI (other bases) ──")
+        print(f"  On Peak Investment: {exposure_stats.get('roi_max_investment_ann',0):.1f}%/yr  (base: ${exposure_stats.get('investment_max',0):,.0f})")
+        print(f"  On Avg Investment:  {exposure_stats.get('roi_avg_investment_ann',0):.1f}%/yr  (base: ${exposure_stats.get('investment_mean',0):,.0f})")
+        print(f"  On Peak Margin:     {exposure_stats.get('roi_max_margin_ann',0):.1f}%/yr  (base: ${exposure_stats.get('margin_max',0):,.0f})")
         print(f"  ── Capital Utilization ──")
         print(f"  Calendar Days: {exposure_stats.get('total_calendar_days',0)} | Tradeable: {exposure_stats.get('tradeable_days',0)} | Negative Momentum (skip): {exposure_stats.get('neg_momentum_days',0)}")
         print(f"  Days Exposed:  {exposure_stats.get('days_exposed',0)} / {exposure_stats.get('tradeable_days',0)} ({exposure_stats.get('utilization_pct',0):.1f}% of tradeable)")
         print(f"  Peak Capital:  ${exposure_stats.get('peak_capital_invested',0):>10,.2f}")
         print(f"  Avg Capital:   ${exposure_stats.get('avg_capital_invested',0):>10,.2f}")
-        print(f"  ROI (peak cap): {exposure_stats.get('roi_peak_capital',0):.1f}% cum / {exposure_stats.get('roi_peak_capital_ann',0):.1f}% ann")
-        print(f"  ROI (avg cap):  {exposure_stats.get('roi_avg_capital',0):.1f}% cum / {exposure_stats.get('roi_avg_capital_ann',0):.1f}% ann")
     print(f"\n  Dashboard files written. Start dashboard with:")
     print(f"    python dashboard.py --port 8080")
     print(f"  Then open http://localhost:8080")
