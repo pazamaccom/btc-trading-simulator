@@ -278,13 +278,15 @@ def enrich_trades(trades):
     return enriched
 
 
-def compute_exposure_stats(trades, total_pnl, start_date_str, end_date_str):
-    """Compute exposure statistics and ROI metrics from entry trades."""
+def compute_exposure_stats(trades, total_pnl, start_date_str, end_date_str, regime_cache=None):
+    """Compute exposure statistics, capital utilization, and ROI metrics."""
     entries = [t for t in trades if t["action"] in ("BUY", "SHORT", "PYRAMID")]
     if not entries:
         return {}
 
     import numpy as np
+    from datetime import datetime as _dt, timedelta
+
     exposures = [t["price"] * MULTIPLIER * t["contracts"] for t in entries]
     exp_arr = np.array(exposures)
     margins = [t["contracts"] * 1500 for t in entries]
@@ -294,35 +296,123 @@ def compute_exposure_stats(trades, total_pnl, start_date_str, end_date_str):
     notional_mean = float(exp_arr.mean())
     margin_max = float(margin_arr.max())
 
-    # Compute backtest duration in years for annualized ROI
-    from datetime import datetime as _dt
+    # Compute backtest duration
     try:
         d0 = _dt.strptime(start_date_str[:10], "%Y-%m-%d")
         d1 = _dt.strptime(end_date_str[:10], "%Y-%m-%d")
         years = max((d1 - d0).days / 365.25, 0.01)
+        total_calendar_days = (d1 - d0).days + 1
     except Exception:
         years = 1.0
+        total_calendar_days = int(years * 365)
 
-    # ROI calculations
+    # ── Capital utilization: days exposed vs total tradeable days ──
+    # Build day-by-day position tracking from trades
+    exposed_dates = set()
+    daily_notional = {}  # date → notional on that date
+    current_notional = 0.0
+    current_contracts = 0
+    position_open = False
+
+    # Sort all trades by time
+    sorted_trades = sorted(trades, key=lambda t: t["time"])
+    trade_events = []  # (date, action, notional_change)
+    for t in sorted_trades:
+        t_date = t["time"][:10]
+        action = t["action"]
+        price = t.get("price", 0)
+        contracts = t.get("contracts", 0)
+        notional = price * MULTIPLIER * contracts
+        trade_events.append((t_date, action, notional, contracts))
+
+    # Walk through events chronologically
+    current_notional = 0.0
+    current_contracts = 0
+    open_date = None
+    for t_date, action, notional, contracts in trade_events:
+        if action in ("BUY", "SHORT"):
+            current_notional = notional
+            current_contracts = contracts
+            open_date = t_date
+        elif action == "PYRAMID":
+            current_notional += notional
+            current_contracts += contracts
+        elif action in ("SELL", "COVER"):
+            # Mark all days from open_date to close_date as exposed
+            if open_date:
+                od = _dt.strptime(open_date, "%Y-%m-%d").date()
+                cd = _dt.strptime(t_date, "%Y-%m-%d").date()
+                d = od
+                while d <= cd:
+                    exposed_dates.add(d)
+                    # Track notional on each exposed day
+                    if d not in daily_notional or current_notional > daily_notional[d]:
+                        daily_notional[d] = current_notional
+                    d += timedelta(days=1)
+            current_notional = 0.0
+            current_contracts = 0
+            open_date = None
+
+    days_exposed = len(exposed_dates)
+
+    # Tradeable days = total days minus neg_momentum days
+    neg_momentum_days = 0
+    if regime_cache:
+        for d_date, regime in regime_cache.items():
+            if regime == "neg_momentum_skip":
+                neg_momentum_days += 1
+    tradeable_days = total_calendar_days - neg_momentum_days
+
+    utilization_pct = (days_exposed / tradeable_days * 100) if tradeable_days > 0 else 0
+    utilization_total_pct = (days_exposed / total_calendar_days * 100) if total_calendar_days > 0 else 0
+
+    # Average daily notional while exposed
+    if daily_notional:
+        daily_vals = list(daily_notional.values())
+        avg_daily_notional = float(np.mean(daily_vals))
+        peak_daily_notional = float(max(daily_vals))
+    else:
+        avg_daily_notional = 0.0
+        peak_daily_notional = 0.0
+
+    # ── ROI calculations ──
     roi_max_notional = (total_pnl / notional_max * 100) if notional_max > 0 else 0
     roi_max_margin   = (total_pnl / margin_max * 100)   if margin_max > 0 else 0
     roi_avg_notional = (total_pnl / notional_mean * 100) if notional_mean > 0 else 0
+    roi_peak_capital = (total_pnl / peak_daily_notional * 100) if peak_daily_notional > 0 else 0
+    roi_avg_capital  = (total_pnl / avg_daily_notional * 100) if avg_daily_notional > 0 else 0
 
     roi_max_notional_ann = roi_max_notional / years
     roi_max_margin_ann   = roi_max_margin / years
     roi_avg_notional_ann = roi_avg_notional / years
+    roi_peak_capital_ann = roi_peak_capital / years
+    roi_avg_capital_ann  = roi_avg_capital / years
 
     return {
+        # Notional exposure (per-entry)
         "notional_min": round(float(exp_arr.min()), 2),
         "notional_max": round(notional_max, 2),
         "notional_mean": round(notional_mean, 2),
         "notional_median": round(float(np.median(exp_arr)), 2),
+        # Margin
         "margin_min": round(float(margin_arr.min()), 2),
         "margin_max": round(margin_max, 2),
         "margin_mean": round(float(margin_arr.mean()), 2),
         "contracts_min": min(t["contracts"] for t in entries),
         "contracts_max": max(t["contracts"] for t in entries),
         "total_entries": len(entries),
+        # Capital utilization
+        "total_calendar_days": total_calendar_days,
+        "tradeable_days": tradeable_days,
+        "neg_momentum_days": neg_momentum_days,
+        "days_exposed": days_exposed,
+        "days_not_exposed": tradeable_days - days_exposed,
+        "utilization_pct": round(utilization_pct, 1),
+        "utilization_total_pct": round(utilization_total_pct, 1),
+        # Capital invested (daily tracking)
+        "peak_capital_invested": round(peak_daily_notional, 2),
+        "avg_capital_invested": round(avg_daily_notional, 2),
+        # Time & ROI
         "backtest_years": round(years, 2),
         "roi_max_notional": round(roi_max_notional, 1),
         "roi_max_notional_ann": round(roi_max_notional_ann, 1),
@@ -330,6 +420,10 @@ def compute_exposure_stats(trades, total_pnl, start_date_str, end_date_str):
         "roi_max_margin_ann": round(roi_max_margin_ann, 1),
         "roi_avg_notional": round(roi_avg_notional, 1),
         "roi_avg_notional_ann": round(roi_avg_notional_ann, 1),
+        "roi_peak_capital": round(roi_peak_capital, 1),
+        "roi_peak_capital_ann": round(roi_peak_capital_ann, 1),
+        "roi_avg_capital": round(roi_avg_capital, 1),
+        "roi_avg_capital_ann": round(roi_avg_capital_ann, 1),
     }
 
 
@@ -407,7 +501,7 @@ def main():
     total_pnl = metrics.get("cumulative_pnl", 0)
     start_d = result.get("start_date", "2020-01-01")
     end_d = result.get("end_date", datetime.now().strftime("%Y-%m-%d"))
-    exposure_stats = compute_exposure_stats(trades, total_pnl, start_d, end_d)
+    exposure_stats = compute_exposure_stats(trades, total_pnl, start_d, end_d, regime_cache)
 
     # ── 4. Write JSON files ──────────────────────────────────────────────
     print("\n  [4/4] Writing output files...")
@@ -479,6 +573,13 @@ def main():
         print(f"  ROI (max not): {exposure_stats.get('roi_max_notional',0):.1f}% cum / {exposure_stats.get('roi_max_notional_ann',0):.1f}% ann")
         print(f"  ROI (max mrg): {exposure_stats.get('roi_max_margin',0):.1f}% cum / {exposure_stats.get('roi_max_margin_ann',0):.1f}% ann")
         print(f"  ROI (avg not): {exposure_stats.get('roi_avg_notional',0):.1f}% cum / {exposure_stats.get('roi_avg_notional_ann',0):.1f}% ann")
+        print(f"  ── Capital Utilization ──")
+        print(f"  Calendar Days: {exposure_stats.get('total_calendar_days',0)} | Tradeable: {exposure_stats.get('tradeable_days',0)} | Neg-Mom Skip: {exposure_stats.get('neg_momentum_days',0)}")
+        print(f"  Days Exposed:  {exposure_stats.get('days_exposed',0)} / {exposure_stats.get('tradeable_days',0)} ({exposure_stats.get('utilization_pct',0):.1f}% of tradeable)")
+        print(f"  Peak Capital:  ${exposure_stats.get('peak_capital_invested',0):>10,.2f}")
+        print(f"  Avg Capital:   ${exposure_stats.get('avg_capital_invested',0):>10,.2f}")
+        print(f"  ROI (peak cap): {exposure_stats.get('roi_peak_capital',0):.1f}% cum / {exposure_stats.get('roi_peak_capital_ann',0):.1f}% ann")
+        print(f"  ROI (avg cap):  {exposure_stats.get('roi_avg_capital',0):.1f}% cum / {exposure_stats.get('roi_avg_capital_ann',0):.1f}% ann")
     print(f"\n  Dashboard files written. Start dashboard with:")
     print(f"    python dashboard.py --port 8080")
     print(f"  Then open http://localhost:8080")

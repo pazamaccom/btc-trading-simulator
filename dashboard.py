@@ -1565,7 +1565,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 
     <!-- Exposure & ROI Summary -->
     <div style="margin-bottom: 16px;">
-      <div class="bt-section-title">Exposure & ROI Summary</div>
+      <div class="bt-section-title">Exposure, Capital Utilization & ROI</div>
       <div class="exposure-roi-panel" id="bt-exposure-roi">
         <!-- Populated by JS -->
         <div class="empty-state" style="padding:20px;">No exposure data available</div>
@@ -2185,6 +2185,52 @@ function updateBacktestView(data) {
           <span class="es-val">${fmtK(exposure.notional_mean)}</span></div>
         <div class="exp-stat"><span class="es-label">PnL</span>
           <span class="es-val ${colorClass(pnl)}">${fmt(pnl)}</span></div>
+      </div>`;
+
+    // Card 6: Capital Utilization
+    const tradeable = exposure.tradeable_days || 0;
+    const exposed = exposure.days_exposed || 0;
+    const notExposed = exposure.days_not_exposed || 0;
+    const negMomDays = exposure.neg_momentum_days || 0;
+    const totalCal = exposure.total_calendar_days || 0;
+    const utilPct = exposure.utilization_pct || 0;
+    const utilTotalPct = exposure.utilization_total_pct || 0;
+    html += `
+      <div class="exp-card">
+        <div class="exp-card-title">Capital Utilization</div>
+        <div class="roi-highlight ${utilPct >= 50 ? 'pos' : 'neg'}">${utilPct.toFixed(1)}%</div>
+        <div class="roi-ann">of tradeable days with capital at risk</div>
+        <div class="exp-stat" style="margin-top:8px;"><span class="es-label">Calendar Days</span>
+          <span class="es-val">${totalCal.toLocaleString()}</span></div>
+        <div class="exp-stat"><span class="es-label">Neg-Momentum (no trade)</span>
+          <span class="es-val">${negMomDays.toLocaleString()}</span></div>
+        <div class="exp-stat"><span class="es-label">Tradeable Days</span>
+          <span class="es-val">${tradeable.toLocaleString()}</span></div>
+        <div class="exp-stat"><span class="es-label">Days Exposed</span>
+          <span class="es-val">${exposed.toLocaleString()}</span></div>
+        <div class="exp-stat"><span class="es-label">Days Not Exposed</span>
+          <span class="es-val">${notExposed.toLocaleString()}</span></div>
+        <div class="exp-stat"><span class="es-label">% of Total Calendar</span>
+          <span class="es-val">${utilTotalPct.toFixed(1)}%</span></div>
+      </div>`;
+
+    // Card 7: ROI on Peak/Avg Capital Invested
+    const peakCap = exposure.peak_capital_invested || 0;
+    const avgCap = exposure.avg_capital_invested || 0;
+    const roiPeakCls = (exposure.roi_peak_capital || 0) >= 0 ? 'pos' : 'neg';
+    html += `
+      <div class="exp-card">
+        <div class="exp-card-title">ROI on Capital Invested</div>
+        <div class="roi-highlight ${roiPeakCls}">${(exposure.roi_peak_capital || 0).toFixed(1)}%</div>
+        <div class="roi-ann">${(exposure.roi_peak_capital_ann || 0).toFixed(1)}% ann. on peak capital</div>
+        <div class="exp-stat" style="margin-top:8px;"><span class="es-label">Peak Capital</span>
+          <span class="es-val">${fmtK(peakCap)}</span></div>
+        <div class="exp-stat"><span class="es-label">Avg Capital</span>
+          <span class="es-val">${fmtK(avgCap)}</span></div>
+        <div class="exp-stat"><span class="es-label">ROI on Avg Capital</span>
+          <span class="es-val ${(exposure.roi_avg_capital || 0) >= 0 ? 'pos' : 'neg'}">${(exposure.roi_avg_capital || 0).toFixed(1)}%</span></div>
+        <div class="exp-stat"><span class="es-label">Ann. on Avg Capital</span>
+          <span class="es-val ${(exposure.roi_avg_capital_ann || 0) >= 0 ? 'pos' : 'neg'}">${(exposure.roi_avg_capital_ann || 0).toFixed(1)}%</span></div>
       </div>`;
 
     expPanel.innerHTML = html;
