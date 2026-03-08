@@ -1,68 +1,65 @@
 {
-  "_description": "Combined strategy configuration — Choppy (Tier 3 winner) + Bear (WF-optimized)",
-  "_updated": "2026-03-05",
+  "_description": "V3 4-cluster optimized strategy configuration",
+  "_updated": "2026-03-08",
+  "_classifier": "V3 ensemble (HMM + GMM + KMeans + RF meta), 4 clusters",
+  "_optimization": "Iterative coordinate descent with 7 walk-forward windows, converged in 2 rounds",
   "_performance": {
-    "choppy_only_wf_pnl": 39203,
-    "bear_wf_pnl": 30252,
-    "combined_wf_pnl": 69455,
-    "choppy_wf_full_ratio": 0.92,
-    "bear_wf_full_ratio": 1.02,
-    "bull_wf_pnl": 0,
-    "note": "295 bull-regime days still inactive — next phase"
+    "total_pnl": 1742339,
+    "total_trades": 229,
+    "win_rate": 81.2,
+    "profit_factor": 10.15,
+    "max_drawdown": 35462,
+    "period": "2020-01-01 to 2026-03-05"
   },
 
   "exec_mode": "best_price",
   "ind_period": 14,
 
-  "choppy": {
-    "_source": "Tier 3 winner — AM40 LT85% EZ40%/60% C14d ST30%",
-    "_wf_pnl": 39203,
-    "_trades_wf": 23,
-    "_win_rate_wf": 82.6,
-    "calib_days": 14,
+  "range": {
+    "_cluster": "Range (71.2% of days)",
+    "_strategy": "ChoppyStrategy — mean-reversion + secondary BullStrategy",
+    "calib_days": 21,
     "short_trail_pct": 0.04,
     "short_stop_pct": 0.02,
     "short_adx_exit": 28,
-    "short_adx_max": 40,
-    "long_entry_zone": 0.40,
-    "short_entry_zone": 0.60,
-    "long_target_zone": 0.85,
-    "short_target_zone": 0.30
+    "short_adx_max": 35,
+    "long_entry_zone": 0.45,
+    "short_entry_zone": 0.55,
+    "long_target_zone": 0.75,
+    "short_target_zone": 0.2
   },
 
-  "bear": {
-    "_source": "WF-optimized round 2 — B:C14 AM60 EZ25%/65% TG90%/20%",
-    "_wf_pnl": 30252,
-    "_trades_wf": 37,
-    "_bear_profitable_windows": "4/5",
-    "_worst_bear_window": -176,
-    "_bear_sharpe": 1.03,
+  "volatile": {
+    "_cluster": "Volatile (17.5% of days)",
+    "_strategy": "ChoppyStrategy with wider params + secondary BullStrategy",
     "bear_calib_days": 14,
     "bear_short_trail_pct": 0.06,
     "bear_short_stop_pct": 0.04,
     "bear_short_adx_exit": 28,
-    "bear_short_adx_max": 60,
+    "bear_short_adx_max": 45,
     "bear_long_entry_zone": 0.25,
     "bear_short_entry_zone": 0.65,
-    "bear_long_target_zone": 0.90,
-    "bear_short_target_zone": 0.20
+    "bear_long_target_zone": 0.9,
+    "bear_short_target_zone": 0.25
   },
 
-  "bull": {
-    "_status": "not yet implemented",
-    "_available_days": 295,
-    "_note": "Next phase — trend-following strategy for bull regimes"
+  "positive_momentum": {
+    "_cluster": "Positive Momentum (6.2% of days)",
+    "_strategy": "BullStrategy — Donchian breakout trend-following",
+    "bull_calib_days": 30,
+    "bull_lookback": 5,
+    "bull_atr_period": 14,
+    "bull_atr_trail_mult": 1.5,
+    "bull_stop_pct": 0.03,
+    "bull_adx_min": 15,
+    "bull_adx_exit": 10,
+    "bull_max_hold_days": 25,
+    "bull_cooldown_hours": 24
   },
 
-  "regime_detector": {
-    "type": "rolling_hmm",
-    "n_regimes": 3,
-    "refit_interval": 7,
-    "min_bars_first_fit": 90,
-    "centroid_max_drift": 2.0,
-    "features": ["log_return", "roll_vol", "ADX", "volume_ratio"],
-    "smoothing": "two_pass_majority_vote_plus_absorption",
-    "min_regime_bars": 10
+  "negative_momentum": {
+    "_cluster": "Negative Momentum (5.0% of days)",
+    "_strategy": "No trading — flat"
   },
 
   "instrument": {

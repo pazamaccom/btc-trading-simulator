@@ -11,28 +11,30 @@ parameter optimization.
 ```
 Hourly BTC data (Binance) → Resample to daily
                                 ↓
-                    V3 Classifier (4-cluster KMeans)
+                    V3 Classifier (4-cluster ensemble)
+                    HMM + GMM + KMeans → RF meta
                                 ↓
             ┌───────────┬──────────────┬──────────────┐
-            │ momentum  │    range     │   volatile   │  neg_momentum
-            │ (bull)    │  (choppy)    │   (bear)     │   → FLAT
-            ↓           ↓              ↓
+            │ Positive  │    Range     │   Volatile   │  Negative
+            │ Momentum  │              │              │  Momentum
+            │ (6.2%)    │  (71.2%)     │   (17.5%)    │  (5.0%)
+            ↓           ↓              ↓              → FLAT
         BullStrategy  ChoppyStrategy  ChoppyStrategy
-        (trend follow) (range trade)  (bear params)
-                      + secondary     + secondary
+        (Donchian     (range trade)   (wider params)
+         breakout)    + secondary     + secondary
                         BullStrategy    BullStrategy
 ```
 
-### Strategy Mapping
+### Cluster Mapping
 
 | Cluster | % of Time | Strategy | Primary | Secondary |
 |---------|-----------|----------|---------|-----------|
-| range | 71.2% | RangeTrader | ChoppyStrategy | BullStrategy (TrendFollower) |
-| volatile | 17.5% | VolatilityTrader | ChoppyStrategy (bear params) | BullStrategy (TrendFollower) |
-| momentum | 6.2% | TrendFollower | BullStrategy | — |
-| neg_momentum | 5.0% | Flat | No trading | — |
+| Range | 71.2% | RangeTrader | ChoppyStrategy (calib 21d) | BullStrategy |
+| Volatile | 17.5% | VolatilityTrader | ChoppyStrategy (calib 14d, wider) | BullStrategy |
+| Positive Momentum | 6.2% | TrendFollower | BullStrategy (Donchian) | — |
+| Negative Momentum | 5.0% | Flat | No trading | — |
 
-### Results (full period 2020-01-01 → 2026-03-05)
+### Backtest Results (2020-01-01 → 2026-03-05)
 
 | Metric | Value |
 |--------|-------|
@@ -41,65 +43,146 @@ Hourly BTC data (Binance) → Resample to daily
 | Win Rate | 81.2% |
 | Profit Factor | 10.15 |
 | Max Drawdown | $35,462 |
-| Instrument | MBT Micro BTC Futures ($5 multiplier) |
+| Peak Capital | $409,000 |
+| Avg Capital | $171,000 |
 
 ### Per-Cluster Breakdown
 
-| Cluster | Days | Trades | PnL | WR | PF | PnL/Day |
-|---------|------|--------|-----|----|----|---------|
-| range | 1,604 | 160 | $886,862 | 78.8% | 7.58 | $553 |
-| volatile | 395 | 44 | $556,384 | 84.1% | 12.22 | $1,409 |
-| momentum | 140 | 23 | $288,983 | 91.3% | 49.19 | $2,064 |
-| neg_momentum | 113 | 2* | $10,109 | 100% | — | $89 |
+| Cluster | Days | Trades | PnL | WR | PF |
+|---------|------|--------|-----|----|----|
+| Range | 1,604 | 168 | $888,000 | 78.8% | 7.58 |
+| Volatile | 395 | 45 | $623,000 | 84.1% | 12.22 |
+| Positive Momentum | 140 | 16 | $232,000 | 91.3% | 49.19 |
+| Negative Momentum | 113 | 0 | $0 | — | — |
 
-> *Forced closures on regime entry — not active trades.
+---
 
-### Key Files
+## Setup on a Fresh Mac
 
-| File | Purpose |
-|------|---------|
-| `backtest_multitf.py` | Multi-timeframe backtest engine (daily signals, hourly execution) |
-| `bull_strategy.py` | BullStrategy — momentum/trend following |
-| `btc_trader_v15/strategy.py` | ChoppyStrategy — range trading |
-| `btc_trader_v15/regime_detector_v3.py` | V3 4-cluster KMeans classifier |
-| `train_v3.py` | V3 classifier training script |
-| `v3_cache.json` | Pre-computed regime labels (2020-2026) |
-| `optimize_v3.py` | Iterative coordinate descent parameter optimizer |
-| `cluster_analysis_full.py` | Per-cluster performance analysis |
-| `btc_trader_v15/data/btc_hourly.csv` | Full hourly dataset (2020-2026, 54K bars) |
+### 1. Clone the repo
 
-### Running
-
-**Backtest** (requires data file):
 ```bash
-python backtest_multitf.py
+git clone https://github.com/pazamaccom/btc-trading-simulator.git
+cd btc-trading-simulator
 ```
 
-**Train V3 classifier** (run on Mac):
+### 2. Create a virtual environment
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+### 3. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Verify the data file exists
+
+The hourly CSV is included in the repo:
+
+```
+btc_trader_v15/data/btc_hourly.csv   (54K bars, 2020-01-01 to 2026-03-05)
+```
+
+### 5. Verify the regime cache exists
+
+The pre-computed 4-cluster labels are included:
+
+```
+v3_cache.json   (2,252 days, 2020-01-05 to 2026-03-05)
+```
+
+---
+
+## Running
+
+### Full backtest + dashboard data
+
+This is the main command. It runs the backtest with the V3 optimized params
+and writes the JSON files the dashboard needs:
+
+```bash
+python run_backtest_dashboard.py
+```
+
+Expected output: ~$1,742,339 PnL, 229 trades, 81.2% WR, PF 10.15.
+
+To also launch the dashboard immediately:
+
+```bash
+python run_backtest_dashboard.py --port 8080
+```
+
+Then open http://localhost:8080
+
+### Dashboard only (after backtest has run)
+
+```bash
+python dashboard.py --port 8080
+```
+
+### Train V3 classifier (regenerate v3_cache.json)
+
+Only needed if you update the hourly data file with newer bars:
+
 ```bash
 python train_v3.py
 ```
 
-**Optimize parameters** (run on Mac, uses multiprocessing):
+### Optimize parameters (Mac Studio recommended, uses all cores)
+
 ```bash
 python optimize_v3.py
 ```
 
-**Cluster analysis**:
+This runs iterative coordinate descent with 7 walk-forward windows.
+Takes ~1-2 hours on 24 cores. Outputs `v3_optimization_results.json`.
+
+### Cluster analysis
+
 ```bash
 python cluster_analysis_full.py
 ```
 
-### Infrastructure
+---
+
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `run_backtest_dashboard.py` | **Start here** — runs backtest + generates dashboard data |
+| `backtest_multitf.py` | Multi-timeframe backtest engine (daily signals, hourly execution) |
+| `bull_strategy.py` | BullStrategy — Donchian breakout trend-following |
+| `btc_trader_v15/strategy.py` | ChoppyStrategy — range trading with asymmetric risk |
+| `btc_trader_v15/regime_detector_v3.py` | V3 4-cluster ensemble detector (HMM + GMM + KMeans + RF) |
+| `btc_trader_v15/config.py` | Instrument config, exposure sizing, conviction, pyramiding |
+| `train_v3.py` | V3 classifier training script |
+| `v3_cache.json` | Pre-computed daily regime labels (2020–2026) |
+| `optimize_v3.py` | Iterative coordinate descent parameter optimizer |
+| `strategy_config.json` | V3 optimized params reference (human-readable) |
+| `btc_trader_v15/data/btc_hourly.csv` | Full hourly OHLCV dataset (Binance, 2020–2026) |
+| `dashboard.py` | Real-time dashboard server |
+| `STRATEGY.md` | Full strategy design & methodology writeup |
+| `CHANGELOG.md` | Version history |
+
+## Infrastructure
 
 - **Data source**: Binance (public, no API key needed)
 - **Execution target**: IB TWS, MBT Micro Futures, paper account DUD084004
 - **Optimization**: Mac Studio (24 cores, parallel multiprocessing)
 - **Repo tags**: `v1.0-config-I` (baseline), `v2.0-secondary-strategy` (current)
 
-### Status
+## Parameters
 
-Parameters confirmed optimal on full 2020-2026 period (re-optimized 2026-03-08, unchanged).
-Full-period coordinate descent optimization completed — converged in 2 rounds, 0% change.
+V3 optimized params are confirmed optimal on the full 2020–2026 period.
+Re-optimized 2026-03-08 — converged in 2 rounds, 0% parameter change.
+See `strategy_config.json` for the full parameter set.
+See `STRATEGY.md` for detailed rationale behind every design decision.
+
+---
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
+See [STRATEGY.md](STRATEGY.md) for strategy design & methodology.
