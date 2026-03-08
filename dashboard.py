@@ -1577,10 +1577,10 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       </div>
     </div>
 
-    <!-- Blocked Capital Chart (Backtest) -->
+    <!-- Margin Over Time Chart (Backtest) -->
     <div class="card" style="margin-bottom: 16px;">
       <div class="card-header">
-        <span>Blocked Capital Over Time</span>
+        <span>Broker Margin Over Time</span>
         <span id="bt-blocked-label" style="font-size:11px; color:var(--text-dim);"></span>
       </div>
       <div class="chart-container">
@@ -1844,24 +1844,13 @@ const ntChart = new Chart(ntCtx, {
   }
 });
 
-// ── Chart setup (Backtest Blocked Capital) ───────────
+// ── Chart setup (Backtest Broker Margin) ───────────
 const blkCtx = document.getElementById('btBlockedChart').getContext('2d');
 const blkChart = new Chart(blkCtx, {
   type: 'line',
   data: {
     labels: [],
     datasets: [
-      {
-        label: 'Blocked Capital ($)',
-        data: [],
-        borderColor: '#ef4444',
-        backgroundColor: 'rgba(239, 68, 68, 0.08)',
-        fill: true,
-        tension: 0.2,
-        pointRadius: 0,
-        borderWidth: 1.5,
-        stepped: 'before',
-      },
       {
         label: 'Margin ($)',
         data: [],
@@ -1870,7 +1859,7 @@ const blkChart = new Chart(blkCtx, {
         fill: true,
         tension: 0.2,
         pointRadius: 0,
-        borderWidth: 1,
+        borderWidth: 1.5,
         stepped: 'before',
       }
     ]
@@ -2231,15 +2220,13 @@ function updateBacktestView(data) {
     document.getElementById('bt-notional-label').textContent =
       'Peak: ' + fmtK(maxNotional) + ' \u00b7 ' + sampled.length + ' samples';
 
-    // ── Blocked Capital chart (margin + drawdown reserve, scaled by actual contracts) ──
+    // ── Broker Margin chart (actual collateral held by broker over time) ──
     blkChart.data.labels = sampled.map(e => fmtShort(e.time || e.timestamp || ''));
-    blkChart.data.datasets[0].data = sampled.map(e => e.blocked_capital || 0);
-    blkChart.data.datasets[1].data = sampled.map(e => e.margin || 0);
+    blkChart.data.datasets[0].data = sampled.map(e => e.margin || 0);
     blkChart.update('none');
-    const maxBlocked = Math.max(...sampled.map(e => e.blocked_capital || 0));
     const maxMargin = Math.max(...sampled.map(e => e.margin || 0));
     document.getElementById('bt-blocked-label').textContent =
-      'Peak: ' + fmtK(maxBlocked) + ' (margin: ' + fmtK(maxMargin) + ')';
+      'Peak: ' + fmtK(maxMargin);
   }
 
   // ── Exposure & ROI panel ──
