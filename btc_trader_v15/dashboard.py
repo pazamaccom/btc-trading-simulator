@@ -1577,6 +1577,17 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       </div>
     </div>
 
+    <!-- Blocked Capital Chart (Backtest) -->
+    <div class="card" style="margin-bottom: 16px;">
+      <div class="card-header">
+        <span>Blocked Capital Over Time</span>
+        <span id="bt-blocked-label" style="font-size:11px; color:var(--text-dim);"></span>
+      </div>
+      <div class="chart-container">
+        <canvas id="btBlockedChart"></canvas>
+      </div>
+    </div>
+
     <!-- Exposure & ROI Summary -->
     <div style="margin-bottom: 16px;">
       <div class="bt-section-title">Exposure, Capital Utilization & ROI</div>
@@ -1812,6 +1823,75 @@ const ntChart = new Chart(ntCtx, {
         callbacks: {
           label: function(c) {
             return 'Investment: $' + c.parsed.y.toLocaleString('en-US', {maximumFractionDigits: 0});
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        ticks: { color: '#8b8fa3', font: { size: 10 } },
+        grid: { color: 'rgba(45,49,65,0.4)' }
+      },
+      y: {
+        ticks: {
+          color: '#8b8fa3',
+          font: { family: 'JetBrains Mono', size: 11 },
+          callback: v => '$' + (v >= 1000 ? (v/1000).toFixed(0) + 'K' : v.toFixed(0))
+        },
+        grid: { color: 'rgba(45,49,65,0.4)' }
+      }
+    }
+  }
+});
+
+// ── Chart setup (Backtest Blocked Capital) ───────────
+const blkCtx = document.getElementById('btBlockedChart').getContext('2d');
+const blkChart = new Chart(blkCtx, {
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: [
+      {
+        label: 'Blocked Capital ($)',
+        data: [],
+        borderColor: '#ef4444',
+        backgroundColor: 'rgba(239, 68, 68, 0.08)',
+        fill: true,
+        tension: 0.2,
+        pointRadius: 0,
+        borderWidth: 1.5,
+        stepped: 'before',
+      },
+      {
+        label: 'Margin ($)',
+        data: [],
+        borderColor: '#6366f1',
+        backgroundColor: 'rgba(99, 102, 241, 0.08)',
+        fill: true,
+        tension: 0.2,
+        pointRadius: 0,
+        borderWidth: 1,
+        stepped: 'before',
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { display: true, labels: { color: '#8b8fa3', font: { size: 10 } } },
+      tooltip: {
+        backgroundColor: '#1a1d27',
+        borderColor: '#2d3141',
+        borderWidth: 1,
+        titleColor: '#e4e6ed',
+        bodyColor: '#e4e6ed',
+        bodyFont: { family: 'JetBrains Mono', size: 12 },
+        padding: 10,
+        callbacks: {
+          label: function(c) {
+            return c.dataset.label + ': $' + c.parsed.y.toLocaleString('en-US', {maximumFractionDigits: 0});
           }
         }
       }
@@ -2150,6 +2230,16 @@ function updateBacktestView(data) {
     const maxNotional = Math.max(...sampled.map(e => e.notional || 0));
     document.getElementById('bt-notional-label').textContent =
       'Peak: ' + fmtK(maxNotional) + ' \u00b7 ' + sampled.length + ' samples';
+
+    // ── Blocked Capital chart (margin + drawdown reserve, scaled by actual contracts) ──
+    blkChart.data.labels = sampled.map(e => fmtShort(e.time || e.timestamp || ''));
+    blkChart.data.datasets[0].data = sampled.map(e => e.blocked_capital || 0);
+    blkChart.data.datasets[1].data = sampled.map(e => e.margin || 0);
+    blkChart.update('none');
+    const maxBlocked = Math.max(...sampled.map(e => e.blocked_capital || 0));
+    const maxMargin = Math.max(...sampled.map(e => e.margin || 0));
+    document.getElementById('bt-blocked-label').textContent =
+      'Peak: ' + fmtK(maxBlocked) + ' (margin: ' + fmtK(maxMargin) + ')';
   }
 
   // ── Exposure & ROI panel ──
@@ -2161,9 +2251,8 @@ function updateBacktestView(data) {
 
     // Card 1: Required Capital (the headline card)
     const reqCap = exposure.required_capital || 0;
-    const reqMargin = exposure.required_capital_margin || 0;
-    const reqDD = exposure.required_capital_drawdown || 0;
-    const reqBuffer = reqCap - reqMargin - reqDD;
+    const reqDD = exposure.required_capital_max_dd || 0;
+    const reqMult = exposure.required_capital_multiplier || 3;
     const roiReqAnn = exposure.roi_required_capital_ann || 0;
     const roiReqCls = roiReqAnn >= 0 ? 'pos' : 'neg';
     html += `
@@ -2171,15 +2260,13 @@ function updateBacktestView(data) {
         <div class="exp-card-title" style="color:var(--accent);">Required Capital</div>
         <div class="roi-highlight ${roiReqCls}">${roiReqAnn.toFixed(1)}%/yr</div>
         <div class="roi-ann">Annual return on capital needed to run this strategy</div>
-        <div class="exp-stat" style="margin-top:10px;"><span class="es-label">Peak Margin (broker deposit)</span>
-          <span class="es-val">${fmtK(reqMargin)}</span></div>
-        <div class="exp-stat"><span class="es-label">+ Max Drawdown (loss buffer)</span>
+        <div class="exp-stat" style="margin-top:10px;"><span class="es-label">Max Drawdown</span>
           <span class="es-val">${fmtK(reqDD)}</span></div>
-        <div class="exp-stat"><span class="es-label">+ 25% Safety Buffer</span>
-          <span class="es-val">${fmtK(reqBuffer)}</span></div>
+        <div class="exp-stat"><span class="es-label">\u00d7 ${reqMult} (safety multiplier)</span>
+          <span class="es-val"></span></div>
         <div class="exp-stat" style="border-top:1px solid var(--border); padding-top:6px; margin-top:6px;"><span class="es-label" style="font-weight:600;">= Deposit at Broker</span>
           <span class="es-val" style="font-weight:600;">${fmtK(reqCap)}</span></div>
-        <div class="exp-stat" style="margin-top:8px; font-size:11px; color:var(--text-dim);">This is the minimum you should deposit to run this strategy. It covers the margin IB holds as collateral, the worst historical loss, and a safety buffer for slippage and margin changes.</div>
+        <div class="exp-stat" style="margin-top:8px; font-size:11px; color:var(--text-dim);">3\u00d7 the worst historical loss. The first 1\u00d7 covers the drawdown itself, the second 1\u00d7 keeps you trading through a repeat, and the third 1\u00d7 is a safety margin for worse-than-historical scenarios.</div>
       </div>`;
 
     // Card 2: Investment Amount

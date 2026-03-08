@@ -402,10 +402,19 @@ def enrich_equity_curve(equity_curve, trades):
                     current_contracts = 0
                     current_notional = 0
 
+        # Blocked Capital = margin for current contracts + drawdown reserve
+        # This is the actual capital tied up at this point in time:
+        #   - Margin: $1,500/contract locked by IB
+        #   - Reserve: 2× margin as drawdown buffer (so total = 3× margin)
+        margin = current_contracts * 1500
+        blocked = margin * 3  # same 3× logic as Required Capital
+
         enriched.append({
             **point,
             "notional": round(current_notional, 2),
             "contracts": current_contracts,
+            "margin": round(margin, 2),
+            "blocked_capital": round(blocked, 2),
         })
 
     return enriched
@@ -667,17 +676,15 @@ def main():
     # Inject Required Capital (needs max_drawdown from metrics)
     if exposure_stats:
         max_dd = metrics.get("max_drawdown", 0)
-        peak_margin = exposure_stats.get("margin_max", 0)
-        # Required Capital = Peak Margin + Max Drawdown + 25% safety buffer
-        # This is the minimum you'd need to deposit at the broker:
-        #   - Peak margin: what IB holds as collateral at your largest position
-        #   - Max drawdown: worst peak-to-trough loss you must survive
-        #   - 25% buffer: for margin increases, slippage, overnight gaps
-        required_capital = peak_margin + max_dd + (peak_margin + max_dd) * 0.25
+        # Required Capital = 3 × Max Drawdown
+        # Rationale: you must survive the worst historical loss (1×),
+        # have enough to keep trading through a second comparable drawdown (2×),
+        # plus a safety margin for worse-than-historical scenarios (3×).
+        # This is the total amount to deposit at the broker.
+        required_capital = max_dd * 3
         exposure_stats["required_capital"] = round(required_capital, 2)
-        exposure_stats["required_capital_margin"] = round(peak_margin, 2)
-        exposure_stats["required_capital_drawdown"] = round(max_dd, 2)
-        exposure_stats["required_capital_buffer_pct"] = 25
+        exposure_stats["required_capital_max_dd"] = round(max_dd, 2)
+        exposure_stats["required_capital_multiplier"] = 3
         bt_years = exposure_stats.get("backtest_years", 1)
         roi_required_ann = (total_pnl / required_capital / bt_years * 100) if required_capital > 0 else 0
         exposure_stats["roi_required_capital_ann"] = round(roi_required_ann, 1)
@@ -750,9 +757,8 @@ def main():
         print(f"  Avg Investment:  ${exposure_stats.get('investment_mean', 0):>10,.2f}")
         print(f"  Peak Margin:     ${exposure_stats.get('margin_max', 0):>10,.2f}  (broker deposit)")
         print(f"  ── Required Capital (to run this strategy) ──")
-        print(f"  Peak Margin:     ${exposure_stats.get('required_capital_margin',0):>10,.2f}")
-        print(f"  + Max Drawdown:  ${exposure_stats.get('required_capital_drawdown',0):>10,.2f}")
-        print(f"  + 25% Buffer:    ${(exposure_stats.get('required_capital',0) - exposure_stats.get('required_capital_margin',0) - exposure_stats.get('required_capital_drawdown',0)):>10,.2f}")
+        print(f"  Max Drawdown:    ${exposure_stats.get('required_capital_max_dd',0):>10,.2f}")
+        print(f"  × 3 (safety):    3× max drawdown")
         print(f"  = Required:      ${exposure_stats.get('required_capital',0):>10,.2f}")
         print(f"  Annual Return:   {exposure_stats.get('roi_required_capital_ann',0):.1f}% per year")
         print(f"  ── Annualized ROI (other bases) ──")
