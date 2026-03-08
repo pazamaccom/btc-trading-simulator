@@ -255,13 +255,21 @@ def run_multitf_backtest(
     # ── 4. Fit RegimeDetector on daily bars ──────────────────────────────────
     # Check for pre-computed regime cache (from optimizer)
     regime_cache = p.get("_regime_cache")
+    # Display name mapping for terminal output
+    _CLUSTER_NAMES = {
+        "bull": "Positive Momentum",
+        "choppy": "Range",
+        "bear": "Volatile",
+        "neg_momentum_skip": "Negative Momentum",
+    }
+
     if regime_cache is not None:
         # Use pre-computed regimes — skip expensive HMM fitting
         date_to_regime = regime_cache
         if verbose:
             regime_counts = {}
             for r in date_to_regime.values():
-                regime_counts[r] = regime_counts.get(r, 0) + 1
+                regime_counts[_CLUSTER_NAMES.get(r, r)] = regime_counts.get(_CLUSTER_NAMES.get(r, r), 0) + 1
             print(f"  Regimes (cached): {regime_counts}")
     else:
         # No cache — run full regime detection
@@ -304,7 +312,7 @@ def run_multitf_backtest(
         if verbose:
             regime_counts = {}
             for r in date_to_regime.values():
-                regime_counts[r] = regime_counts.get(r, 0) + 1
+                regime_counts[_CLUSTER_NAMES.get(r, r)] = regime_counts.get(_CLUSTER_NAMES.get(r, r), 0) + 1
             refit_info = f" ({fit_result.get('refit_count', '?')} refits, {fit_result.get('refit_rejects', '?')} rejected)"
             print(f"  Regimes: {regime_counts}{refit_info}")
     

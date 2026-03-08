@@ -2528,7 +2528,7 @@ function updateLiveView(data) {
   const regimeConf = s.regime_confidence;
   if (detectedRegime) {
     const rc = regimeClass(detectedRegime);
-    let text = 'Regime: ' + detectedRegime.toUpperCase();
+    let text = 'Regime: ' + regimeDisplayName(detectedRegime);
     if (regimeConf !== undefined && regimeConf !== null) {
       text += ' (' + Math.round(Number(regimeConf) * 100) + '%)';
     }

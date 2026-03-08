@@ -640,7 +640,7 @@ def main():
         end_date_str=end_d,
     )
     for s in regime_summary:
-        print(f"    {s['display_name']} ({s['regime']}): {s['trades']} trades, "
+        print(f"    {s['display_name']}: {s['trades']} trades, "
               f"${s['pnl']:,.2f} PnL, {s['win_rate']}% WR, "
               f"{s.get('days_exposed',0)}/{s.get('cluster_days',0)} days exposed")
 
@@ -726,7 +726,7 @@ def main():
         print(f"  ROI (max mrg): {exposure_stats.get('roi_max_margin',0):.1f}% cum / {exposure_stats.get('roi_max_margin_ann',0):.1f}% ann")
         print(f"  ROI (avg not): {exposure_stats.get('roi_avg_notional',0):.1f}% cum / {exposure_stats.get('roi_avg_notional_ann',0):.1f}% ann")
         print(f"  ── Capital Utilization ──")
-        print(f"  Calendar Days: {exposure_stats.get('total_calendar_days',0)} | Tradeable: {exposure_stats.get('tradeable_days',0)} | Neg-Mom Skip: {exposure_stats.get('neg_momentum_days',0)}")
+        print(f"  Calendar Days: {exposure_stats.get('total_calendar_days',0)} | Tradeable: {exposure_stats.get('tradeable_days',0)} | Negative Momentum (skip): {exposure_stats.get('neg_momentum_days',0)}")
         print(f"  Days Exposed:  {exposure_stats.get('days_exposed',0)} / {exposure_stats.get('tradeable_days',0)} ({exposure_stats.get('utilization_pct',0):.1f}% of tradeable)")
         print(f"  Peak Capital:  ${exposure_stats.get('peak_capital_invested',0):>10,.2f}")
         print(f"  Avg Capital:   ${exposure_stats.get('avg_capital_invested',0):>10,.2f}")
