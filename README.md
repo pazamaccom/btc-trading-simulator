@@ -99,30 +99,47 @@ v3_cache.json   (2,252 days, 2020-01-05 to 2026-03-05)
 
 ## Running
 
-### Full backtest + dashboard data
+### Step 1: Run the backtest
 
-This is the main command. It runs the backtest with the V3 optimized params
-and writes the JSON files the dashboard needs:
+This runs the full backtest with V3 optimized params and writes the JSON
+files the dashboard needs (`backtest_results.json`, `trades.json`, `state.json`):
 
 ```bash
 python run_backtest_dashboard.py
 ```
 
 Expected output: ~$1,742,339 PnL, 229 trades, 81.2% WR, PF 10.15.
+The process will finish and return to the terminal prompt.
 
-To also launch the dashboard immediately:
+### Step 2: Launch the dashboard
+
+After the backtest finishes, start the dashboard server:
+
+```bash
+python dashboard.py --port 8080
+```
+
+The terminal will show `Dashboard running at http://localhost:8080`.
+**Keep this terminal open** — the dashboard is a local web server that
+must stay running while you view it.
+
+Then open your browser at: http://localhost:8080
+
+> **Tip:** If `localhost` doesn't work, try http://127.0.0.1:8080 instead.
+> If port 8080 is already in use, pick another port: `--port 9090`
+
+To stop the dashboard, press `Ctrl+C` in the terminal.
+
+### Alternative: backtest + dashboard in one command
+
+You can also run both in a single step:
 
 ```bash
 python run_backtest_dashboard.py --port 8080
 ```
 
-Then open http://localhost:8080
-
-### Dashboard only (after backtest has run)
-
-```bash
-python dashboard.py --port 8080
-```
+This runs the backtest first, then automatically starts the dashboard.
+Open http://localhost:8080 once you see `Dashboard running`.
 
 ### Train V3 classifier (regenerate v3_cache.json)
 
