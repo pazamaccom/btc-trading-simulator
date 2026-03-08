@@ -1182,6 +1182,7 @@ def _short_pnl(entry, exit_px, contracts):
 
 
 def _compute_metrics(trades):
+    from datetime import datetime as _dt
     closed = [t for t in trades 
               if t["action"] in ("SELL", "COVER") and t.get("pnl") is not None]
     
@@ -1192,6 +1193,8 @@ def _compute_metrics(trades):
             "best_trade": 0.0, "worst_trade": 0.0,
             "long_trades": 0, "long_pnl": 0.0, "long_wins": 0,
             "short_trades": 0, "short_pnl": 0.0, "short_wins": 0,
+            "avg_duration_days": 0.0, "min_duration_days": 0.0,
+            "max_duration_days": 0.0, "median_duration_days": 0.0,
         }
     
     pnls = [t["pnl"] for t in closed]
@@ -1215,7 +1218,26 @@ def _compute_metrics(trades):
     
     gross_win = sum(wins)
     gross_loss = abs(sum(losses))
-    
+
+    # ── Trade duration stats ──
+    durations = []
+    entry_time = None
+    for t in trades:
+        action = t.get("action", "")
+        if action in ("BUY", "SHORT"):
+            entry_time = t.get("time")
+        elif action in ("SELL", "COVER") and entry_time:
+            try:
+                t_str = str(entry_time)[:19]
+                e_str = str(t.get("time", ""))[:19]
+                dt_en = _dt.strptime(t_str, "%Y-%m-%d %H:%M:%S")
+                dt_ex = _dt.strptime(e_str, "%Y-%m-%d %H:%M:%S")
+                days = (dt_ex - dt_en).total_seconds() / 86400
+                durations.append(round(days, 1))
+            except (ValueError, TypeError):
+                pass
+            entry_time = None
+
     return {
         "total_trades": len(closed),
         "win_rate": round(len(wins) / len(pnls) * 100, 1),
@@ -1231,6 +1253,10 @@ def _compute_metrics(trades):
         "short_trades": len(short_closes),
         "short_pnl": round(sum(short_pnls), 2) if short_pnls else 0.0,
         "short_wins": sum(1 for p in short_pnls if p > 0),
+        "avg_duration_days": round(float(np.mean(durations)), 1) if durations else 0.0,
+        "min_duration_days": round(min(durations), 1) if durations else 0.0,
+        "max_duration_days": round(max(durations), 1) if durations else 0.0,
+        "median_duration_days": round(float(np.median(durations)), 1) if durations else 0.0,
     }
 
 

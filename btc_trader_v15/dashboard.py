@@ -1548,6 +1548,11 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
         <div class="kpi-value neg" id="bt-kpi-worst">$0.00</div>
         <div class="kpi-sub">Single trade</div>
       </div>
+      <div class="kpi">
+        <div class="kpi-label">Trade Duration</div>
+        <div class="kpi-value" id="bt-kpi-duration" style="font-size:20px;">—</div>
+        <div class="kpi-sub" id="bt-kpi-duration-sub">avg · min · max</div>
+      </div>
     </div>
 
     <!-- Equity Curve (Backtest, regime-colored) -->
@@ -2099,6 +2104,17 @@ function updateBacktestView(data) {
   document.getElementById('bt-kpi-pf').textContent = 'PF: ' + (pf === Infinity || pf === null || pf === undefined ? '—' : Number(pf).toFixed(2));
   document.getElementById('bt-kpi-best').textContent = fmt(metrics.best_trade);
   document.getElementById('bt-kpi-worst').textContent = fmt(metrics.worst_trade);
+
+  // Trade duration
+  const avgDur = metrics.avg_duration_days;
+  const minDur = metrics.min_duration_days;
+  const maxDur = metrics.max_duration_days;
+  const medDur = metrics.median_duration_days;
+  if (avgDur !== undefined && avgDur > 0) {
+    document.getElementById('bt-kpi-duration').textContent = avgDur.toFixed(1) + 'd avg';
+    document.getElementById('bt-kpi-duration-sub').textContent =
+      minDur.toFixed(0) + 'd min · ' + medDur.toFixed(0) + 'd med · ' + maxDur.toFixed(0) + 'd max';
+  }
 
   // ── Equity curve (regime-colored points) ──
   if (equityCurve.length > 0) {
