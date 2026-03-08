@@ -2252,7 +2252,9 @@ function updateBacktestView(data) {
     // Card 1: Required Capital (the headline card)
     const reqCap = exposure.required_capital || 0;
     const reqDD = exposure.required_capital_max_dd || 0;
-    const reqMult = exposure.required_capital_multiplier || 3;
+    const reqMult = exposure.required_capital_dd_multiplier || 3;
+    const reqMargin = exposure.required_capital_margin || 0;
+    const reqDDBuf = exposure.required_capital_dd_buffer || 0;
     const roiReqAnn = exposure.roi_required_capital_ann || 0;
     const roiReqCls = roiReqAnn >= 0 ? 'pos' : 'neg';
     html += `
@@ -2260,13 +2262,15 @@ function updateBacktestView(data) {
         <div class="exp-card-title" style="color:var(--accent);">Required Capital</div>
         <div class="roi-highlight ${roiReqCls}">${roiReqAnn.toFixed(1)}%/yr</div>
         <div class="roi-ann">Annual return on capital needed to run this strategy</div>
-        <div class="exp-stat" style="margin-top:10px;"><span class="es-label">Max Drawdown</span>
+        <div class="exp-stat" style="margin-top:10px;"><span class="es-label">Peak Margin (broker deposit)</span>
+          <span class="es-val">${fmtK(reqMargin)}</span></div>
+        <div class="exp-stat"><span class="es-label">Max Drawdown</span>
           <span class="es-val">${fmtK(reqDD)}</span></div>
-        <div class="exp-stat"><span class="es-label">\u00d7 ${reqMult} (safety multiplier)</span>
-          <span class="es-val"></span></div>
+        <div class="exp-stat"><span class="es-label">\u00d7 ${reqMult} (loss buffer)</span>
+          <span class="es-val">${fmtK(reqDDBuf)}</span></div>
         <div class="exp-stat" style="border-top:1px solid var(--border); padding-top:6px; margin-top:6px;"><span class="es-label" style="font-weight:600;">= Deposit at Broker</span>
           <span class="es-val" style="font-weight:600;">${fmtK(reqCap)}</span></div>
-        <div class="exp-stat" style="margin-top:8px; font-size:11px; color:var(--text-dim);">3\u00d7 the worst historical loss. The first 1\u00d7 covers the drawdown itself, the second 1\u00d7 keeps you trading through a repeat, and the third 1\u00d7 is a safety margin for worse-than-historical scenarios.</div>
+        <div class="exp-stat" style="margin-top:8px; font-size:11px; color:var(--text-dim);">Peak Margin is the collateral your broker holds at your largest position. The 3\u00d7 Max Drawdown buffer ensures you can absorb the worst historical loss, keep trading through a repeat, and still have a safety margin for worse-than-historical scenarios.</div>
       </div>`;
 
     // Card 2: Investment Amount
