@@ -14,7 +14,7 @@ The dashboard reads this file in backtest mode to display:
 Also writes state.json with mode="backtest" so the dashboard auto-detects.
 
 Usage:
-  python run_backtest_dashboard.py                # Full period (Jan 2023 - today)
+  python run_backtest_dashboard.py                # Full period (Jan 2020 - today)
   python run_backtest_dashboard.py --port 8080    # Also start dashboard server
 
 After running, start the dashboard separately:
@@ -37,39 +37,58 @@ if _DIR not in sys.path:
     sys.path.insert(0, _DIR)
 
 import config as cfg
-from backtest_multitf import run_multitf_backtest, compute_regime_cache
+from backtest_multitf import run_multitf_backtest
 
 
 MULTIPLIER = cfg.MULTIPLIER
 
 
+def load_v3_cache():
+    """Load v3 4-cluster cache and convert to engine format."""
+    cache_path = os.path.join(_DIR, "v3_cache.json")
+    if not os.path.exists(cache_path):
+        raise FileNotFoundError(
+            f"v3_cache.json not found at {cache_path}\n"
+            f"  Run train_v3.py first to generate the regime cache."
+        )
+    import json
+    from datetime import datetime as _dt
+    with open(cache_path) as f:
+        raw = json.load(f)
+    V3_MAP = {"momentum": "bull", "range": "choppy", "volatile": "bear", "neg_momentum": "neg_momentum_skip"}
+    engine_cache = {}
+    for date_str, cluster in raw.items():
+        engine_cache[_dt.strptime(date_str, "%Y-%m-%d").date()] = V3_MAP[cluster]
+    return engine_cache
+
+
 def build_params(regime_cache):
-    """Combined best params from all three regime optimizers."""
+    """V3 optimized params (4-cluster classifier)."""
     return {
         "exec_mode": "best_price",
         "ind_period": 14,
         "_regime_cache": regime_cache,
-        # Choppy (Tier 3 winner)
-        "calib_days": 14,
+        # Range/Choppy params
+        "calib_days": 21,
         "short_trail_pct": 0.04,
         "short_stop_pct": 0.02,
         "short_adx_exit": 28,
-        "short_adx_max": 40,
-        "long_target_zone": 0.85,
-        "long_entry_zone": 0.40,
-        "short_entry_zone": 0.60,
-        "short_target_zone": 0.30,
-        # Bear (WF winner)
+        "short_adx_max": 35,
+        "long_target_zone": 0.75,
+        "long_entry_zone": 0.45,
+        "short_entry_zone": 0.55,
+        "short_target_zone": 0.2,
+        # Volatile/Bear params
         "bear_calib_days": 14,
         "bear_short_trail_pct": 0.06,
         "bear_short_stop_pct": 0.04,
         "bear_short_adx_exit": 28,
-        "bear_short_adx_max": 60,
+        "bear_short_adx_max": 45,
         "bear_long_entry_zone": 0.25,
         "bear_short_entry_zone": 0.65,
-        "bear_long_target_zone": 0.90,
-        "bear_short_target_zone": 0.20,
-        # Bull (WF winner)
+        "bear_long_target_zone": 0.9,
+        "bear_short_target_zone": 0.25,
+        # Momentum/Bull params
         "bull_calib_days": 30,
         "bull_lookback": 5,
         "bull_atr_period": 14,
@@ -77,7 +96,7 @@ def build_params(regime_cache):
         "bull_stop_pct": 0.03,
         "bull_adx_min": 15,
         "bull_adx_exit": 10,
-        "bull_max_hold_days": 15,
+        "bull_max_hold_days": 25,
         "bull_cooldown_hours": 24,
     }
 
@@ -321,23 +340,22 @@ def main():
     args = parser.parse_args()
 
     print("=" * 75)
-    print("  3-REGIME BACKTEST → DASHBOARD")
+    print("  V3 4-CLUSTER BACKTEST → DASHBOARD")
     print(f"  Config: {cfg.__file__}")
     print("=" * 75)
 
-    # ── 1. Pre-compute regime cache ──────────────────────────────────────
-    print("\n  [1/4] Computing regime cache...")
+    # ── 1. Load V3 regime cache ──────────────────────────────────────────
+    print("\n  [1/4] Loading V3 regime cache...")
     t0 = time.time()
-    cache_result = compute_regime_cache()
-    regime_cache = cache_result["date_to_regime"]
-    print(f"  Done in {time.time()-t0:.1f}s — {len(regime_cache)} days cached.\n")
+    regime_cache = load_v3_cache()
+    print(f"  Done in {time.time()-t0:.1f}s — {len(regime_cache)} days loaded.\n")
 
     # ── 2. Run full backtest ─────────────────────────────────────────────
     print("  [2/4] Running full-period backtest...")
     t0 = time.time()
     params = build_params(regime_cache)
     result = run_multitf_backtest(
-        start_date="2023-01-01",
+        start_date="2020-01-01",
         end_date=None,
         params=params,
         verbose=True,
@@ -387,7 +405,7 @@ def main():
 
     # Exposure stats (with ROI)
     total_pnl = metrics.get("cumulative_pnl", 0)
-    start_d = result.get("start_date", "2023-01-01")
+    start_d = result.get("start_date", "2020-01-01")
     end_d = result.get("end_date", datetime.now().strftime("%Y-%m-%d"))
     exposure_stats = compute_exposure_stats(trades, total_pnl, start_d, end_d)
 
@@ -398,7 +416,7 @@ def main():
     dashboard_data = {
         "mode": "backtest",
         "generated_at": datetime.now().isoformat(),
-        "start_date": result.get("start_date", "2023-01-01"),
+        "start_date": result.get("start_date", "2020-01-01"),
         "end_date": result.get("end_date", datetime.now().strftime("%Y-%m-%d")),
         "elapsed_seconds": round(elapsed, 2),
         "metrics": metrics,
