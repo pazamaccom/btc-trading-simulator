@@ -29,6 +29,11 @@ Thumbs.db
 *.tmp
 /tmp/
 
+# Generated backtest outputs (regenerated locally)
+backtest_results.json
+state.json
+trades.json
+
 # Optimization outputs (large, regenerated locally)
 optimization_results/
 *_optimization_*.json
