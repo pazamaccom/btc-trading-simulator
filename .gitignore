@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs & temp
+*.log
+*.tmp
+/tmp/
+
+# Optimization outputs (large, regenerated locally)
+optimization_results/
+*_optimization_*.json
+*_optimization_*.csv
+
+# IB connection
+ib_gateway/
+tws_settings/

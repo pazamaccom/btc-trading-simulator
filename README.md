@@ -1,78 +1,105 @@
 # BTC Trading Simulator
 
-A systematic Bitcoin trading backtesting framework with rolling walk-forward optimization. All results are 100% out-of-sample.
+A systematic Bitcoin futures (MBT Micro) trading framework with regime-aware
+multi-strategy execution, 4-cluster market classification, and walk-forward
+parameter optimization.
 
-## Current Version: v4 (Alternative Data Integration)
+## Current Version: v2.0 — Secondary Strategy + 4-Cluster Classifier
 
-### What's New in v4
-- **Fear & Greed Index** — contrarian and momentum sentiment strategies
-- **On-chain metrics** — active addresses, transaction volume, hash rate, mempool congestion
-- **Hybrid strategies** — combining technical analysis with alternative data signals
-- **Category system** — strategies classified as Technical, Alternative, or Hybrid
+### Architecture
 
-### Strategy Categories
+```
+Hourly BTC data (Binance) → Resample to daily
+                                ↓
+                    V3 Classifier (4-cluster KMeans)
+                                ↓
+            ┌───────────┬──────────────┬──────────────┐
+            │ momentum  │    range     │   volatile   │  neg_momentum
+            │ (bull)    │  (choppy)    │   (bear)     │   → FLAT
+            ↓           ↓              ↓
+        BullStrategy  ChoppyStrategy  ChoppyStrategy
+        (trend follow) (range trade)  (bear params)
+                      + secondary     + secondary
+                        BullStrategy    BullStrategy
+```
 
-| Category | Strategies | Description |
-|----------|-----------|-------------|
-| **Technical** | MA Crossover, RSI, Bollinger, Confluence Reversal | Traditional price-based indicators |
-| **Alternative** | FNG Contrarian, FNG Momentum, On-Chain Activity, Hash Rate, Mempool Pressure | Blockchain and sentiment data |
-| **Hybrid** | MA + FNG Hybrid, Confluence + AltData | TA + alternative data fusion |
+### Strategy Mapping
 
-### Out-of-Sample Results (v4)
+| Cluster | % of Time | Strategy | Primary | Secondary |
+|---------|-----------|----------|---------|-----------|
+| range | 71.2% | RangeTrader | ChoppyStrategy | BullStrategy (TrendFollower) |
+| volatile | 17.5% | VolatilityTrader | ChoppyStrategy (bear params) | BullStrategy (TrendFollower) |
+| momentum | 6.2% | TrendFollower | BullStrategy | — |
+| neg_momentum | 5.0% | Flat | No trading | — |
 
-Over a 1,318-day OOS period (Dec 2024 — Feb 2026) with Buy & Hold returning **-29.91%**:
+### Results (full period 2020-01-01 → 2026-03-05)
 
-| Strategy | Return | Alpha | Category |
-|----------|--------|-------|----------|
-| Mempool Pressure | +2.27% | +32.18% | Alternative |
-| Confluence Reversal | +0.73% | +30.64% | Technical |
-| FNG Momentum | -0.64% | +29.27% | Alternative |
-| MA + FNG Hybrid | -1.28% | +28.63% | Hybrid |
+| Metric | Value |
+|--------|-------|
+| Total PnL | $1,742,339 |
+| Trades | 229 |
+| Win Rate | 81.2% |
+| Profit Factor | 10.15 |
+| Max Drawdown | $35,462 |
+| Instrument | MBT Micro BTC Futures ($5 multiplier) |
 
-**All 11 strategies beat Buy & Hold** — generating +16.88% to +32.18% alpha.
+### Per-Cluster Breakdown
 
-## Architecture
+| Cluster | Days | Trades | PnL | WR | PF | PnL/Day |
+|---------|------|--------|-----|----|----|---------|
+| range | 1,604 | 160 | $886,862 | 78.8% | 7.58 | $553 |
+| volatile | 395 | 44 | $556,384 | 84.1% | 12.22 | $1,409 |
+| momentum | 140 | 23 | $288,983 | 91.3% | 49.19 | $2,064 |
+| neg_momentum | 113 | 2* | $10,109 | 100% | — | $89 |
 
-### Rolling Walk-Forward Framework
-- **90-day lookback** — train on trailing 3 months
-- **5-day refit interval** — re-optimize parameters every 5 trading days
-- **ATR-based risk management** — 2x ATR stop loss, 3x ATR take profit
-- **Position sizing** — 2% risk per trade
-- **Commission** — 0.1% per trade
+> *Forced closures on regime entry — not active trades.
 
-### Data Sources
-- **Price**: Coinbase Pro API (daily OHLCV)
-- **Sentiment**: Fear & Greed Index (alternative.me)
-- **On-chain**: blockchain.info (addresses, TX volume, hash rate, mempool)
+### Key Files
 
-## Files
+| File | Purpose |
+|------|---------|
+| `backtest_multitf.py` | Multi-timeframe backtest engine (daily signals, hourly execution) |
+| `bull_strategy.py` | BullStrategy — momentum/trend following |
+| `btc_trader_v15/strategy.py` | ChoppyStrategy — range trading |
+| `btc_trader_v15/regime_detector_v3.py` | V3 4-cluster KMeans classifier |
+| `train_v3.py` | V3 classifier training script |
+| `v3_cache.json` | Pre-computed regime labels (2020-2026) |
+| `optimize_v3.py` | Iterative coordinate descent parameter optimizer |
+| `cluster_analysis_full.py` | Per-cluster performance analysis |
+| `btc_trader_v15/data/btc_hourly.csv` | Full hourly dataset (2020-2026, 54K bars) |
 
-| File | Description |
-|------|-------------|
-| `btc_backtester.py` | v1 — Original static grid search (overfitting baseline) |
-| `btc_backtester_v2.py` | v2 — ATR stops, regime filters, position sizing (still static) |
-| `btc_backtester_v3.py` | v3 — Rolling walk-forward, 100% OOS |
-| `btc_backtester_v4.py` | v4 — Alternative data integration |
-| `run_v4_fast.py` | v4 speed-optimized runner (trimmed grids) |
-| `btc-dashboard/` | Interactive Bloomberg-style dashboard |
+### Running
 
-## Version History
+**Backtest** (requires data file):
+```bash
+python backtest_multitf.py
+```
 
-| Version | Key Change | Best Return | Method |
-|---------|-----------|-------------|--------|
-| v1 | 5 strategies, grid search | +26.50% | Static (overfit) |
-| v2 | ATR stops, regime filters | +17.22% | Static (less overfit) |
-| v3 | Rolling walk-forward | +9.85% | 100% OOS |
-| v4 | Alt data (FNG, on-chain) | +2.27% | 100% OOS, longer period |
+**Train V3 classifier** (run on Mac):
+```bash
+python train_v3.py
+```
 
-Note: v4 runs over a much longer and more bearish OOS period (1,318 days vs 365 days), so raw returns are not directly comparable. Alpha vs B&H is the fair comparison.
+**Optimize parameters** (run on Mac, uses multiprocessing):
+```bash
+python optimize_v3.py
+```
 
-## Roadmap
-1. ~~Alternative data signals~~ (v4 - completed)
-2. ML signal generation
-3. Ensemble / meta-strategy
-4. Dynamic position sizing
-5. Multi-asset correlation
+**Cluster analysis**:
+```bash
+python cluster_analysis_full.py
+```
 
-## Disclaimer
-This project is for educational and research purposes only. Not financial advice. Past performance does not guarantee future results.
+### Infrastructure
+
+- **Data source**: Binance (public, no API key needed)
+- **Execution target**: IB TWS, MBT Micro Futures, paper account DUD084004
+- **Optimization**: Mac Studio (24 cores, parallel multiprocessing)
+- **Repo tags**: `v1.0-config-I` (baseline), `v2.0-secondary-strategy` (current)
+
+### Status
+
+Parameters currently optimized on 2023+ only.
+Full-period re-optimization (2020-2026) in progress for consistency.
+
+See [CHANGELOG.md](CHANGELOG.md) for detailed version history.

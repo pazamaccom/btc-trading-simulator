@@ -105,7 +105,7 @@ def _load_hourly_csv():
     try:
         from data_fetcher import fetch_hourly_btc
         print("  No local data found — fetching from IB TWS...")
-        df = fetch_hourly_btc("2023-01-01")
+        df = fetch_hourly_btc("2020-01-01")
         # Save to canonical location
         save_path = os.path.join(_V15_DIR, "data", "btc_hourly.csv")
         os.makedirs(os.path.dirname(save_path), exist_ok=True)
@@ -123,7 +123,7 @@ def _load_hourly_csv():
         f"  Checked cache dirs: {cache_dirs}\n"
         f"  IB auto-fetch also failed.\n"
         f"\n  To fix, run with TWS open:\n"
-        f"    cd btc_trader_v15 && python data_fetcher.py 2023-01-01\n"
+        f"    cd btc_trader_v15 && python data_fetcher.py 2020-01-01\n"
         f"  Then copy the output to btc_trader_v15/data/btc_hourly.csv"
     )
 
@@ -193,7 +193,7 @@ def compute_regime_cache(
 
 
 def run_multitf_backtest(
-    start_date: str = "2023-01-01",
+    start_date: str = "2020-01-01",
     end_date: str = None,
     params: dict = None,
     verbose: bool = False,
@@ -416,6 +416,8 @@ def run_multitf_backtest(
     
     active_strategy = None
     active_regime = None
+    secondary_strategy = None  # BullStrategy as secondary in choppy/bear
+    active_is_secondary = False  # tracks which strategy owns the open position
     
     for i, daily_bar in enumerate(daily_bars):
         bar_date = daily_bar["time"].date() if hasattr(daily_bar["time"], 'date') else daily_bar["time"]
@@ -447,18 +449,23 @@ def run_multitf_backtest(
                     "regime": active_regime,
                     "exec_hour": "daily_close",
                 })
-                if active_strategy:
+                # Record fill on whichever strategy owns the position
+                close_strat = secondary_strategy if active_is_secondary else active_strategy
+                if close_strat:
                     try:
-                        active_strategy.record_fill(
+                        close_strat.record_fill(
                             "SELL" if virt["side"] == "long" else "COVER",
                             close_px, virt["contracts"], daily_bar["time"])
                     except Exception:
                         pass
                 virt = {"side": "flat", "entry_price": 0.0, "avg_entry": 0.0,
                         "contracts": 0, "entry_time": None}
+                active_is_secondary = False
             
             active_regime = bar_regime
             active_strategy = None
+            secondary_strategy = None
+            active_is_secondary = False
             
             # Calibrate new strategy for this regime
             if bar_regime == "choppy":
@@ -477,6 +484,18 @@ def run_multitf_backtest(
                         if verbose:
                             print(f"  Calibration failed for choppy at day {i}: {exc}")
                         active_strategy = None
+                    
+                    # Secondary: TrendFollower in range regime
+                    if bull_enabled:
+                        bull_needed = bull_calib_bars_daily
+                        if i >= bull_needed:
+                            bull_calib_df = pd.DataFrame(daily_bars[i - bull_needed: i])
+                            try:
+                                sec = BullStrategy(params=bull_params)
+                                sec.calibrate(bull_calib_df)
+                                secondary_strategy = sec
+                            except Exception:
+                                secondary_strategy = None
             
             elif bar_regime == "bear" and bear_enabled:
                 needed = bear_calib_bars_daily
@@ -494,6 +513,18 @@ def run_multitf_backtest(
                         if verbose:
                             print(f"  Calibration failed for bear at day {i}: {exc}")
                         active_strategy = None
+                    
+                    # Secondary: TrendFollower in volatile regime
+                    if bull_enabled:
+                        bull_needed = bull_calib_bars_daily
+                        if i >= bull_needed:
+                            bull_calib_df = pd.DataFrame(daily_bars[i - bull_needed: i])
+                            try:
+                                sec = BullStrategy(params=bull_params)
+                                sec.calibrate(bull_calib_df)
+                                secondary_strategy = sec
+                            except Exception:
+                                secondary_strategy = None
             
             elif bar_regime == "bull" and bull_enabled:
                 needed = bull_calib_bars_daily
@@ -510,7 +541,7 @@ def run_multitf_backtest(
                         active_strategy = None
         
         # ── Feed daily bar to strategy ───────────────────────────────────
-        if active_strategy is None:
+        if active_strategy is None and secondary_strategy is None:
             equity_curve.append({
                 "time": str(daily_bar["time"]),
                 "pnl": round(cumulative_pnl, 2),
@@ -519,18 +550,40 @@ def run_multitf_backtest(
             })
             continue
         
-        try:
-            signal = active_strategy.on_bar(daily_bar, current_regime=active_regime or "")
-        except Exception:
-            equity_curve.append({
-                "time": str(daily_bar["time"]),
-                "pnl": round(cumulative_pnl, 2),
-                "trade_pnl": 0.0,
-                "regime": active_regime,
-            })
-            continue
+        # Determine which strategy to use for this bar
+        if active_is_secondary:
+            # Secondary owns the position — it manages the trade
+            current_strat = secondary_strategy
+        else:
+            current_strat = active_strategy
+        
+        signal = None
+        sec_signal = None
+        
+        # Get signal from the strategy that owns the current position (or primary if flat)
+        if current_strat is not None:
+            try:
+                signal = current_strat.on_bar(daily_bar, current_regime=active_regime or "")
+            except Exception:
+                signal = None
+        
+        # Feed bar to secondary so it tracks indicators (only when primary is active)
+        # and capture its signal in case primary gives HOLD while we're flat
+        if not active_is_secondary and secondary_strategy is not None:
+            try:
+                sec_signal = secondary_strategy.on_bar(daily_bar, current_regime=active_regime or "")
+            except Exception:
+                sec_signal = None
         
         bar_pnl = 0.0
+        
+        # If primary gives HOLD/None and we're flat, check secondary signal
+        if (signal is None or signal.action == "HOLD") and virt["side"] == "flat" \
+                and not active_is_secondary and sec_signal is not None \
+                and sec_signal.action in ("BUY", "SHORT"):
+            signal = sec_signal
+            active_is_secondary = True
+            current_strat = secondary_strategy
         
         if signal is None or signal.action == "HOLD":
             pass
@@ -546,6 +599,7 @@ def run_multitf_backtest(
             virt["contracts"] = signal.contracts
             virt["entry_time"] = daily_bar["time"]
             
+            strat_tag = "secondary" if active_is_secondary else "primary"
             trades.append({
                 "time": str(daily_bar["time"]),
                 "action": "BUY",
@@ -554,13 +608,14 @@ def run_multitf_backtest(
                 "pnl": None,
                 "reason": signal.reason,
                 "regime": active_regime,
+                "strategy": strat_tag,
                 "exec_hour": exec_hour,
                 "daily_close": round(daily_bar["close"], 2),
                 "improvement": round(daily_bar["close"] - exec_price, 2),
             })
-            active_strategy.record_fill(
+            current_strat.record_fill(
                 "BUY", exec_price, signal.contracts, daily_bar["time"],
-                **_record_fill_kwargs(active_strategy, active_regime, daily_bar))
+                **_record_fill_kwargs(current_strat, active_regime, daily_bar))
         
         elif signal.action == "BUY" and virt["side"] == "long":
             # Pyramid
@@ -574,6 +629,7 @@ def run_multitf_backtest(
             virt["contracts"] = new_sz
             virt["avg_entry"] = new_avg
             
+            strat_tag = "secondary" if active_is_secondary else "primary"
             trades.append({
                 "time": str(daily_bar["time"]),
                 "action": "PYRAMID",
@@ -582,11 +638,12 @@ def run_multitf_backtest(
                 "pnl": None,
                 "reason": signal.reason,
                 "regime": active_regime,
+                "strategy": strat_tag,
                 "exec_hour": exec_hour,
             })
-            active_strategy.record_fill(
+            current_strat.record_fill(
                 "BUY", exec_price, signal.contracts, daily_bar["time"],
-                **_record_fill_kwargs(active_strategy, active_regime, daily_bar))
+                **_record_fill_kwargs(current_strat, active_regime, daily_bar))
         
         elif signal.action == "SELL" and virt["side"] == "long":
             # Close long — find best hourly exit
@@ -596,6 +653,7 @@ def run_multitf_backtest(
             bar_pnl = _long_pnl(virt["avg_entry"], exec_price, virt["contracts"])
             cumulative_pnl += bar_pnl
             
+            strat_tag = "secondary" if active_is_secondary else "primary"
             trades.append({
                 "time": str(daily_bar["time"]),
                 "action": "SELL",
@@ -605,14 +663,16 @@ def run_multitf_backtest(
                 "pnl": round(bar_pnl, 2),
                 "reason": signal.reason,
                 "regime": active_regime,
+                "strategy": strat_tag,
                 "exec_hour": exec_hour,
                 "daily_close": round(daily_bar["close"], 2),
                 "improvement": round(exec_price - daily_bar["close"], 2),
             })
-            active_strategy.record_fill(
+            current_strat.record_fill(
                 "SELL", exec_price, virt["contracts"], daily_bar["time"])
             virt = {"side": "flat", "entry_price": 0.0, "avg_entry": 0.0,
                     "contracts": 0, "entry_time": None}
+            active_is_secondary = False
         
         elif signal.action == "SHORT" and virt["side"] == "flat":
             exec_price, exec_hour = _find_entry_price(
@@ -624,6 +684,7 @@ def run_multitf_backtest(
             virt["contracts"] = signal.contracts
             virt["entry_time"] = daily_bar["time"]
             
+            strat_tag = "secondary" if active_is_secondary else "primary"
             trades.append({
                 "time": str(daily_bar["time"]),
                 "action": "SHORT",
@@ -632,13 +693,14 @@ def run_multitf_backtest(
                 "pnl": None,
                 "reason": signal.reason,
                 "regime": active_regime,
+                "strategy": strat_tag,
                 "exec_hour": exec_hour,
                 "daily_close": round(daily_bar["close"], 2),
                 "improvement": round(exec_price - daily_bar["close"], 2),
             })
-            active_strategy.record_fill(
+            current_strat.record_fill(
                 "SHORT", exec_price, signal.contracts, daily_bar["time"],
-                **_record_fill_kwargs(active_strategy, active_regime, daily_bar))
+                **_record_fill_kwargs(current_strat, active_regime, daily_bar))
         
         elif signal.action == "COVER" and virt["side"] == "short":
             exec_price, exec_hour = _find_exit_price(
@@ -647,6 +709,7 @@ def run_multitf_backtest(
             bar_pnl = _short_pnl(virt["avg_entry"], exec_price, virt["contracts"])
             cumulative_pnl += bar_pnl
             
+            strat_tag = "secondary" if active_is_secondary else "primary"
             trades.append({
                 "time": str(daily_bar["time"]),
                 "action": "COVER",
@@ -656,14 +719,16 @@ def run_multitf_backtest(
                 "pnl": round(bar_pnl, 2),
                 "reason": signal.reason,
                 "regime": active_regime,
+                "strategy": strat_tag,
                 "exec_hour": exec_hour,
                 "daily_close": round(daily_bar["close"], 2),
                 "improvement": round(daily_bar["close"] - exec_price, 2),
             })
-            active_strategy.record_fill(
+            current_strat.record_fill(
                 "COVER", exec_price, virt["contracts"], daily_bar["time"])
             virt = {"side": "flat", "entry_price": 0.0, "avg_entry": 0.0,
                     "contracts": 0, "entry_time": None}
+            active_is_secondary = False
         
         equity_curve.append({
             "time": str(daily_bar["time"]),

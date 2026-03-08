@@ -92,7 +92,7 @@ class BullStrategy:
 
         self._last_signal_reason = ""
 
-    # ── Calibration ────────────────────────────────────────
+    # ── Calibration ──────────────────────────────────────
 
     def calibrate(self, bars_df: pd.DataFrame):
         """
@@ -120,7 +120,7 @@ class BullStrategy:
             "channel_low": round(self.channel_low, 2),
         }
 
-    # ── Live Bar Processing ────────────────────────────────
+    # ── Live Bar Processing ──────────────────────────────
 
     def on_bar(self, bar: dict, current_regime: str = "") -> BullSignal:
         if not self.calibrated:
@@ -161,7 +161,7 @@ class BullStrategy:
         self._last_signal_reason = sig.reason if sig else ""
         return sig
 
-    # ── Channel Detection ──────────────────────────────────
+    # ── Channel Detection ────────────────────────────────
 
     def _update_channel(self):
         """Compute the N-bar breakout channel (Donchian-style)."""
@@ -202,7 +202,7 @@ class BullStrategy:
         self._atr = calc_atr(highs, lows, closes, atr_period)
         self._rsi = calc_rsi(closes, 14)
 
-    # ── Entry Logic ────────────────────────────────────────
+    # ── Entry Logic ──────────────────────────────────────
 
     def _check_entry(self, price, high_val, low_val, now,
                      adx_val, atr_val, pdi_val, mdi_val) -> BullSignal:
@@ -269,7 +269,7 @@ class BullStrategy:
              f"ADX={adx_val:.1f}"),
             price, now)
 
-    # ── Exit Logic ─────────────────────────────────────────
+    # ── Exit Logic ───────────────────────────────────────
 
     def _check_exit(self, price, high_val, low_val, now,
                     adx_val, atr_val, rsi_val) -> BullSignal:
@@ -405,7 +405,7 @@ class BullStrategy:
              f"trail=${pos.trailing_stop:,.0f}, ADX={adx_val:.1f}"),
             price, now)
 
-    # ── Exit Helper ────────────────────────────────────────
+    # ── Exit Helper ──────────────────────────────────────
 
     def _exit_position(self, action, exit_type, reason, price, now,
                        bars_held, is_loss=False):
@@ -437,7 +437,7 @@ class BullStrategy:
         except Exception:
             return 1
 
-    # ── Position Management ────────────────────────────────
+    # ── Position Management ──────────────────────────────
 
     def record_fill(self, action, price, contracts, timestamp,
                     regime="", atr_val=0.0):
