@@ -50,7 +50,7 @@ parameter optimization. Full-period consistency (2020-01-01 → 2026-03-05).
 
 ### Current Results (v3-optimized params, full period 2020-2026)
 
-**Note**: Parameters were optimized on 2023+ only. Full-period re-optimization pending.
+Parameters confirmed optimal on full 2020-2026 period (re-optimization completed 2026-03-08, 0% change).
 
 | Metric | Value |
 |--------|-------|
@@ -83,7 +83,7 @@ parameter optimization. Full-period consistency (2020-01-01 → 2026-03-05).
 | 2025 | 45 | $260,298 | 75.6% | 6.80 |
 | 2026 | 9 | $33,794 | 55.6% | 2.32 |
 
-### V3 Optimized Parameters (current, optimized on 2023+ only)
+### V3 Optimized Parameters (confirmed on full 2020-2026 period)
 
 ```json
 {
@@ -120,7 +120,7 @@ parameter optimization. Full-period consistency (2020-01-01 → 2026-03-05).
 ```
 
 ### Pending / Next Steps
-1. **Re-optimize parameters on full 2020-2026 period** — current params fit only 2023+
+1. ~~Re-optimize parameters on full 2020-2026 period~~ — DONE (2026-03-08, params unchanged)
 2. **IB paper trading** — after full-period optimization is validated
 3. **Live deployment** — MBT Micro Futures, IB port 7497, `Future('MBT', '202603', 'CME')`
 

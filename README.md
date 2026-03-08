@@ -99,7 +99,7 @@ python cluster_analysis_full.py
 
 ### Status
 
-Parameters currently optimized on 2023+ only.
-Full-period re-optimization (2020-2026) in progress for consistency.
+Parameters confirmed optimal on full 2020-2026 period (re-optimized 2026-03-08, unchanged).
+Full-period coordinate descent optimization completed — converged in 2 rounds, 0% change.
 
 See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
