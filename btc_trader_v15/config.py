@@ -19,7 +19,7 @@ TICK_VALUE = 0.50       # $0.50 per tick
 COMMISSION_PER_SIDE = 1.25  # ~$1.25 per contract per side
 
 # ── Account / Exposure ─────────────────────────────────
-PAPER_BALANCE = 1_000_000       # Paper trading account balance ($)
+PAPER_BALANCE = 0               # Set dynamically from IB account at startup
 MAX_EXPOSURE_USD = 500_000      # Maximum notional exposure allowed ($)
 MBT_NOTIONAL_PER_CT = 6_900     # Approximate notional per MBT contract (0.1 BTC)
 

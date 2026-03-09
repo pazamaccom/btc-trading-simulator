@@ -312,12 +312,16 @@ class Trader:
             print("  - 'Allow connections from localhost' checked")
             return False
 
-        # Show account info
+        # Show account info and set paper balance from IB
         account = await self.ib_exec.get_account_summary()
         if account:
-            print(f"  Account connected. Net Liquidation: "
-                  f"${account.get('NetLiquidation', 0):,.2f}")
+            net_liq = account.get('NetLiquidation', 0)
+            print(f"  Account connected. Net Liquidation: ${net_liq:,.2f}")
             print(f"  Available Funds: ${account.get('AvailableFunds', 0):,.2f}")
+            # Use actual IB account balance, not hardcoded config
+            if net_liq > 0:
+                cfg.PAPER_BALANCE = int(net_liq)
+                logger.info(f"Paper balance set from IB account: ${cfg.PAPER_BALANCE:,}")
 
         # Check contract expiry
         days = self.ib_exec.days_to_expiry()
