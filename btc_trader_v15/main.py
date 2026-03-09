@@ -1266,19 +1266,41 @@ class Trader:
         """Compute where current price sits within the range [0=support, 1=resistance]."""
         if not hasattr(strat, 'support') or strat.support <= 0:
             return None
+        if self._last_price <= 0:
+            return None
         rng = strat.resistance - strat.support
         if rng <= 0:
             return None
         return round((self._last_price - strat.support) / rng, 3)
 
     def _get_indicator(self, strat, name) -> Optional[float]:
-        """Safely get an indicator value from strategy."""
+        """Safely get an indicator value from strategy.
+        
+        ChoppyStrategy stores indicators as numpy arrays: _rsi, _adx, etc.
+        After _compute_indicators() runs, the latest value is array[-1].
+        """
+        # 1. Try the private numpy array (e.g. _rsi, _adx) — this is how
+        #    _patch_for_daily_bars / _patch_indicators store them
+        arr = getattr(strat, f'_{name}', None)
+        if arr is not None:
+            try:
+                if hasattr(arr, '__len__') and len(arr) > 0:
+                    return round(float(arr[-1]), 2)
+            except (TypeError, IndexError):
+                pass
+
+        # 2. Try direct attribute (e.g. strat.rsi if explicitly set)
         val = getattr(strat, name, None)
-        if val is not None:
-            return round(float(val), 2)
-        # Try from latest computed indicators
-        if hasattr(strat, '_indicators') and name in strat._indicators:
-            return round(float(strat._indicators[name]), 2)
+        if val is not None and not callable(val):
+            try:
+                return round(float(val), 2)
+            except (TypeError, ValueError):
+                pass
+
+        # 3. Try _indicators dict (fallback)
+        if hasattr(strat, '_indicators') and isinstance(getattr(strat, '_indicators', None), dict):
+            if name in strat._indicators:
+                return round(float(strat._indicators[name]), 2)
         return None
 
     def _build_conditions(self) -> dict:
