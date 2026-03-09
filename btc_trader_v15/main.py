@@ -63,6 +63,7 @@ os.chdir(_PROJECT_DIR)
 
 import config as cfg
 from strategy import ChoppyStrategy, Signal
+from backtest_multitf import _patch_for_daily_bars
 from regime_detector import RegimeDetector
 from ib_execution import IBExecution
 from dashboard import run_dashboard
@@ -362,6 +363,9 @@ class Trader:
         print("\n  Commands: [s]tatus  [p]ause  [r]esume  [q]uit  [f]latten")
         print("  Type a command and press Enter.\n")
 
+        # Save initial state so dashboard has data immediately
+        self._save_state()
+
         # Launch live dashboard in background thread
         self._dashboard_thread = threading.Thread(
             target=run_dashboard, args=(8080,), daemon=True)
@@ -489,6 +493,7 @@ class Trader:
             calib_days = self._strat_config.get("range", {}).get("calib_days", cfg.CALIBRATION_MAX_DAYS)
             choppy_params = self._get_range_params()
             self.primary_strategy = ChoppyStrategy(params=choppy_params)
+            _patch_for_daily_bars(self.primary_strategy, calib_days)
 
             calib_slice = daily_df.tail(calib_days)
             if len(calib_slice) >= 7:
@@ -515,6 +520,7 @@ class Trader:
             calib_days = self._strat_config.get("volatile", {}).get("bear_calib_days", 14)
             volatile_params = self._get_volatile_params()
             self.primary_strategy = ChoppyStrategy(params=volatile_params)
+            _patch_for_daily_bars(self.primary_strategy, calib_days)
 
             calib_slice = daily_df.tail(calib_days)
             if len(calib_slice) >= 7:
@@ -554,6 +560,7 @@ class Trader:
             logger.info("Negative Momentum regime — holding flat, no strategy active")
             # Create a dummy ChoppyStrategy for dashboard display (calibration data)
             self.primary_strategy = ChoppyStrategy()
+            _patch_for_daily_bars(self.primary_strategy, 14)
             calib_slice = daily_df.tail(14)
             if len(calib_slice) >= 7:
                 try:
@@ -565,6 +572,7 @@ class Trader:
             logger.warning(f"Unknown regime '{self.regime}', defaulting to Range")
             self.regime = "choppy"
             self.primary_strategy = ChoppyStrategy(params=self._get_range_params())
+            _patch_for_daily_bars(self.primary_strategy, cfg.CALIBRATION_MAX_DAYS)
             calib_slice = daily_df.tail(cfg.CALIBRATION_MAX_DAYS)
             if len(calib_slice) >= 7:
                 self.primary_strategy.calibrate(calib_slice)

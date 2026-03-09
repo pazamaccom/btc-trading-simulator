@@ -88,6 +88,13 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 "cooldown_hours": state.get("cooldown_hours", cfg.CHOPPY.get("cooldown_hours", 3)),
                 "last_recal_time": state.get("last_recal_time"),
                 "recalibrations": state.get("recalibrations", 0),
+                # Regime / strategy / conditions surfaced at top level for dashboard panels
+                "regime": state.get("regime", {}),
+                "strategy_state": state.get("strategy_state", {}),
+                "conditions": state.get("conditions", {}),
+                "exit_conditions": state.get("exit_conditions", {}),
+                "bull_conditions": state.get("bull_conditions", {}),
+                "detected_regime": state.get("detected_regime", ""),
             }
 
             if mode == "backtest":
