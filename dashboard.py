@@ -158,11 +158,6 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         import time
         now = datetime.now()
         
-        # Required Capital calculation
-        peak_margin = 75000
-        max_dd = 35462
-        dd_buffer = max_dd * 3
-        required_capital = peak_margin + dd_buffer
         
         return {
             "mode": "paper_trading",
@@ -176,13 +171,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 "ask": 87255.00,
                 "last_update": now.isoformat(),
             },
-            "paper_balance": required_capital,
-            "required_capital": required_capital,
-            "peak_margin": peak_margin,
-            "max_drawdown": max_dd,
-            "dd_buffer": dd_buffer,
-            "capital_sufficient": True,
-            "paper_deposit_made": False,
+            "paper_balance": 0,
             "max_exposure": cfg.MAX_EXPOSURE_USD,
             "current_exposure": 0,
             "current_contracts": 0,
@@ -1217,9 +1206,6 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   .exit-row .exit-val { color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
 
   /* Capital banner */
-  .capital-ok  { border-left: 3px solid #22c55e; background: rgba(34,197,94,0.05); }
-  .capital-low { border-left: 3px solid #ef4444; background: rgba(239,68,68,0.05); }
-  .capital-deposit { border-left: 3px solid #f59e0b; background: rgba(245,158,11,0.05); }
 
   /* ── Backtest view ───────────────────────────────── */
   #bt-view { display: none; }
@@ -1538,13 +1524,6 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
         </div>
       </div>
 
-    </div>
-
-    <!-- Capital Check Banner -->
-    <div id="capital-banner" class="card" style="margin-bottom:16px; display:none;">
-      <div class="card-body" style="padding:12px 16px;">
-        <div id="capital-banner-text" style="font-size:13px;"></div>
-      </div>
     </div>
 
     <!-- Regime Detection Panel -->
@@ -3163,28 +3142,6 @@ function updatePaperTradingPanels(data) {
   const exitConds = data.exit_conditions || {};
   const bullConds = data.bull_conditions || {};
   const isPreview = data.preview === true;
-
-  // ── Capital Check Banner ──
-  const capBanner = document.getElementById('capital-banner');
-  if (data.required_capital) {
-    capBanner.style.display = '';
-    const bannerText = document.getElementById('capital-banner-text');
-    const bal = data.paper_balance || 0;
-    const req = data.required_capital || 0;
-    const peakM = data.peak_margin || 0;
-    const ddBuf = data.dd_buffer || 0;
-
-    if (bal >= req) {
-      capBanner.className = 'card capital-ok';
-      bannerText.innerHTML = `<strong>Capital OK</strong> — Balance: $${bal.toLocaleString()} ≥ Required: $${req.toLocaleString()} (Peak Margin $${peakM.toLocaleString()} + 3× Max DD $${ddBuf.toLocaleString()})`;
-    } else if (data.paper_deposit_made) {
-      capBanner.className = 'card capital-deposit';
-      bannerText.innerHTML = `<strong>Paper Deposit Made</strong> — Deposited $${req.toLocaleString()} to meet Required Capital (Peak Margin $${peakM.toLocaleString()} + 3× Max DD $${ddBuf.toLocaleString()})`;
-    } else {
-      capBanner.className = 'card capital-low';
-      bannerText.innerHTML = `<strong>Insufficient Capital</strong> — Balance: $${bal.toLocaleString()} < Required: $${req.toLocaleString()}. A paper deposit of $${(req - bal).toLocaleString()} will be made when trading starts.`;
-    }
-  }
 
   // ── Regime Badge ──
   const regBadge = document.getElementById('regime-badge-lg');
