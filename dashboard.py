@@ -64,6 +64,8 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self._serve_json(self._get_trades())
         elif path == "/api/metrics":
             self._serve_json(self._compute_metrics())
+        elif path == "/api/preview":
+            self._serve_json(self._get_preview_data())
         elif path == "/api/all":
             # Single endpoint for everything (reduces polling requests)
             state = self._get_state()
@@ -149,6 +151,131 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         self.send_header("Pragma", "no-cache")
         self.end_headers()
         self.wfile.write(body)
+
+
+    def _get_preview_data(self):
+        """Return mock data for Paper Trading preview (no IB connection needed)."""
+        import time
+        now = datetime.now()
+        
+        # Required Capital calculation
+        peak_margin = 75000
+        max_dd = 35462
+        dd_buffer = max_dd * 3
+        required_capital = peak_margin + dd_buffer
+        
+        return {
+            "mode": "paper_trading",
+            "preview": True,
+            "state": {
+                "mode": "paper_trading",
+                "running": False,
+                "position": "flat",
+                "current_price": 87250.00,
+                "bid": 87245.00,
+                "ask": 87255.00,
+                "last_update": now.isoformat(),
+            },
+            "paper_balance": required_capital,
+            "required_capital": required_capital,
+            "peak_margin": peak_margin,
+            "max_drawdown": max_dd,
+            "dd_buffer": dd_buffer,
+            "capital_sufficient": True,
+            "paper_deposit_made": False,
+            "max_exposure": cfg.MAX_EXPOSURE_USD,
+            "current_exposure": 0,
+            "current_contracts": 0,
+            "max_contracts": cfg.MAX_CONTRACTS,
+            "contract_symbol": "MBT (Micro BTC) — Preview",
+            "cooldown_hours": cfg.CHOPPY.get("cooldown_hours", 3),
+            "regime": {
+                "current": "Range",
+                "engine_label": "choppy",
+                "since": (now - __import__('datetime').timedelta(days=3)).isoformat(),
+                "days_in_regime": 3,
+            },
+            "strategy_state": {
+                "calibrated": True,
+                "support": 84500.00,
+                "resistance": 91200.00,
+                "range_pct": 7.9,
+                "range_position": 0.41,
+                "rsi": 44.2,
+                "adx": 18.5,
+                "pdi": 22.1,
+                "mdi": 19.8,
+                "atr": 1850.0,
+                "cooldown_active": False,
+                "cooldown_remaining_hrs": 0,
+                "support_touches": 5,
+                "resistance_touches": 4,
+                "conviction": "normal",
+                "last_signal": "HOLD — Range pos=41% RSI=44.2 ADX=18.5",
+                "bars_since_calibration": 72,
+            },
+            "conditions": {
+                "long": {
+                    "range_position": {"value": 0.41, "threshold": "≤ 0.45", "met": True, "label": "Range Position", "detail": "41% ≤ 45%"},
+                    "rsi": {"value": 44.2, "threshold": "< 45", "met": True, "label": "RSI (14)", "detail": "44.2 < 45"},
+                    "cooldown": {"value": False, "threshold": "No active cooldown", "met": True, "label": "Cooldown", "detail": "Clear"},
+                    "range_valid": {"value": True, "threshold": "Range ≥ 3%", "met": True, "label": "Valid Range", "detail": "7.9% ≥ 3%"},
+                    "calibrated": {"value": True, "threshold": "Strategy calibrated", "met": True, "label": "Calibrated", "detail": "Yes (72 bars)"},
+                },
+                "short": {
+                    "range_position": {"value": 0.41, "threshold": "≥ 0.55", "met": False, "label": "Range Position", "detail": "41% < 55%"},
+                    "rsi": {"value": 44.2, "threshold": "> 55", "met": False, "label": "RSI (14)", "detail": "44.2 ≤ 55"},
+                    "adx": {"value": 18.5, "threshold": "< 35", "met": True, "label": "ADX (14)", "detail": "18.5 < 35"},
+                    "cooldown": {"value": False, "threshold": "No active cooldown", "met": True, "label": "Cooldown", "detail": "Clear"},
+                    "range_valid": {"value": True, "threshold": "Range ≥ 3%", "met": True, "label": "Valid Range", "detail": "7.9% ≥ 3%"},
+                    "calibrated": {"value": True, "threshold": "Strategy calibrated", "met": True, "label": "Calibrated", "detail": "Yes (72 bars)"},
+                },
+            },
+            "exit_conditions": {
+                "long": {
+                    "target_zone": {"threshold": "Range pos ≥ 75%", "label": "Target Zone"},
+                    "rsi_overbought": {"threshold": "RSI > 68 + profitable", "label": "RSI Overbought"},
+                    "max_hold": {"threshold": "14 days (re-eval) / 28 days (hard cap)", "label": "Max Hold"},
+                },
+                "short": {
+                    "stop_loss": {"threshold": "2% above entry", "label": "Hard Stop"},
+                    "trailing_stop": {"threshold": "4% trailing", "label": "Trailing Stop"},
+                    "target_zone": {"threshold": "Range pos ≤ 20%", "label": "Target Zone"},
+                    "adx_breakout": {"threshold": "ADX > 28 + underwater", "label": "ADX Breakout"},
+                    "rsi_oversold": {"threshold": "RSI < 32 + profitable", "label": "RSI Oversold"},
+                    "max_hold": {"threshold": "7 days", "label": "Max Hold"},
+                },
+            },
+            "bull_conditions": {
+                "long": {
+                    "breakout": {"threshold": "Price > channel high", "label": "Channel Breakout"},
+                    "adx": {"threshold": "ADX ≥ 15", "label": "ADX (trend strength)"},
+                    "di": {"threshold": "+DI > -DI", "label": "Directional Index"},
+                    "cooldown": {"threshold": "No active cooldown", "label": "Cooldown"},
+                },
+                "short": {
+                    "breakdown": {"threshold": "Price < channel low", "label": "Channel Breakdown"},
+                    "adx": {"threshold": "ADX ≥ 15", "label": "ADX (trend strength)"},
+                    "di": {"threshold": "-DI > +DI", "label": "Directional Index"},
+                    "cooldown": {"threshold": "No active cooldown", "label": "Cooldown"},
+                },
+            },
+            "trades": [],
+            "metrics": {
+                "total_trades": 0,
+                "win_rate": 0,
+                "cumulative_pnl": 0,
+                "max_drawdown": 0,
+                "profit_factor": 0,
+                "avg_pnl": 0,
+                "best_trade": 0,
+                "worst_trade": 0,
+                "long_trades": 0, "long_pnl": 0, "long_wins": 0,
+                "short_trades": 0, "short_pnl": 0, "short_wins": 0,
+            },
+            "equity_curve": [],
+            "timestamp": now.isoformat(),
+        }
 
     def _serve_html(self):
         html = DASHBOARD_HTML.encode("utf-8")
@@ -1036,6 +1163,64 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   .regime-chip.choppy { background: rgba(59, 130, 246, 0.12); color: var(--choppy); }
   .regime-chip.neg_momentum { background: rgba(249, 115, 22, 0.12); color: var(--neg-momentum); }
 
+
+  /* ── Paper Trading — Regime badge colors ─────────── */
+  .regime-pos-momentum { background: rgba(34, 197, 94, 0.15); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); }
+  .regime-range        { background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); }
+  .regime-volatile      { background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); }
+  .regime-neg-momentum  { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+
+  /* ── Condition rows ──────────────────────────────── */
+  .cond-row {
+    display: flex;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(45,49,65,0.3);
+    font-size: 12px;
+  }
+  .cond-row:last-child { border-bottom: none; }
+  .cond-icon {
+    width: 20px;
+    font-size: 14px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+  .cond-met    .cond-icon { color: #22c55e; }
+  .cond-not-met .cond-icon { color: #ef4444; }
+  .cond-label {
+    flex: 1;
+    margin-left: 8px;
+    color: var(--text);
+  }
+  .cond-detail {
+    margin-left: auto;
+    padding-left: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    text-align: right;
+    white-space: nowrap;
+  }
+  .cond-met .cond-label { color: var(--text); }
+  .cond-not-met .cond-label { color: var(--text-dim); }
+
+  /* Exit rule rows (always neutral color) */
+  .exit-row {
+    display: flex;
+    align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(45,49,65,0.2);
+    font-size: 11px;
+  }
+  .exit-row:last-child { border-bottom: none; }
+  .exit-row .exit-label { color: var(--text-dim); flex: 1; }
+  .exit-row .exit-val { color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+
+  /* Capital banner */
+  .capital-ok  { border-left: 3px solid #22c55e; background: rgba(34,197,94,0.05); }
+  .capital-low { border-left: 3px solid #ef4444; background: rgba(239,68,68,0.05); }
+  .capital-deposit { border-left: 3px solid #f59e0b; background: rgba(245,158,11,0.05); }
+
   /* ── Backtest view ───────────────────────────────── */
   #bt-view { display: none; }
   #live-view { display: block; }
@@ -1246,6 +1431,12 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   <div class="controls-disabled-note" id="bt-controls-note" style="display:none;">
     Controls are disabled in backtest mode — this is a completed simulation.
   </div>
+
+  <!-- Preview mode banner -->
+  <div id="preview-banner" style="display:none; text-align:center; padding:10px 16px; font-size:12px; color:var(--amber); border:1px dashed var(--amber); border-radius:8px; margin-bottom:12px; background:rgba(245,158,11,0.05);">
+    <strong>PREVIEW MODE</strong> — Viewing Paper Trading dashboard with mock data. No IB connection required.<br>
+    <span style="font-size:11px; color:var(--text-dim);">To start live paper trading, connect IB TWS/Gateway and run the trading engine.</span>
+  </div>
 </div>
 
 <!-- ── Main Content ────────────────────────────────── -->
@@ -1349,80 +1540,110 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 
     </div>
 
-    <!-- Entry Parameters Panel -->
+    <!-- Capital Check Banner -->
+    <div id="capital-banner" class="card" style="margin-bottom:16px; display:none;">
+      <div class="card-body" style="padding:12px 16px;">
+        <div id="capital-banner-text" style="font-size:13px;"></div>
+      </div>
+    </div>
+
+    <!-- Regime Detection Panel -->
     <div class="card" style="margin-bottom: 16px;">
       <div class="card-header">
-        <span>Entry Parameters</span>
-        <span id="signal-status" style="font-size:11px; color:var(--text-dim);"></span>
+        <span>Market Regime</span>
+        <span id="regime-since" style="font-size:11px; color:var(--text-dim);"></span>
       </div>
-      <div class="card-body">
-        <div class="params-grid">
-          <!-- Current Values -->
-          <div class="params-col">
-            <div class="params-title">Current Values</div>
-            <div class="param-row">
-              <span class="param-label">Price</span>
-              <span class="param-val" id="param-price">—</span>
-            </div>
-            <div class="param-row">
-              <span class="param-label">Range Position</span>
-              <span class="param-val" id="param-rng-pos">—</span>
-            </div>
-            <div class="param-row">
-              <span class="param-label">RSI (14)</span>
-              <span class="param-val" id="param-rsi">—</span>
-            </div>
-            <div class="param-row">
-              <span class="param-label">ADX (14)</span>
-              <span class="param-val" id="param-adx">—</span>
-            </div>
-            <div class="param-row">
-              <span class="param-label">Last Signal</span>
-              <span class="param-val" id="param-signal" style="font-size:11px;">—</span>
-            </div>
+      <div class="card-body" style="padding:16px;">
+        <div style="display:flex; align-items:center; gap:16px; margin-bottom:12px;">
+          <div id="regime-badge-lg" style="font-size:18px; font-weight:700; padding:8px 20px; border-radius:8px; letter-spacing:0.5px;">—</div>
+          <div style="flex:1;">
+            <div id="regime-strategy-label" style="font-size:12px; color:var(--text-dim);">Strategy: —</div>
+            <div id="regime-detail" style="font-size:12px; color:var(--text-dim); margin-top:2px;">—</div>
           </div>
-          <!-- Long Entry Thresholds -->
-          <div class="params-col long-params">
-            <div class="params-title" style="color:var(--green);">Long Entry Requires</div>
-            <div class="param-row">
-              <span class="param-label">Range Position</span>
-              <span class="param-val">&le; 30%</span>
-              <span class="param-check" id="chk-long-rng">—</span>
-            </div>
-            <div class="param-row">
-              <span class="param-label">RSI</span>
-              <span class="param-val">&lt; 45</span>
-              <span class="param-check" id="chk-long-rsi">—</span>
-            </div>
-            <div class="param-row">
-              <span class="param-label">No Cooldown</span>
-              <span class="param-val">—</span>
-              <span class="param-check" id="chk-long-cd">—</span>
-            </div>
+        </div>
+        <!-- Market Indicators -->
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr)); gap:8px; margin-top:12px; padding-top:12px; border-top:1px solid var(--border);">
+          <div class="param-row" style="flex-direction:column; align-items:flex-start;">
+            <span class="param-label">Price</span>
+            <span class="param-val" id="pt-price" style="font-size:16px; font-weight:600;">—</span>
           </div>
-          <!-- Short Entry Thresholds -->
-          <div class="params-col short-params">
-            <div class="params-title" style="color:var(--red);">Short Entry Requires</div>
-            <div class="param-row">
-              <span class="param-label">Range Position</span>
-              <span class="param-val">&ge; 70%</span>
-              <span class="param-check" id="chk-short-rng">—</span>
+          <div class="param-row" style="flex-direction:column; align-items:flex-start;">
+            <span class="param-label">Support</span>
+            <span class="param-val" id="pt-support" style="color:var(--green);">—</span>
+          </div>
+          <div class="param-row" style="flex-direction:column; align-items:flex-start;">
+            <span class="param-label">Resistance</span>
+            <span class="param-val" id="pt-resistance" style="color:var(--red);">—</span>
+          </div>
+          <div class="param-row" style="flex-direction:column; align-items:flex-start;">
+            <span class="param-label">Range %</span>
+            <span class="param-val" id="pt-range-pct">—</span>
+          </div>
+          <div class="param-row" style="flex-direction:column; align-items:flex-start;">
+            <span class="param-label">Range Position</span>
+            <span class="param-val" id="pt-rng-pos">—</span>
+          </div>
+          <div class="param-row" style="flex-direction:column; align-items:flex-start;">
+            <span class="param-label">RSI (14)</span>
+            <span class="param-val" id="pt-rsi">—</span>
+          </div>
+          <div class="param-row" style="flex-direction:column; align-items:flex-start;">
+            <span class="param-label">ADX (14)</span>
+            <span class="param-val" id="pt-adx">—</span>
+          </div>
+          <div class="param-row" style="flex-direction:column; align-items:flex-start;">
+            <span class="param-label">Last Signal</span>
+            <span class="param-val" id="pt-signal" style="font-size:11px;">—</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Trade Entry Conditions Panel -->
+    <div class="card" style="margin-bottom: 16px;">
+      <div class="card-header">
+        <span>Trade Entry Conditions</span>
+        <span id="entry-status" style="font-size:11px; color:var(--text-dim);"></span>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <div style="display:grid; grid-template-columns:1fr 1fr; min-height:200px;">
+          <!-- BUY side -->
+          <div style="padding:16px; border-right:1px solid var(--border);">
+            <div style="font-weight:600; color:var(--green); margin-bottom:12px; font-size:13px;">
+              &#9650; BUY Conditions
+              <span id="buy-summary" style="float:right; font-size:11px; font-weight:400; color:var(--text-dim);"></span>
             </div>
-            <div class="param-row">
-              <span class="param-label">RSI</span>
-              <span class="param-val">&gt; 55</span>
-              <span class="param-check" id="chk-short-rsi">—</span>
+            <div id="buy-conditions-list"></div>
+          </div>
+          <!-- SELL / SHORT side -->
+          <div style="padding:16px;">
+            <div style="font-weight:600; color:var(--red); margin-bottom:12px; font-size:13px;">
+              &#9660; SHORT Conditions
+              <span id="short-summary" style="float:right; font-size:11px; font-weight:400; color:var(--text-dim);"></span>
             </div>
-            <div class="param-row">
-              <span class="param-label">ADX</span>
-              <span class="param-val">&lt; 25</span>
-              <span class="param-check" id="chk-short-adx">—</span>
-            </div>
-            <div class="param-row">
-              <span class="param-label">No Cooldown</span>
-              <span class="param-val">—</span>
-              <span class="param-check" id="chk-short-cd">—</span>
-            </div>
+            <div id="short-conditions-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Exit Conditions Panel -->
+    <div class="card" style="margin-bottom: 16px;">
+      <div class="card-header">
+        <span>Trade Exit Rules</span>
+        <span style="font-size:11px; color:var(--text-dim);">Applied when position is open</span>
+      </div>
+      <div class="card-body" style="padding:0;">
+        <div style="display:grid; grid-template-columns:1fr 1fr; min-height:120px;">
+          <!-- Long exit -->
+          <div style="padding:16px; border-right:1px solid var(--border);">
+            <div style="font-weight:600; color:var(--green); margin-bottom:10px; font-size:12px;">Long Exit Triggers</div>
+            <div id="long-exit-list"></div>
+          </div>
+          <!-- Short exit -->
+          <div style="padding:16px;">
+            <div style="font-weight:600; color:var(--red); margin-bottom:10px; font-size:12px;">Short Exit Triggers</div>
+            <div id="short-exit-list"></div>
           </div>
         </div>
       </div>
@@ -2871,50 +3092,7 @@ function updateLiveView(data) {
     (s.last_price ? '  |  BTC: ' + fmtPrice(s.last_price) : '') +
     (ss.bars_in_window ? '  |  ' + ss.bars_in_window + ' bars in window' : '');
 
-  // ── Entry parameters panel ──
-  const liveRsi = ss.rsi ?? 50;
-  const liveAdx = ss.adx ?? 20;
-  const liveRngPos = ss.range_position ?? 0.5;
-  const livePrice = s.last_price || 0;
-  const lastSig = ss.last_signal_reason || '';
-  const cooldownActive = !!ss.cooldown_until;
-
-  document.getElementById('param-price').textContent = livePrice > 0 ? fmtPrice(livePrice) : '—';
-  document.getElementById('param-rng-pos').textContent = (liveRngPos * 100).toFixed(1) + '%';
-  document.getElementById('param-rsi').textContent = liveRsi.toFixed(1);
-  document.getElementById('param-adx').textContent = liveAdx.toFixed(1);
-  document.getElementById('param-signal').textContent = lastSig || 'Waiting for signal...';
-  document.getElementById('signal-status').textContent = cooldownActive ? '⏳ In cooldown' : (pos.side && pos.side !== 'flat' ? '📊 In position' : '👀 Scanning');
-
-  // Long checks
-  const chkLongRng = document.getElementById('chk-long-rng');
-  chkLongRng.textContent = liveRngPos <= 0.30 ? '\u2713' : '\u2717';
-  chkLongRng.className = 'param-check ' + (liveRngPos <= 0.30 ? 'pass' : 'fail');
-
-  const chkLongRsi = document.getElementById('chk-long-rsi');
-  chkLongRsi.textContent = liveRsi < 45 ? '\u2713' : '\u2717';
-  chkLongRsi.className = 'param-check ' + (liveRsi < 45 ? 'pass' : 'fail');
-
-  const chkLongCd = document.getElementById('chk-long-cd');
-  chkLongCd.textContent = !cooldownActive ? '\u2713' : '\u2717';
-  chkLongCd.className = 'param-check ' + (!cooldownActive ? 'pass' : 'fail');
-
-  // Short checks
-  const chkShortRng = document.getElementById('chk-short-rng');
-  chkShortRng.textContent = liveRngPos >= 0.70 ? '\u2713' : '\u2717';
-  chkShortRng.className = 'param-check ' + (liveRngPos >= 0.70 ? 'pass' : 'fail');
-
-  const chkShortRsi = document.getElementById('chk-short-rsi');
-  chkShortRsi.textContent = liveRsi > 55 ? '\u2713' : '\u2717';
-  chkShortRsi.className = 'param-check ' + (liveRsi > 55 ? 'pass' : 'fail');
-
-  const chkShortAdx = document.getElementById('chk-short-adx');
-  chkShortAdx.textContent = liveAdx < 25 ? '\u2713' : '\u2717';
-  chkShortAdx.className = 'param-check ' + (liveAdx < 25 ? 'pass' : 'fail');
-
-  const chkShortCd = document.getElementById('chk-short-cd');
-  chkShortCd.textContent = !cooldownActive ? '\u2713' : '\u2717';
-  chkShortCd.className = 'param-check ' + (!cooldownActive ? 'pass' : 'fail');
+  // ── Entry parameters now handled by updatePaperTradingPanels ──
 }
 
 // ── Top-level update dispatcher ──────────────────────
@@ -2932,12 +3110,20 @@ function update(data) {
 
     // Mode badge
     const modeBadge = document.getElementById('mode-badge');
-    modeBadge.textContent = isBacktest ? 'BACKTEST' : 'LIVE PAPER TRADING';
+    modeBadge.textContent = isBacktest ? 'BACKTEST' : (data.preview ? 'PAPER TRADING (PREVIEW)' : 'PAPER TRADING');
     modeBadge.className = 'mode-badge ' + (isBacktest ? 'backtest' : 'live');
 
     // Control bar vs disabled note
     document.getElementById('control-bar').style.display        = isBacktest ? 'none' : '';
     document.getElementById('bt-controls-note').style.display   = isBacktest ? ''     : 'none';
+
+    // Show/hide preview banner
+    const previewBanner = document.getElementById('preview-banner');
+    if (data.preview) {
+      previewBanner.style.display = '';
+    } else {
+      previewBanner.style.display = 'none';
+    }
 
     // Hide regime indicator in backtest mode (has its own regime UI)
     if (isBacktest) document.getElementById('regime-indicator').style.display = 'none';
@@ -2960,6 +3146,7 @@ function update(data) {
     updateBacktestView(data);
   } else {
     updateLiveView(data);
+    updatePaperTradingPanels(data);
   }
 }
 
@@ -2967,12 +3154,206 @@ function row(label, value) {
   return `<div class="position-row"><span class="label">${label}</span><span class="value">${value}</span></div>`;
 }
 
+
+// ── Paper Trading panel updates ──────────────────────
+function updatePaperTradingPanels(data) {
+  const regime = data.regime || {};
+  const strat = data.strategy_state || {};
+  const conds = data.conditions || {};
+  const exitConds = data.exit_conditions || {};
+  const bullConds = data.bull_conditions || {};
+  const isPreview = data.preview === true;
+
+  // ── Capital Check Banner ──
+  const capBanner = document.getElementById('capital-banner');
+  if (data.required_capital) {
+    capBanner.style.display = '';
+    const bannerText = document.getElementById('capital-banner-text');
+    const bal = data.paper_balance || 0;
+    const req = data.required_capital || 0;
+    const peakM = data.peak_margin || 0;
+    const ddBuf = data.dd_buffer || 0;
+
+    if (bal >= req) {
+      capBanner.className = 'card capital-ok';
+      bannerText.innerHTML = `<strong>Capital OK</strong> — Balance: $${bal.toLocaleString()} ≥ Required: $${req.toLocaleString()} (Peak Margin $${peakM.toLocaleString()} + 3× Max DD $${ddBuf.toLocaleString()})`;
+    } else if (data.paper_deposit_made) {
+      capBanner.className = 'card capital-deposit';
+      bannerText.innerHTML = `<strong>Paper Deposit Made</strong> — Deposited $${req.toLocaleString()} to meet Required Capital (Peak Margin $${peakM.toLocaleString()} + 3× Max DD $${ddBuf.toLocaleString()})`;
+    } else {
+      capBanner.className = 'card capital-low';
+      bannerText.innerHTML = `<strong>Insufficient Capital</strong> — Balance: $${bal.toLocaleString()} < Required: $${req.toLocaleString()}. A paper deposit of $${(req - bal).toLocaleString()} will be made when trading starts.`;
+    }
+  }
+
+  // ── Regime Badge ──
+  const regBadge = document.getElementById('regime-badge-lg');
+  const regName = regime.current || '—';
+  regBadge.textContent = regName;
+
+  // Set color class
+  const regClasses = {
+    'Positive Momentum': 'regime-pos-momentum',
+    'Range': 'regime-range',
+    'Volatile': 'regime-volatile',
+    'Negative Momentum': 'regime-neg-momentum',
+  };
+  regBadge.className = regClasses[regName] || '';
+
+  // Strategy label
+  const stratLabels = {
+    'Positive Momentum': 'BullStrategy — Donchian breakout trend-following',
+    'Range': 'ChoppyStrategy — Mean-reversion (Long + Short)',
+    'Volatile': 'ChoppyStrategy — Wider params (Long + Short)',
+    'Negative Momentum': 'No trading — flat (capital preservation)',
+  };
+  document.getElementById('regime-strategy-label').textContent =
+    'Strategy: ' + (stratLabels[regName] || '—');
+
+  // Regime since / detail
+  const since = document.getElementById('regime-since');
+  if (regime.days_in_regime) {
+    since.textContent = regime.days_in_regime + ' day' + (regime.days_in_regime !== 1 ? 's' : '') + ' in this regime';
+  }
+
+  const detail = document.getElementById('regime-detail');
+  if (regName === 'Negative Momentum') {
+    detail.textContent = 'All positions closed. Waiting for regime change.';
+    detail.style.color = 'var(--red)';
+  } else if (regName === 'Positive Momentum') {
+    detail.textContent = 'Trend-following mode: looking for Donchian channel breakouts.';
+    detail.style.color = '';
+  } else {
+    detail.textContent = 'Mean-reversion mode: trading between support and resistance.';
+    detail.style.color = '';
+  }
+
+  // ── Market Indicators ──
+  const fmtP = v => v ? '$' + v.toLocaleString('en-US', {maximumFractionDigits: 0}) : '—';
+  const fmtPct = v => v !== undefined ? v.toFixed(1) + '%' : '—';
+
+  document.getElementById('pt-price').textContent = fmtP(strat.price || (data.state && data.state.current_price));
+  document.getElementById('pt-support').textContent = fmtP(strat.support);
+  document.getElementById('pt-resistance').textContent = fmtP(strat.resistance);
+  document.getElementById('pt-range-pct').textContent = fmtPct(strat.range_pct);
+  document.getElementById('pt-rng-pos').textContent = strat.range_position !== undefined
+    ? (strat.range_position * 100).toFixed(0) + '%' : '—';
+  document.getElementById('pt-rsi').textContent = strat.rsi !== undefined ? strat.rsi.toFixed(1) : '—';
+  document.getElementById('pt-adx').textContent = strat.adx !== undefined ? strat.adx.toFixed(1) : '—';
+  document.getElementById('pt-signal').textContent = strat.last_signal || '—';
+
+  // ── Entry Conditions ──
+  const isMeanReversion = (regName === 'Range' || regName === 'Volatile');
+  const isBull = (regName === 'Positive Momentum');
+  const isNeg = (regName === 'Negative Momentum');
+
+  const buyDiv = document.getElementById('buy-conditions-list');
+  const shortDiv = document.getElementById('short-conditions-list');
+
+  if (isNeg) {
+    buyDiv.innerHTML = '<div style="color:var(--text-dim); font-size:12px; padding:8px 0;">No entries — Negative Momentum regime (flat)</div>';
+    shortDiv.innerHTML = '<div style="color:var(--text-dim); font-size:12px; padding:8px 0;">No entries — Negative Momentum regime (flat)</div>';
+    document.getElementById('buy-summary').textContent = '';
+    document.getElementById('short-summary').textContent = '';
+    document.getElementById('entry-status').textContent = 'Trading paused — Negative Momentum';
+  } else if (isBull && bullConds) {
+    // Positive Momentum: show bull breakout conditions
+    renderConditions(buyDiv, bullConds.long || {});
+    renderConditions(shortDiv, bullConds.short || {});
+    document.getElementById('entry-status').textContent = 'Positive Momentum — Donchian breakout';
+    document.getElementById('buy-summary').textContent = '';
+    document.getElementById('short-summary').textContent = '';
+  } else if (isMeanReversion && conds) {
+    // Range / Volatile: show mean-reversion conditions
+    const longConds = conds.long || {};
+    const shortConds = conds.short || {};
+    renderConditions(buyDiv, longConds);
+    renderConditions(shortDiv, shortConds);
+
+    const longMet = Object.values(longConds).filter(c => c.met).length;
+    const longTotal = Object.values(longConds).length;
+    const shortMet = Object.values(shortConds).filter(c => c.met).length;
+    const shortTotal = Object.values(shortConds).length;
+
+    document.getElementById('buy-summary').textContent = longMet + '/' + longTotal + ' met';
+    document.getElementById('short-summary').textContent = shortMet + '/' + shortTotal + ' met';
+
+    const allLong = longMet === longTotal;
+    const allShort = shortMet === shortTotal;
+    if (allLong) {
+      document.getElementById('entry-status').textContent = '\u2705 BUY signal ready';
+      document.getElementById('entry-status').style.color = 'var(--green)';
+    } else if (allShort) {
+      document.getElementById('entry-status').textContent = '\u2705 SHORT signal ready';
+      document.getElementById('entry-status').style.color = 'var(--red)';
+    } else {
+      document.getElementById('entry-status').textContent = 'Waiting for conditions...';
+      document.getElementById('entry-status').style.color = 'var(--text-dim)';
+    }
+  }
+
+  // ── Exit Conditions ──
+  const longExitDiv = document.getElementById('long-exit-list');
+  const shortExitDiv = document.getElementById('short-exit-list');
+
+  if (isMeanReversion) {
+    renderExitRules(longExitDiv, exitConds.long || {});
+    renderExitRules(shortExitDiv, exitConds.short || {});
+  } else if (isBull) {
+    longExitDiv.innerHTML = '<div class="exit-row"><span class="exit-label">ATR trailing stop</span><span class="exit-val">1.5× ATR from peak</span></div>'
+      + '<div class="exit-row"><span class="exit-label">Hard stop</span><span class="exit-val">3% below entry</span></div>'
+      + '<div class="exit-row"><span class="exit-label">ADX collapse</span><span class="exit-val">ADX < 10</span></div>'
+      + '<div class="exit-row"><span class="exit-label">Max hold</span><span class="exit-val">25 days</span></div>';
+    shortExitDiv.innerHTML = longExitDiv.innerHTML;
+  } else {
+    longExitDiv.innerHTML = '<div style="color:var(--text-dim); font-size:11px;">N/A</div>';
+    shortExitDiv.innerHTML = longExitDiv.innerHTML;
+  }
+}
+
+function renderConditions(container, conditions) {
+  let html = '';
+  for (const [key, cond] of Object.entries(conditions)) {
+    const met = cond.met;
+    const cls = met ? 'cond-met' : 'cond-not-met';
+    const icon = met ? '\u2713' : '\u2717';
+    const label = cond.label || key;
+    const detail = cond.detail || cond.threshold || '';
+    html += `<div class="cond-row ${cls}">
+      <span class="cond-icon">${icon}</span>
+      <span class="cond-label">${label}: ${cond.threshold || ''}</span>
+      <span class="cond-detail">${detail}</span>
+    </div>`;
+  }
+  if (!html) {
+    html = '<div style="color:var(--text-dim); font-size:12px; padding:8px 0;">No conditions available</div>';
+  }
+  container.innerHTML = html;
+}
+
+function renderExitRules(container, rules) {
+  let html = '';
+  for (const [key, rule] of Object.entries(rules)) {
+    html += `<div class="exit-row">
+      <span class="exit-label">${rule.label || key}</span>
+      <span class="exit-val">${rule.threshold || ''}</span>
+    </div>`;
+  }
+  if (!html) html = '<div style="color:var(--text-dim); font-size:11px;">—</div>';
+  container.innerHTML = html;
+}
+
 // ── Polling ───────────────────────────────────────────
 let failCount = 0;
 
+// Check URL params for preview mode
+const urlParams = new URLSearchParams(window.location.search);
+const isPreviewMode = urlParams.get('preview') === '1';
+
 async function poll() {
   try {
-    const res = await fetch('/api/all');
+    const endpoint = isPreviewMode ? '/api/preview' : '/api/all';
+    const res = await fetch(endpoint);
     if (!res.ok) throw new Error(res.status);
     const data = await res.json();
     update(data);
