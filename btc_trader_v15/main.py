@@ -1195,6 +1195,9 @@ class Trader:
             "orders_placed": self.orders_placed,
             "recalibrations": self.recalibrations,
             "last_price": self._last_price,
+            # Regime info for dashboard (string labels)
+            "detected_regime": self.detected_regime,
+            "regime_confidence": self.regime_confidence,
             "strategy_status": strat_status,
             "saved_at": str(datetime.now()),
             # Account & exposure

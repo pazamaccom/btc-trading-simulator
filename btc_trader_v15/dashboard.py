@@ -2248,12 +2248,15 @@ const CLUSTER_DISPLAY = {
 };
 
 function regimeDisplayName(r) {
+  if (typeof r === 'object') r = r.engine_label || r.current || '';
   return (r && CLUSTER_DISPLAY[r]) ? CLUSTER_DISPLAY[r] : (r || 'Unknown');
 }
 
 function regimeClass(r) {
   if (!r) return '';
-  const l = r.toLowerCase();
+  if (typeof r === 'object') r = r.engine_label || r.current || '';
+  if (!r) return '';
+  const l = String(r).toLowerCase();
   if (l.includes('bull') || l === 'positive momentum') return 'bull';
   if (l.includes('neg_momentum') || l === 'negative momentum') return 'neg_momentum';
   if (l.includes('bear') || l === 'volatile') return 'bear';
@@ -2931,7 +2934,11 @@ function updateLiveView(data) {
 
   // ── Regime indicator (live mode) ──
   const regimeInd = document.getElementById('regime-indicator');
-  const detectedRegime = s.detected_regime || s.regime || '';
+  // s.regime may be a string (engine label) or object {current, engine_label, days_in_regime}
+  let detectedRegime = s.detected_regime || '';
+  if (!detectedRegime && s.regime) {
+    detectedRegime = (typeof s.regime === 'object') ? (s.regime.engine_label || s.regime.current || '') : s.regime;
+  }
   const regimeConf = s.regime_confidence;
   if (detectedRegime) {
     const rc = regimeClass(detectedRegime);
@@ -3424,6 +3431,7 @@ function renderExitRules(container, rules) {
 
 // ── Polling ───────────────────────────────────────────
 let failCount = 0;
+let fetchFailCount = 0;
 
 
 // ── View tab switcher ────────────────────────────────
@@ -3483,20 +3491,19 @@ async function poll() {
   try {
     const endpoint = isPreviewMode ? '/api/preview' : '/api/all';
     const res = await fetch(endpoint);
-    if (!res.ok) throw new Error(res.status);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
-    update(data);
-    failCount = 0;
-
-    // Update status badge connectivity
-    const badge = document.getElementById('status-badge');
-    const statusText = document.getElementById('status-text');
-    if (failCount === 0 && badge.className.includes('offline') && currentMode !== 'backtest') {
-      // Let updateLiveView handle it
+    fetchFailCount = 0;  // Network OK
+    try {
+      update(data);
+    } catch (renderErr) {
+      console.error('Dashboard render error:', renderErr);
+      // Don't mark as disconnected — server is reachable, just render issue
     }
   } catch (e) {
-    failCount++;
-    if (failCount > 3) {
+    fetchFailCount++;
+    console.warn('Poll failed (' + fetchFailCount + '):', e.message);
+    if (fetchFailCount > 3) {
       document.getElementById('status-badge').className = 'status-badge offline';
       document.getElementById('status-text').textContent = 'Disconnected';
     }
