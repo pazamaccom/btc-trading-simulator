@@ -410,7 +410,7 @@ class Trader:
         # We need enough data for both regime detection and strategy calibration
         # Regime detector needs ~200 bars minimum; calibration needs calib_days
         # Request generous window: max of 90 days or what we need
-        fetch_days = max(90, cfg.CALIBRATION_MAX_DAYS * 2)
+        fetch_days = max(150, cfg.CALIBRATION_MAX_DAYS * 2)
         hours = fetch_days * 24
         hourly_df = await self.ib_exec.fetch_calibration_bars(hours)
 
