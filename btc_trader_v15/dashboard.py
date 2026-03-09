@@ -66,6 +66,24 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self._serve_json(self._compute_metrics())
         elif path == "/api/preview":
             self._serve_json(self._get_preview_data())
+        elif path == "/api/debug":
+            # Debug: show raw state.json contents and what /api/all would surface
+            state = self._get_state()
+            debug_info = {
+                "state_keys": list(state.keys()),
+                "has_regime": "regime" in state,
+                "regime_value": state.get("regime"),
+                "has_strategy_state": "strategy_state" in state,
+                "strategy_state_keys": list(state.get("strategy_state", {}).keys()),
+                "support": state.get("strategy_state", {}).get("support"),
+                "resistance": state.get("strategy_state", {}).get("resistance"),
+                "has_conditions": "conditions" in state,
+                "conditions_keys": list(state.get("conditions", {}).keys()),
+                "detected_regime": state.get("detected_regime"),
+                "running": state.get("running"),
+                "mode": state.get("mode"),
+            }
+            self._serve_json(debug_info)
         elif path == "/api/all":
             # Single endpoint for everything (reduces polling requests)
             state = self._get_state()
