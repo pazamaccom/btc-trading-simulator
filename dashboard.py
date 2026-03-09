@@ -222,17 +222,17 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             },
             "exit_conditions": {
                 "long": {
-                    "target_zone": {"threshold": "Range pos ≥ 75%", "label": "Target Zone"},
-                    "rsi_overbought": {"threshold": "RSI > 68 + profitable", "label": "RSI Overbought"},
-                    "max_hold": {"threshold": "14 days (re-eval) / 28 days (hard cap)", "label": "Max Hold"},
+                    "target_zone": {"threshold": "Range pos ≥ 75%", "label": "Target Zone", "met": False, "detail": "41% < 75%"},
+                    "rsi_overbought": {"threshold": "RSI > 68 + in profit", "label": "RSI Overbought", "met": False, "detail": "RSI 44.2 ≤ 68"},
+                    "max_hold": {"threshold": "14d re-eval / 28d hard cap", "label": "Max Hold", "met": False, "detail": "No position"},
                 },
                 "short": {
-                    "stop_loss": {"threshold": "2% above entry", "label": "Hard Stop"},
-                    "trailing_stop": {"threshold": "4% trailing", "label": "Trailing Stop"},
-                    "target_zone": {"threshold": "Range pos ≤ 20%", "label": "Target Zone"},
-                    "adx_breakout": {"threshold": "ADX > 28 + underwater", "label": "ADX Breakout"},
-                    "rsi_oversold": {"threshold": "RSI < 32 + profitable", "label": "RSI Oversold"},
-                    "max_hold": {"threshold": "7 days", "label": "Max Hold"},
+                    "stop_loss": {"threshold": "2% above entry", "label": "Hard Stop", "met": False, "detail": "No position"},
+                    "trailing_stop": {"threshold": "4% trailing", "label": "Trailing Stop", "met": False, "detail": "No position"},
+                    "target_zone": {"threshold": "Range pos ≤ 20%", "label": "Target Zone", "met": False, "detail": "41% > 20%"},
+                    "adx_breakout": {"threshold": "ADX > 28 + underwater", "label": "ADX Breakout", "met": False, "detail": "ADX 18.5 ≤ 28"},
+                    "rsi_oversold": {"threshold": "RSI < 32 + in profit", "label": "RSI Oversold", "met": False, "detail": "RSI 44.2 > 32"},
+                    "max_hold": {"threshold": "7 days", "label": "Max Hold", "met": False, "detail": "No position"},
                 },
             },
             "bull_conditions": {
@@ -1207,6 +1207,55 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
 
   /* Capital banner */
 
+
+
+  /* ── Active/inactive panel highlighting ──────────── */
+  .panel-active {
+    border: 1px solid var(--accent) !important;
+    box-shadow: 0 0 12px rgba(99, 102, 241, 0.15);
+  }
+  .panel-inactive {
+    opacity: 0.4;
+    filter: saturate(0.3);
+  }
+  .panel-label-active {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+  }
+
+  /* ── View tab switcher ──────────────────────────── */
+  .view-tabs {
+    display: flex;
+    gap: 2px;
+    background: var(--card);
+    border-radius: 8px;
+    padding: 3px;
+    border: 1px solid var(--border);
+    margin-right: 12px;
+  }
+  .view-tab {
+    padding: 5px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    color: var(--text-dim);
+    transition: all 0.15s;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+  }
+  .view-tab:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+  .view-tab.active {
+    background: var(--accent);
+    color: #fff;
+    cursor: default;
+  }
+
   /* ── Backtest view ───────────────────────────────── */
   #bt-view { display: none; }
   #live-view { display: block; }
@@ -1362,8 +1411,13 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
   <div class="header-top">
     <h1>BTC Trader <span>v15</span> — Config I</h1>
     <div class="header-right">
+      <!-- View tabs -->
+      <div class="view-tabs">
+        <button class="view-tab" id="tab-backtest" onclick="switchTab('backtest')">Backtest</button>
+        <button class="view-tab active" id="tab-paper" onclick="switchTab('paper')">Paper Trading</button>
+      </div>
       <!-- Mode badge -->
-      <span id="mode-badge" class="mode-badge live">LIVE PAPER TRADING</span>
+      <span id="mode-badge" class="mode-badge live">PAPER TRADING</span>
       <!-- Live regime indicator (shown only in live mode) -->
       <span id="regime-indicator" class="regime-indicator" style="display:none;"></span>
       <!-- Connection status -->
@@ -1464,6 +1518,40 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
         <div class="kpi-label">Worst Trade</div>
         <div class="kpi-value neg" id="kpi-worst">$0.00</div>
         <div class="kpi-sub">Single trade</div>
+      </div>
+    </div>
+
+    <!-- Trade Duration Stats (populated as trades accumulate) -->
+    <div id="pt-duration-stats" class="kpi-grid" style="display:none; margin-bottom:8px;">
+      <div class="kpi" style="min-width:0;">
+        <div class="kpi-label">Avg Duration</div>
+        <div class="kpi-value" id="pt-avg-dur" style="font-size:16px;">—</div>
+        <div class="kpi-sub">days per trade</div>
+      </div>
+      <div class="kpi" style="min-width:0;">
+        <div class="kpi-label">Min Duration</div>
+        <div class="kpi-value" id="pt-min-dur" style="font-size:16px;">—</div>
+        <div class="kpi-sub">shortest trade</div>
+      </div>
+      <div class="kpi" style="min-width:0;">
+        <div class="kpi-label">Median Duration</div>
+        <div class="kpi-value" id="pt-med-dur" style="font-size:16px;">—</div>
+        <div class="kpi-sub">middle trade</div>
+      </div>
+      <div class="kpi" style="min-width:0;">
+        <div class="kpi-label">Max Duration</div>
+        <div class="kpi-value" id="pt-max-dur" style="font-size:16px;">—</div>
+        <div class="kpi-sub">longest trade</div>
+      </div>
+      <div class="kpi" style="min-width:0;">
+        <div class="kpi-label">Profit Factor</div>
+        <div class="kpi-value" id="pt-pf" style="font-size:16px;">—</div>
+        <div class="kpi-sub">gross profit / loss</div>
+      </div>
+      <div class="kpi" style="min-width:0;">
+        <div class="kpi-label">Total Trades</div>
+        <div class="kpi-value" id="pt-total-trades" style="font-size:16px;">—</div>
+        <div class="kpi-sub">since start</div>
       </div>
     </div>
 
@@ -1587,7 +1675,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       <div class="card-body" style="padding:0;">
         <div style="display:grid; grid-template-columns:1fr 1fr; min-height:200px;">
           <!-- BUY side -->
-          <div style="padding:16px; border-right:1px solid var(--border);">
+          <div id="panel-buy" style="padding:16px; border-right:1px solid var(--border);">
             <div style="font-weight:600; color:var(--green); margin-bottom:12px; font-size:13px;">
               &#9650; BUY Conditions
               <span id="buy-summary" style="float:right; font-size:11px; font-weight:400; color:var(--text-dim);"></span>
@@ -1595,7 +1683,7 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
             <div id="buy-conditions-list"></div>
           </div>
           <!-- SELL / SHORT side -->
-          <div style="padding:16px;">
+          <div id="panel-short" style="padding:16px;">
             <div style="font-weight:600; color:var(--red); margin-bottom:12px; font-size:13px;">
               &#9660; SHORT Conditions
               <span id="short-summary" style="float:right; font-size:11px; font-weight:400; color:var(--text-dim);"></span>
@@ -1615,12 +1703,12 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
       <div class="card-body" style="padding:0;">
         <div style="display:grid; grid-template-columns:1fr 1fr; min-height:120px;">
           <!-- Long exit -->
-          <div style="padding:16px; border-right:1px solid var(--border);">
+          <div id="panel-long-exit" style="padding:16px; border-right:1px solid var(--border);">
             <div style="font-weight:600; color:var(--green); margin-bottom:10px; font-size:12px;">Long Exit Triggers</div>
             <div id="long-exit-list"></div>
           </div>
           <!-- Short exit -->
-          <div style="padding:16px;">
+          <div id="panel-short-exit" style="padding:16px;">
             <div style="font-weight:600; color:var(--red); margin-bottom:10px; font-size:12px;">Short Exit Triggers</div>
             <div id="short-exit-list"></div>
           </div>
@@ -3081,38 +3169,19 @@ function update(data) {
   const mode = data.mode || (data.state && data.state.mode) || 'live';
   const isBacktest = mode === 'backtest';
 
-  // Switch views if mode changed
+  // Mode tracking (tabs handle view switching now)
   if (mode !== currentMode) {
     currentMode = mode;
-    document.getElementById('live-view').style.display = isBacktest ? 'none' : 'block';
-    document.getElementById('bt-view').style.display   = isBacktest ? 'block' : 'none';
 
-    // Mode badge
-    const modeBadge = document.getElementById('mode-badge');
-    modeBadge.textContent = isBacktest ? 'BACKTEST' : (data.preview ? 'PAPER TRADING (PREVIEW)' : 'PAPER TRADING');
-    modeBadge.className = 'mode-badge ' + (isBacktest ? 'backtest' : 'live');
-
-    // Control bar vs disabled note
-    document.getElementById('control-bar').style.display        = isBacktest ? 'none' : '';
-    document.getElementById('bt-controls-note').style.display   = isBacktest ? ''     : 'none';
-
-    // Show/hide preview banner
-    const previewBanner = document.getElementById('preview-banner');
-    if (data.preview) {
-      previewBanner.style.display = '';
-    } else {
-      previewBanner.style.display = 'none';
-    }
-
-    // Hide regime indicator in backtest mode (has its own regime UI)
-    if (isBacktest) document.getElementById('regime-indicator').style.display = 'none';
-
-    // Set status badge for backtest mode
-    if (isBacktest) {
-      const badge = document.getElementById('status-badge');
-      const statusText = document.getElementById('status-text');
-      badge.className = 'status-badge paused';  // amber style for backtest
-      statusText.textContent = 'Backtest';
+    // On first load, determine which tab to show
+    if (isBacktest && activeTab !== 'backtest') {
+      switchTab('backtest');
+    } else if (!isBacktest && activeTab !== 'paper') {
+      // If preview/paper, show paper tab
+      if (activeTab === 'paper') {
+        const previewBanner = document.getElementById('preview-banner');
+        if (previewBanner && data.preview) previewBanner.style.display = '';
+      }
     }
   }
 
@@ -3121,9 +3190,13 @@ function update(data) {
     'Last updated: ' + new Date().toLocaleTimeString() +
     (isBacktest ? '  |  Backtest mode' : '');
 
-  if (isBacktest) {
+  // Always update backtest data if available (for tab switching)
+  if (data.backtest_results) {
     updateBacktestView(data);
-  } else {
+  }
+
+  // Always update paper trading data if not backtest-only
+  if (!isBacktest || activeTab === 'paper') {
     updateLiveView(data);
     updatePaperTradingPanels(data);
   }
@@ -3249,6 +3322,37 @@ function updatePaperTradingPanels(data) {
     }
   }
 
+  // ── Position-based panel highlighting ──
+  const position = (data.state && data.state.position) || 'flat';
+  const panelBuy = document.getElementById('panel-buy');
+  const panelShort = document.getElementById('panel-short');
+  const panelLongExit = document.getElementById('panel-long-exit');
+  const panelShortExit = document.getElementById('panel-short-exit');
+
+  // Reset all panels
+  [panelBuy, panelShort, panelLongExit, panelShortExit].forEach(p => {
+    if (p) { p.className = ''; p.style.opacity = ''; p.style.filter = ''; }
+  });
+
+  if (position === 'flat') {
+    // Flat: highlight entry panels, dim exit panels
+    if (panelBuy) { panelBuy.style.borderRight = '1px solid var(--border)'; }
+    if (panelLongExit) { panelLongExit.style.opacity = '0.4'; panelLongExit.style.filter = 'saturate(0.3)'; panelLongExit.style.borderRight = '1px solid var(--border)'; }
+    if (panelShortExit) { panelShortExit.style.opacity = '0.4'; panelShortExit.style.filter = 'saturate(0.3)'; }
+  } else if (position === 'long') {
+    // Long: highlight long exit, dim entry panels and short exit
+    if (panelBuy) { panelBuy.style.opacity = '0.4'; panelBuy.style.filter = 'saturate(0.3)'; panelBuy.style.borderRight = '1px solid var(--border)'; }
+    if (panelShort) { panelShort.style.opacity = '0.4'; panelShort.style.filter = 'saturate(0.3)'; }
+    if (panelLongExit) { panelLongExit.style.background = 'rgba(34,197,94,0.04)'; panelLongExit.style.borderRight = '1px solid var(--border)'; }
+    if (panelShortExit) { panelShortExit.style.opacity = '0.4'; panelShortExit.style.filter = 'saturate(0.3)'; }
+  } else if (position === 'short') {
+    // Short: highlight short exit, dim entry panels and long exit
+    if (panelBuy) { panelBuy.style.opacity = '0.4'; panelBuy.style.filter = 'saturate(0.3)'; panelBuy.style.borderRight = '1px solid var(--border)'; }
+    if (panelShort) { panelShort.style.opacity = '0.4'; panelShort.style.filter = 'saturate(0.3)'; }
+    if (panelLongExit) { panelLongExit.style.opacity = '0.4'; panelLongExit.style.filter = 'saturate(0.3)'; panelLongExit.style.borderRight = '1px solid var(--border)'; }
+    if (panelShortExit) { panelShortExit.style.background = 'rgba(239,68,68,0.04)'; }
+  }
+
   // ── Exit Conditions ──
   const longExitDiv = document.getElementById('long-exit-list');
   const shortExitDiv = document.getElementById('short-exit-list');
@@ -3291,10 +3395,21 @@ function renderConditions(container, conditions) {
 function renderExitRules(container, rules) {
   let html = '';
   for (const [key, rule] of Object.entries(rules)) {
-    html += `<div class="exit-row">
-      <span class="exit-label">${rule.label || key}</span>
-      <span class="exit-val">${rule.threshold || ''}</span>
-    </div>`;
+    const hasMet = rule.met !== undefined;
+    if (hasMet) {
+      const cls = rule.met ? 'cond-met' : 'cond-not-met';
+      const icon = rule.met ? '\u2713' : '\u2717';
+      html += `<div class="cond-row ${cls}">
+        <span class="cond-icon">${icon}</span>
+        <span class="cond-label">${rule.label || key}: ${rule.threshold || ''}</span>
+        <span class="cond-detail">${rule.detail || ''}</span>
+      </div>`;
+    } else {
+      html += `<div class="exit-row">
+        <span class="exit-label">${rule.label || key}</span>
+        <span class="exit-val">${rule.threshold || ''}</span>
+      </div>`;
+    }
   }
   if (!html) html = '<div style="color:var(--text-dim); font-size:11px;">—</div>';
   container.innerHTML = html;
@@ -3302,6 +3417,56 @@ function renderExitRules(container, rules) {
 
 // ── Polling ───────────────────────────────────────────
 let failCount = 0;
+
+
+// ── View tab switcher ────────────────────────────────
+let activeTab = 'paper';  // default
+
+function switchTab(tab) {
+  activeTab = tab;
+  const tabBt = document.getElementById('tab-backtest');
+  const tabPt = document.getElementById('tab-paper');
+  const liveView = document.getElementById('live-view');
+  const btView = document.getElementById('bt-view');
+  const controlBar = document.getElementById('control-bar');
+  const btNote = document.getElementById('bt-controls-note');
+  const previewBanner = document.getElementById('preview-banner');
+  const modeBadge = document.getElementById('mode-badge');
+  const regimeInd = document.getElementById('regime-indicator');
+
+  if (tab === 'backtest') {
+    tabBt.className = 'view-tab active';
+    tabPt.className = 'view-tab';
+    liveView.style.display = 'none';
+    btView.style.display = 'block';
+    controlBar.style.display = 'none';
+    btNote.style.display = '';
+    if (previewBanner) previewBanner.style.display = 'none';
+    modeBadge.textContent = 'BACKTEST';
+    modeBadge.className = 'mode-badge backtest';
+    if (regimeInd) regimeInd.style.display = 'none';
+
+    // Load backtest data
+    fetch('/api/all').then(r => r.json()).then(data => {
+      if (data.backtest_results) {
+        data.mode = 'backtest';
+        updateBacktestView(data);
+      }
+    });
+  } else {
+    tabPt.className = 'view-tab active';
+    tabBt.className = 'view-tab';
+    liveView.style.display = 'block';
+    btView.style.display = 'none';
+    controlBar.style.display = '';
+    btNote.style.display = 'none';
+    modeBadge.textContent = isPreviewMode ? 'PAPER TRADING (PREVIEW)' : 'PAPER TRADING';
+    modeBadge.className = 'mode-badge live';
+
+    // Show preview banner if in preview mode
+    if (previewBanner && isPreviewMode) previewBanner.style.display = '';
+  }
+}
 
 // Check URL params for preview mode
 const urlParams = new URLSearchParams(window.location.search);
