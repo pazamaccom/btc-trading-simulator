@@ -23,17 +23,8 @@ PAPER_BALANCE = 1_000_000       # Paper trading account balance ($)
 MAX_EXPOSURE_USD = 500_000      # Maximum notional exposure allowed ($)
 MBT_NOTIONAL_PER_CT = 6_900     # Approximate notional per MBT contract (0.1 BTC)
 
-# ── IB Margin ──────────────────────────────────────────
-# Real IB initial margin per MBT contract (from TWS, March 2026).
-# Used for: Required Capital calculation, margin checks before orders.
-# IB margin scales with BTC price (~28% of notional), so this is
-# approximate.  For backtesting the margin is computed dynamically:
-#   margin_per_contract = max(IB_MARGIN_PER_CONTRACT, price * MULTIPLIER * IB_MARGIN_PCT)
-IB_MARGIN_PER_CONTRACT = 2_417  # $ initial margin per contract (from TWS)
-IB_MARGIN_PCT = 0.284           # ~28.4% of notional (2417 / 8500 at BTC=$85K)
-
 # ── Position Sizing ────────────────────────────────────
-MAX_CONTRACTS = 100     # Safety cap — must allow enough for $500K exposure at low BTC prices
+MAX_CONTRACTS = 50      # Absolute safety cap (exposure ceiling is the real limit)
 DEFAULT_CONTRACTS = 1   # Default order size (fallback when exposure sizing is off)
 POSITION_LIMIT_USD = 50_000  # Hard dollar limit
 
@@ -43,7 +34,7 @@ POSITION_LIMIT_USD = 50_000  # Hard dollar limit
 # Conviction scales up: high = 1.5×, very_high = 2× the base.
 # Final cap = min(contracts, MAX_EXPOSURE_USD / notional_per_ct, MAX_CONTRACTS)
 EXPOSURE_SIZING_ENABLED = True
-TARGET_EXPOSURE_USD = 500_000   # Target notional exposure per trade ($)
+TARGET_EXPOSURE_USD = 200_000   # Target notional exposure per trade ($)
 
 # ── Conviction Sizing ──────────────────────────────────
 # Trade 2-3 contracts when range is tight and well-tested

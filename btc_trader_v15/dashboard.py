@@ -2573,7 +2573,7 @@ function updateBacktestView(data) {
           <span class="es-val">${fmtK(exposure.margin_mean)}</span></div>
         <div class="exp-stat"><span class="es-label">Contracts Range</span>
           <span class="es-val">${exposure.contracts_min} \u2014 ${exposure.contracts_max}</span></div>
-        <div class="exp-stat"><span class="es-label">@ $${(exposure.margin_per_contract || 1500).toLocaleString()}/contract</span>
+        <div class="exp-stat"><span class="es-label">@ ~${(exposure.margin_per_contract_base || exposure.margin_per_contract || 2417).toLocaleString()}/ct (${((exposure.margin_pct || 0.284) * 100).toFixed(1)}% of notional, dynamic)</span>
           <span class="es-val es-dim" style="color:var(--text-dim);">${fmtK(exposure.margin_min)} \u2014 ${fmtK(exposure.margin_max)}</span></div>
         <div class="exp-stat" style="margin-top:8px; font-size:11px; color:var(--text-dim);">The deposit IB holds as collateral while the position is open. For futures, this is much less than the investment amount \u2014 you control a large position with a small deposit (leverage).</div>
       </div>`;

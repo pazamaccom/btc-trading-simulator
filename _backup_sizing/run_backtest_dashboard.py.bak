@@ -404,16 +404,9 @@ def enrich_equity_curve(equity_curve, trades):
 
         # Blocked Capital = margin for current contracts + drawdown reserve
         # This is the actual capital tied up at this point in time:
-        #   - Margin: dynamic per-contract margin based on BTC price (~28.4% of notional)
+        #   - Margin: $1,500/contract locked by IB
         #   - Reserve: 2× margin as drawdown buffer (so total = 3× margin)
-        # Dynamic margin: max(IB_MARGIN_PER_CONTRACT, price × MULTIPLIER × IB_MARGIN_PCT)
-        ib_margin_base = getattr(cfg, 'IB_MARGIN_PER_CONTRACT', 2417)
-        ib_margin_pct = getattr(cfg, 'IB_MARGIN_PCT', 0.284)
-        current_price = point.get('close', point.get('price', 0))
-        if current_price <= 0 and current_notional > 0 and current_contracts > 0:
-            current_price = current_notional / (current_contracts * MULTIPLIER)
-        margin_per_ct = max(ib_margin_base, current_price * MULTIPLIER * ib_margin_pct) if current_price > 0 else ib_margin_base
-        margin = current_contracts * margin_per_ct
+        margin = current_contracts * 1500
         blocked = margin * 3  # same 3× logic as Required Capital
 
         enriched.append({
@@ -451,16 +444,8 @@ def compute_exposure_stats(trades, total_pnl, start_date_str, end_date_str, regi
 
     exposures = [t["price"] * MULTIPLIER * t["contracts"] for t in entries]
     exp_arr = np.array(exposures)
-
-    # Dynamic margin per trade: max(IB_MARGIN_PER_CONTRACT, price × MULTIPLIER × IB_MARGIN_PCT)
-    # This reflects how IB margin scales with BTC price (~28.4% of notional)
-    ib_margin_base = getattr(cfg, 'IB_MARGIN_PER_CONTRACT', 2417)
-    ib_margin_pct = getattr(cfg, 'IB_MARGIN_PCT', 0.284)
-    margins = []
-    for t in entries:
-        price = t["price"]
-        margin_per_ct = max(ib_margin_base, price * MULTIPLIER * ib_margin_pct)
-        margins.append(t["contracts"] * margin_per_ct)
+    MARGIN_PER_CONTRACT = 1500  # CME initial margin for MBT
+    margins = [t["contracts"] * MARGIN_PER_CONTRACT for t in entries]
     margin_arr = np.array(margins)
 
     notional_max = float(exp_arr.max())
@@ -564,9 +549,8 @@ def compute_exposure_stats(trades, total_pnl, start_date_str, end_date_str, regi
         "notional_max": round(notional_max, 2),
         "notional_mean": round(notional_mean, 2),
         "notional_median": round(float(np.median(exp_arr)), 2),
-        # Margin requirement (broker deposit per position — dynamic, scales with BTC price)
-        "margin_per_contract_base": ib_margin_base,
-        "margin_pct": ib_margin_pct,
+        # Margin requirement (broker deposit per position)
+        "margin_per_contract": MARGIN_PER_CONTRACT,
         "margin_min": round(float(margin_arr.min()), 2),
         "margin_max": round(margin_max, 2),
         "margin_mean": round(float(margin_arr.mean()), 2),

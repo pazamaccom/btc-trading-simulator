@@ -19,7 +19,7 @@ import pandas as pd
 
 try:
     from ib_async import (
-        IB, Future, ContFuture, MarketOrder,
+        IB, Future, MarketOrder,
         util, BarData
     )
     HAS_IB = True
@@ -204,10 +204,40 @@ class IBExecution:
             logger.info("Disconnected from TWS")
 
     async def _qualify_contract(self):
-        """Qualify the MBT continuous futures contract."""
-        # Use ContFuture for automatic front-month rollover
-        cont = ContFuture(cfg.SYMBOL, exchange=cfg.EXCHANGE, currency=cfg.CURRENCY)
-        qualified = await self.ib.qualifyContractsAsync(cont)
+        """
+        Qualify the MBT front-month futures contract.
+
+        Uses a specific-month Future (NOT ContFuture) because IB returns
+        error 10339 when requesting historical data on continuous contracts.
+        MBT monthly contracts expire on the last Friday of each month.
+        We try the current month first; if that fails (expired or not yet
+        listed), we try the next month.
+        """
+        now = datetime.now()
+
+        # Try current month first
+        month_str = now.strftime("%Y%m")
+        logger.info(f"Qualifying MBT front-month contract: {month_str}")
+        specific = Future(cfg.SYMBOL, month_str, cfg.EXCHANGE, currency=cfg.CURRENCY)
+        qualified = await self.ib.qualifyContractsAsync(specific)
+
+        if qualified:
+            self.contract = qualified[0]
+            self.qualified = True
+            logger.info(f"Contract qualified: {self.contract.localSymbol} "
+                        f"(conId={self.contract.conId})")
+            return
+
+        # Current month may have expired — try next month
+        next_month = now.month + 1
+        next_year = now.year
+        if next_month > 12:
+            next_month = 1
+            next_year += 1
+        next_str = f"{next_year}{next_month:02d}"
+        logger.info(f"Current month contract not available, trying: {next_str}")
+        specific = Future(cfg.SYMBOL, next_str, cfg.EXCHANGE, currency=cfg.CURRENCY)
+        qualified = await self.ib.qualifyContractsAsync(specific)
 
         if qualified:
             self.contract = qualified[0]
@@ -215,19 +245,10 @@ class IBExecution:
             logger.info(f"Contract qualified: {self.contract.localSymbol} "
                         f"(conId={self.contract.conId})")
         else:
-            # Fall back to specific front-month
-            logger.warning("ContFuture failed, trying specific month...")
-            now = datetime.now()
-            # MBT expires last Friday of the month
-            month_str = now.strftime("%Y%m")
-            specific = Future(cfg.SYMBOL, month_str, cfg.EXCHANGE, currency=cfg.CURRENCY)
-            qualified = await self.ib.qualifyContractsAsync(specific)
-            if qualified:
-                self.contract = qualified[0]
-                self.qualified = True
-                logger.info(f"Specific contract qualified: {self.contract.localSymbol}")
-            else:
-                raise RuntimeError(f"Could not qualify MBT contract")
+            raise RuntimeError(
+                f"Could not qualify MBT contract for {month_str} or {next_str}. "
+                f"Check that TWS is running and MBT Micro Bitcoin Futures are available."
+            )
 
     # ── Historical Data ────────────────────────────────
 
