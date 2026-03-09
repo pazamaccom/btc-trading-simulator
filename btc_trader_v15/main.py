@@ -57,8 +57,8 @@ except ImportError:
 # Add project to path and ensure CWD is the project directory
 _PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 _PARENT_DIR = os.path.dirname(_PROJECT_DIR)
-sys.path.insert(0, _PROJECT_DIR)
 sys.path.insert(0, _PARENT_DIR)
+sys.path.insert(0, _PROJECT_DIR)  # Must be first — dashboard.py lives here
 os.chdir(_PROJECT_DIR)
 
 import config as cfg

@@ -66,6 +66,24 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self._serve_json(self._compute_metrics())
         elif path == "/api/preview":
             self._serve_json(self._get_preview_data())
+        elif path == "/api/debug":
+            # Debug: show raw state.json contents and what /api/all would surface
+            state = self._get_state()
+            debug_info = {
+                "state_keys": list(state.keys()),
+                "has_regime": "regime" in state,
+                "regime_value": state.get("regime"),
+                "has_strategy_state": "strategy_state" in state,
+                "strategy_state_keys": list(state.get("strategy_state", {}).keys()),
+                "support": state.get("strategy_state", {}).get("support"),
+                "resistance": state.get("strategy_state", {}).get("resistance"),
+                "has_conditions": "conditions" in state,
+                "conditions_keys": list(state.get("conditions", {}).keys()),
+                "detected_regime": state.get("detected_regime"),
+                "running": state.get("running"),
+                "mode": state.get("mode"),
+            }
+            self._serve_json(debug_info)
         elif path == "/api/all":
             # Single endpoint for everything (reduces polling requests)
             state = self._get_state()
@@ -88,6 +106,13 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 "cooldown_hours": state.get("cooldown_hours", cfg.CHOPPY.get("cooldown_hours", 3)),
                 "last_recal_time": state.get("last_recal_time"),
                 "recalibrations": state.get("recalibrations", 0),
+                # Regime / strategy / conditions surfaced at top level for dashboard panels
+                "regime": state.get("regime", {}),
+                "strategy_state": state.get("strategy_state", {}),
+                "conditions": state.get("conditions", {}),
+                "exit_conditions": state.get("exit_conditions", {}),
+                "bull_conditions": state.get("bull_conditions", {}),
+                "detected_regime": state.get("detected_regime", ""),
             }
 
             if mode == "backtest":
@@ -2241,12 +2266,15 @@ const CLUSTER_DISPLAY = {
 };
 
 function regimeDisplayName(r) {
+  if (typeof r === 'object') r = r.engine_label || r.current || '';
   return (r && CLUSTER_DISPLAY[r]) ? CLUSTER_DISPLAY[r] : (r || 'Unknown');
 }
 
 function regimeClass(r) {
   if (!r) return '';
-  const l = r.toLowerCase();
+  if (typeof r === 'object') r = r.engine_label || r.current || '';
+  if (!r) return '';
+  const l = String(r).toLowerCase();
   if (l.includes('bull') || l === 'positive momentum') return 'bull';
   if (l.includes('neg_momentum') || l === 'negative momentum') return 'neg_momentum';
   if (l.includes('bear') || l === 'volatile') return 'bear';
@@ -2924,7 +2952,11 @@ function updateLiveView(data) {
 
   // ── Regime indicator (live mode) ──
   const regimeInd = document.getElementById('regime-indicator');
-  const detectedRegime = s.detected_regime || s.regime || '';
+  // s.regime may be a string (engine label) or object {current, engine_label, days_in_regime}
+  let detectedRegime = s.detected_regime || '';
+  if (!detectedRegime && s.regime) {
+    detectedRegime = (typeof s.regime === 'object') ? (s.regime.engine_label || s.regime.current || '') : s.regime;
+  }
   const regimeConf = s.regime_confidence;
   if (detectedRegime) {
     const rc = regimeClass(detectedRegime);
@@ -3417,6 +3449,7 @@ function renderExitRules(container, rules) {
 
 // ── Polling ───────────────────────────────────────────
 let failCount = 0;
+let fetchFailCount = 0;
 
 
 // ── View tab switcher ────────────────────────────────
@@ -3476,20 +3509,19 @@ async function poll() {
   try {
     const endpoint = isPreviewMode ? '/api/preview' : '/api/all';
     const res = await fetch(endpoint);
-    if (!res.ok) throw new Error(res.status);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
-    update(data);
-    failCount = 0;
-
-    // Update status badge connectivity
-    const badge = document.getElementById('status-badge');
-    const statusText = document.getElementById('status-text');
-    if (failCount === 0 && badge.className.includes('offline') && currentMode !== 'backtest') {
-      // Let updateLiveView handle it
+    fetchFailCount = 0;  // Network OK
+    try {
+      update(data);
+    } catch (renderErr) {
+      console.error('Dashboard render error:', renderErr);
+      // Don't mark as disconnected — server is reachable, just render issue
     }
   } catch (e) {
-    failCount++;
-    if (failCount > 3) {
+    fetchFailCount++;
+    console.warn('Poll failed (' + fetchFailCount + '):', e.message);
+    if (fetchFailCount > 3) {
       document.getElementById('status-badge').className = 'status-badge offline';
       document.getElementById('status-text').textContent = 'Disconnected';
     }
