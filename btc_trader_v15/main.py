@@ -1606,13 +1606,41 @@ async def run_interactive(trader: Trader):
 
     try:
         while trader.running:
-            # Process IB network messages
+            # ── Process IB network messages ──
+            # If TWS disconnects (e.g. daily restart at ~23:45 ET),
+            # we catch the error and wait for auto-reconnect instead of crashing.
             try:
                 trader.ib_exec.ib.sleep(0.1)
+            except (ConnectionError, OSError, asyncio.CancelledError) as e:
+                if not trader.running:
+                    break
+                logger.warning(f"TWS connection interrupted: {e}")
+                print(f"\n  TWS connection lost ({e}). Waiting for auto-reconnect...")
+                # Wait for the auto-reconnect logic in ib_execution.py
+                reconnect_wait = 0
+                max_reconnect_wait = 300  # 5 minutes max wait
+                while reconnect_wait < max_reconnect_wait and trader.running:
+                    await asyncio.sleep(5)
+                    reconnect_wait += 5
+                    if trader.ib_exec.connected:
+                        logger.info("Main loop: TWS reconnected, resuming")
+                        print("  TWS reconnected. Resuming trading loop.")
+                        break
+                    if reconnect_wait % 30 == 0:
+                        print(f"  Still waiting for TWS... ({reconnect_wait}s elapsed)")
+                else:
+                    if not trader.ib_exec.connected and trader.running:
+                        logger.error("TWS did not reconnect within 5 minutes")
+                        print("  TWS did not reconnect. Stopping engine.")
+                        await trader.stop(flatten=False)
+                        break
+                continue
             except Exception as e:
+                if not trader.running:
+                    break
                 logger.warning(f"IB sleep error (usually harmless): {e}")
 
-            # Check for dashboard commands (control file)
+            # ── Check for dashboard commands (control file) ──
             ctrl = trader._read_control()
             if ctrl:
                 cmd_type = ctrl.get("command", "")
@@ -1646,7 +1674,7 @@ async def run_interactive(trader: Trader):
                     else:
                         print("  No position to flatten.")
 
-            # Check for config updates from dashboard
+            # ── Check for config updates from dashboard ──
             config_update_file = Path("config_update.json")
             if config_update_file.exists():
                 try:
@@ -1674,10 +1702,14 @@ async def run_interactive(trader: Trader):
                 except Exception as e:
                     logger.error(f"Config update error: {e}", exc_info=True)
 
-            # Check for user input (non-blocking)
-            cmd = await loop.run_in_executor(
-                None, _get_input_nonblocking
-            )
+            # ── Check for user input (non-blocking) ──
+            try:
+                cmd = await loop.run_in_executor(
+                    None, _get_input_nonblocking
+                )
+            except (asyncio.CancelledError, ConnectionError, OSError):
+                # Event loop disrupted by disconnect — skip input this cycle
+                continue
 
             if cmd:
                 cmd = cmd.strip().lower()
@@ -1717,6 +1749,11 @@ async def run_interactive(trader: Trader):
     except KeyboardInterrupt:
         print("\n\nInterrupted. Shutting down gracefully...")
         await trader.stop(flatten=False)
+    except (ConnectionError, OSError) as e:
+        # TWS disconnect that escaped the inner handler
+        logger.error(f"TWS connection error in main loop: {e}")
+        print(f"\n  TWS connection error: {e}")
+        print("  Engine stopped. Restart with: python btc_trader_v15/main.py")
     except Exception as e:
         logger.error(f"Unexpected error: {e}", exc_info=True)
         await trader.stop(flatten=False)
