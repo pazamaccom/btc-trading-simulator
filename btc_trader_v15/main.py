@@ -1878,6 +1878,12 @@ def main():
             # Give TWS a few more seconds to fully initialize its API
             _time.sleep(5)
 
+            # Cleanly disconnect old IB to release clientId
+            try:
+                trader.ib_exec.ib.disconnect()
+            except Exception:
+                pass
+
             # Reset the trader for a fresh start
             trader.running = True
             trader.ib_exec = IBExecution()  # fresh IB connection object

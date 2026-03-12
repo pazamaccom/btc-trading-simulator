@@ -140,12 +140,18 @@ class IBExecution:
             await asyncio.sleep(delay)
 
             try:
-                # Clean up old IB instance events to avoid duplicate handlers
+                # Clean up old IB instance to release clientId
                 try:
                     self.ib.errorEvent -= self._on_ib_error
                     self.ib.disconnectedEvent -= self._on_disconnected
                 except Exception:
                     pass
+                try:
+                    self.ib.disconnect()
+                except Exception:
+                    pass
+                # Create a fresh IB instance so clientId is not "in use"
+                self.ib = IB()
 
                 await self.ib.connectAsync(
                     host=cfg.IB_HOST,
