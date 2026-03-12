@@ -117,18 +117,17 @@ class IBExecution:
             return False
 
     def _on_disconnected(self):
-        """Called when TWS connection drops — triggers auto-reconnect."""
+        """Called when TWS connection drops.
+
+        We do NOT attempt to reconnect from here.  The ib_async
+        globalErrorEvent will kill the event loop anyway, so any
+        async reconnect scheduled here just creates zombie
+        connections that hold clientId 1.  Instead, the OUTER
+        restart loop in main() handles the full reconnect with
+        a fresh IB instance.
+        """
         self.connected = False
-        logger.warning("TWS DISCONNECTED — will attempt auto-reconnect")
-        # Schedule reconnection in the event loop
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.ensure_future(self._auto_reconnect())
-            else:
-                logger.error("Event loop not running — cannot auto-reconnect")
-        except Exception as e:
-            logger.error(f"Failed to schedule reconnection: {e}")
+        logger.warning("TWS DISCONNECTED — outer restart loop will reconnect")
 
     async def _auto_reconnect(self):
         """Attempt to reconnect to TWS with exponential backoff."""
