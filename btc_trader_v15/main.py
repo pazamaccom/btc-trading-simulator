@@ -370,11 +370,14 @@ class Trader:
         # Save initial state so dashboard has data immediately
         self._save_state()
 
-        # Launch live dashboard in background thread
-        self._dashboard_thread = threading.Thread(
-            target=run_dashboard, args=(8080,), daemon=True)
-        self._dashboard_thread.start()
-        print(f"  Dashboard: http://127.0.0.1:8080\n")
+        # Launch live dashboard in background thread (skip if already running)
+        if not hasattr(self, '_dashboard_thread') or not self._dashboard_thread.is_alive():
+            self._dashboard_thread = threading.Thread(
+                target=run_dashboard, args=(8080,), daemon=True)
+            self._dashboard_thread.start()
+            print(f"  Dashboard: http://127.0.0.1:8080\n")
+        else:
+            print(f"  Dashboard still running at http://127.0.0.1:8080\n")
 
         return True
 
@@ -1821,7 +1824,68 @@ def main():
     # Run with ib_async's patched event loop
     from ib_async import util
     util.patchAsyncio()
-    util.run(run_interactive(trader))
+
+    # ── Outer reconnect loop ──────────────────────────────
+    # When TWS does its nightly restart (23:45 ET), ib_async's
+    # globalErrorEvent kills the entire event loop with a
+    # ConnectionError that cannot be caught inside the async
+    # coroutine.  We catch it HERE, wait for TWS to come back,
+    # and re-launch the trading loop with a fresh IB connection.
+    MAX_RESTARTS = 50          # survive ~50 nightly restarts
+    restart_count = 0
+
+    while restart_count < MAX_RESTARTS:
+        try:
+            util.run(run_interactive(trader))
+            break  # clean exit (user pressed q, or stop command)
+        except (ConnectionError, OSError) as e:
+            restart_count += 1
+            logger.warning(f"Event loop crashed ({e}). "
+                           f"Restart {restart_count}/{MAX_RESTARTS}")
+            print(f"\n  TWS connection lost ({e}).")
+            print(f"  Waiting for TWS to restart... "
+                  f"(attempt {restart_count}/{MAX_RESTARTS})")
+
+            # Wait for TWS to finish restarting (up to 5 minutes)
+            import time as _time
+            waited = 0
+            reconnected = False
+            while waited < 300:
+                _time.sleep(10)
+                waited += 10
+                if waited % 30 == 0:
+                    print(f"  Still waiting... ({waited}s)")
+                # Try a quick TCP probe to see if TWS is back
+                import socket
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(3)
+                try:
+                    sock.connect((cfg.IB_HOST, cfg.IB_PORT))
+                    sock.close()
+                    reconnected = True
+                    print(f"  TWS is back (after {waited}s). "
+                          f"Re-initializing...")
+                    break
+                except (ConnectionRefusedError, OSError, socket.timeout):
+                    sock.close()
+                    continue
+
+            if not reconnected:
+                print("  TWS did not come back within 5 minutes. Exiting.")
+                logger.error("TWS did not restart within 5 minutes")
+                break
+
+            # Give TWS a few more seconds to fully initialize its API
+            _time.sleep(5)
+
+            # Reset the trader for a fresh start
+            trader.running = True
+            trader.ib_exec = IBExecution()  # fresh IB connection object
+            print("  Reconnecting...\n")
+            continue
+        except KeyboardInterrupt:
+            print("\n  Shutting down...")
+            break
 
 
 if __name__ == "__main__":
