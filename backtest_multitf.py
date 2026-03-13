@@ -1158,8 +1158,24 @@ def _patch_for_daily_bars(strategy, calib_days=14):
             contracts=self.position.contracts,
         )
     
+    # ── Patch _compute_indicators for daily bar counts ──
+    # Original requires 30 bars (designed for hourly), but with daily bars
+    # we only have ~21.  RSI/ADX period=14 needs 15+ bars minimum.
+    def patched_compute_indicators(self):
+        min_bars = 16  # 14 (period) + 2 buffer for daily bars
+        if len(self.bars) < min_bars:
+            self._adx = np.array([20])
+            self._rsi = np.array([50])
+            return
+        closes = np.array([b["close"] for b in self.bars])
+        highs = np.array([b["high"] for b in self.bars])
+        lows = np.array([b["low"] for b in self.bars])
+        self._rsi = calc_rsi(closes, 14)
+        self._adx, _, _ = calc_adx(highs, lows, closes, 14)
+
     # Apply all patches
     strategy._update_range = types.MethodType(patched_update_range, strategy)
+    strategy._compute_indicators = types.MethodType(patched_compute_indicators, strategy)
     strategy.on_bar = types.MethodType(patched_on_bar, strategy)
     strategy._check_long_exit = types.MethodType(patched_check_long_exit, strategy)
     strategy._check_short_exit = types.MethodType(patched_check_short_exit, strategy)
