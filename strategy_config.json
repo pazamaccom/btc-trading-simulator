@@ -1,15 +1,15 @@
 {
   "_description": "V3 4-cluster optimized strategy configuration",
-  "_updated": "2026-03-08",
+  "_updated": "2026-03-13",
   "_classifier": "V3 ensemble (HMM + GMM + KMeans + RF meta), 4 clusters",
   "_optimization": "Iterative coordinate descent with 7 walk-forward windows, converged in 2 rounds",
   "_performance": {
-    "total_pnl": 1742339,
-    "total_trades": 229,
-    "win_rate": 81.2,
-    "profit_factor": 10.15,
-    "max_drawdown": 35462,
-    "period": "2020-01-01 to 2026-03-05"
+    "total_pnl": 3247365,
+    "total_trades": 288,
+    "win_rate": 74.7,
+    "profit_factor": 4.08,
+    "max_drawdown": 173116,
+    "period": "2020-01-01 to 2026-03-13"
   },
 
   "exec_mode": "best_price",
@@ -32,15 +32,15 @@
   "volatile": {
     "_cluster": "Volatile (17.5% of days)",
     "_strategy": "ChoppyStrategy with wider params + secondary BullStrategy",
-    "bear_calib_days": 14,
+    "bear_calib_days": 28,
     "bear_short_trail_pct": 0.06,
     "bear_short_stop_pct": 0.04,
     "bear_short_adx_exit": 28,
-    "bear_short_adx_max": 45,
-    "bear_long_entry_zone": 0.25,
-    "bear_short_entry_zone": 0.65,
-    "bear_long_target_zone": 0.9,
-    "bear_short_target_zone": 0.25
+    "bear_short_adx_max": 60,
+    "bear_long_entry_zone": 0.2,
+    "bear_short_entry_zone": 0.6,
+    "bear_long_target_zone": 0.8,
+    "bear_short_target_zone": 0.15
   },
 
   "positive_momentum": {
@@ -53,7 +53,7 @@
     "bull_stop_pct": 0.03,
     "bull_adx_min": 15,
     "bull_adx_exit": 10,
-    "bull_max_hold_days": 25,
+    "bull_max_hold_days": 15,
     "bull_cooldown_hours": 24
   },
 

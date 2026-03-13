@@ -89,15 +89,15 @@ def build_params(regime_cache):
         "short_entry_zone": 0.55,
         "short_target_zone": 0.2,
         # Volatile/Bear params
-        "bear_calib_days": 14,
+        "bear_calib_days": 28,
         "bear_short_trail_pct": 0.06,
         "bear_short_stop_pct": 0.04,
         "bear_short_adx_exit": 28,
-        "bear_short_adx_max": 45,
-        "bear_long_entry_zone": 0.25,
-        "bear_short_entry_zone": 0.65,
-        "bear_long_target_zone": 0.9,
-        "bear_short_target_zone": 0.25,
+        "bear_short_adx_max": 60,
+        "bear_long_entry_zone": 0.2,
+        "bear_short_entry_zone": 0.6,
+        "bear_long_target_zone": 0.8,
+        "bear_short_target_zone": 0.15,
         # Momentum/Bull params
         "bull_calib_days": 30,
         "bull_lookback": 5,
@@ -106,7 +106,7 @@ def build_params(regime_cache):
         "bull_stop_pct": 0.03,
         "bull_adx_min": 15,
         "bull_adx_exit": 10,
-        "bull_max_hold_days": 25,
+        "bull_max_hold_days": 15,
         "bull_cooldown_hours": 24,
     }
 

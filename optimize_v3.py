@@ -52,15 +52,15 @@ CONFIG_I = {
     "short_entry_zone": 0.60,
     "short_target_zone": 0.30,
     # Volatile
-    "bear_calib_days": 14,
+    "bear_calib_days": 28,
     "bear_short_trail_pct": 0.06,
     "bear_short_stop_pct": 0.04,
     "bear_short_adx_exit": 28,
     "bear_short_adx_max": 60,
-    "bear_long_entry_zone": 0.25,
-    "bear_short_entry_zone": 0.65,
-    "bear_long_target_zone": 0.90,
-    "bear_short_target_zone": 0.20,
+    "bear_long_entry_zone": 0.20,
+    "bear_short_entry_zone": 0.60,
+    "bear_long_target_zone": 0.80,
+    "bear_short_target_zone": 0.15,
     # Positive Momentum
     "bull_calib_days": 30,
     "bull_lookback": 5,
@@ -72,6 +72,7 @@ CONFIG_I = {
     "bull_max_hold_days": 15,
     "bull_cooldown_hours": 24,
 }
+
 
 
 # ── Walk-Forward Windows ─────────────────────────────────────────────────────
