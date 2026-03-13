@@ -41,7 +41,7 @@ _DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_I = {
     "exec_mode": "best_price",
     "ind_period": 14,
-    # RangeTrader (choppy)
+    # Range
     "calib_days": 14,
     "short_trail_pct": 0.04,
     "short_stop_pct": 0.02,
@@ -51,7 +51,7 @@ CONFIG_I = {
     "long_entry_zone": 0.40,
     "short_entry_zone": 0.60,
     "short_target_zone": 0.30,
-    # VolatilityTrader (bear)
+    # Volatile
     "bear_calib_days": 14,
     "bear_short_trail_pct": 0.06,
     "bear_short_stop_pct": 0.04,
@@ -61,7 +61,7 @@ CONFIG_I = {
     "bear_short_entry_zone": 0.65,
     "bear_long_target_zone": 0.90,
     "bear_short_target_zone": 0.20,
-    # TrendFollower (bull)
+    # Positive Momentum
     "bull_calib_days": 30,
     "bull_lookback": 5,
     "bull_atr_period": 14,
@@ -117,12 +117,14 @@ def load_v3_regime_caches():
         else:
             skipped += 1
     
-    print(f"  V3 cache: {len(raw_cache)} total days, {len(full_map)} trading, {skipped} flat (neg_momentum)")
+    print(f"  V3 cache: {len(raw_cache)} total days, {len(full_map)} trading, {skipped} flat (Negative Momentum)")
     
     # Count regime distribution
+    _DISPLAY_NAMES = {"choppy": "Range", "bull": "Positive Momentum", "bear": "Volatile"}
     regime_counts = {}
     for r in full_map.values():
-        regime_counts[r] = regime_counts.get(r, 0) + 1
+        display = _DISPLAY_NAMES.get(r, r)
+        regime_counts[display] = regime_counts.get(display, 0) + 1
     print(f"  Distribution: {regime_counts}")
     
     # Slice per WF window (no look-ahead)
@@ -244,7 +246,7 @@ def run_wf_for_config(args):
 # ── Grid Builders ────────────────────────────────────────────────────────────
 
 def build_range_grid(frozen):
-    """RangeTrader parameter grid. ~480 configs."""
+    """Range parameter grid. ~480 configs."""
     grid = []
     
     adx_max_opts = [30, 35, 40, 45, 50]
@@ -302,7 +304,7 @@ def build_range_grid(frozen):
 
 
 def build_volatility_grid(frozen):
-    """VolatilityTrader parameter grid. ~1,296 configs."""
+    """Volatile parameter grid. ~1,296 configs."""
     grid = []
     
     bear_calib_opts = [14, 21, 28]
@@ -353,7 +355,7 @@ def build_volatility_grid(frozen):
 
 
 def build_trend_grid(frozen):
-    """TrendFollower parameter grid. ~4,800 configs."""
+    """Positive Momentum parameter grid. ~4,800 configs."""
     grid = []
     
     lookback_opts = [5, 10, 15, 20, 25]
@@ -490,48 +492,48 @@ if __name__ == "__main__":
         print(f"  ROUND {rnd} of {MAX_ROUNDS}")
         print(f"{'#'*80}")
         
-        # ── Phase 1: RangeTrader ─────────────────────────────────────────────
+        # ── Phase 1: Range ────────────────────────────────────────────────────
         frozen_p1 = {**CONFIG_I, **best_vol, **best_trend}
         range_grid = build_range_grid(frozen_p1)
         range_results = run_phase(
-            f"R{rnd} RangeTrader (Vol={'prev' if best_vol else 'CfgI'}, "
+            f"R{rnd} Range (Volatile={'prev' if best_vol else 'CfgI'}, "
             f"Trend={'prev' if best_trend else 'CfgI'})",
             range_grid, wf_caches, n_workers,
         )
         prev_range = best_range.copy()
         best_range = extract_phase_params(range_results[0]["config"], "range")
-        print(f"\n  ★ Best RangeTrader: WF PnL ${range_results[0]['wf_total_pnl']:,.0f}")
+        print(f"\n  ★ Best Range: WF PnL ${range_results[0]['wf_total_pnl']:,.0f}")
         if prev_range and prev_range != best_range:
             print(f"    (params CHANGED from previous round)")
         elif prev_range:
             print(f"    (params unchanged)")
         
-        # ── Phase 2: VolatilityTrader ────────────────────────────────────────
+        # ── Phase 2: Volatile ─────────────────────────────────────────────────
         frozen_p2 = {**CONFIG_I, **best_range, **best_trend}
         vol_grid = build_volatility_grid(frozen_p2)
         vol_results = run_phase(
-            f"R{rnd} VolatilityTrader (Range=R{rnd}, "
+            f"R{rnd} Volatile (Range=R{rnd}, "
             f"Trend={'prev' if best_trend else 'CfgI'})",
             vol_grid, wf_caches, n_workers,
         )
         prev_vol = best_vol.copy()
         best_vol = extract_phase_params(vol_results[0]["config"], "volatility")
-        print(f"\n  ★ Best VolatilityTrader: WF PnL ${vol_results[0]['wf_total_pnl']:,.0f}")
+        print(f"\n  ★ Best Volatile: WF PnL ${vol_results[0]['wf_total_pnl']:,.0f}")
         if prev_vol and prev_vol != best_vol:
             print(f"    (params CHANGED from previous round)")
         elif prev_vol:
             print(f"    (params unchanged)")
         
-        # ── Phase 3: TrendFollower ───────────────────────────────────────────
+        # ── Phase 3: Positive Momentum ────────────────────────────────────────
         frozen_p3 = {**CONFIG_I, **best_range, **best_vol}
         trend_grid = build_trend_grid(frozen_p3)
         trend_results = run_phase(
-            f"R{rnd} TrendFollower (Range=R{rnd}, Vol=R{rnd})",
+            f"R{rnd} Positive Momentum (Range=R{rnd}, Volatile=R{rnd})",
             trend_grid, wf_caches, n_workers,
         )
         prev_trend = best_trend.copy()
         best_trend = extract_phase_params(trend_results[0]["config"], "trend")
-        print(f"\n  ★ Best TrendFollower: WF PnL ${trend_results[0]['wf_total_pnl']:,.0f}")
+        print(f"\n  ★ Best Positive Momentum: WF PnL ${trend_results[0]['wf_total_pnl']:,.0f}")
         if prev_trend and prev_trend != best_trend:
             print(f"    (params CHANGED from previous round)")
         elif prev_trend:
