@@ -1262,8 +1262,19 @@ class Trader:
             "bull_conditions": bull_conditions,
         }
 
-        with open(self.state_file, "w") as f:
-            json.dump(full_state, f, indent=2, default=str)
+        # Atomic write: temp file + rename to prevent corruption on crash
+        import tempfile
+        tmp_fd, tmp_path = tempfile.mkstemp(
+            dir=str(self.state_file.parent), suffix=".tmp")
+        try:
+            with os.fdopen(tmp_fd, "w") as f:
+                json.dump(full_state, f, indent=2, default=str)
+            os.replace(tmp_path, str(self.state_file))
+        except Exception:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
 
     def _compute_range_position(self, strat) -> Optional[float]:
         """Compute where current price sits within the range [0=support, 1=resistance]."""
@@ -1528,8 +1539,21 @@ class Trader:
                 except json.JSONDecodeError:
                     trades = []
         trades.append(record)
-        with open(self.trade_file, "w") as f:
-            json.dump(trades, f, indent=2, default=str)
+        # Atomic write: temp file + rename to prevent corruption on crash
+        import tempfile
+        tmp_fd, tmp_path = tempfile.mkstemp(
+            dir=str(self.trade_file.parent), suffix=".tmp")
+        try:
+            with os.fdopen(tmp_fd, "w") as f:
+                json.dump(trades, f, indent=2, default=str)
+            os.replace(tmp_path, str(self.trade_file))
+        except Exception:
+            # Clean up temp file if rename failed
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+            raise
 
     # ── Status Display ─────────────────────────────────
 
