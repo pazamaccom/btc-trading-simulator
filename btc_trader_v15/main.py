@@ -608,6 +608,8 @@ class Trader:
         """
         On restart, check IB for an existing position and restore
         the strategy's position state so we resume managing it.
+        IB is the source of truth — local state is used only for
+        conflict detection and warning.
         """
         if not self.ib_exec.connected:
             return
@@ -615,6 +617,31 @@ class Trader:
         try:
             ib_pos = await self.ib_exec.get_position()
             qty = ib_pos.get("position", 0)
+
+            # Cross-check: compare IB position with saved local state
+            local_side = "flat"
+            local_contracts = 0
+            if self.state_file.exists():
+                try:
+                    with open(self.state_file) as f:
+                        saved = json.load(f)
+                    local_side = saved.get("position", "flat")
+                    local_contracts = saved.get("current_contracts", 0)
+                except (json.JSONDecodeError, KeyError):
+                    pass
+
+            ib_side = "long" if qty > 0 else ("short" if qty < 0 else "flat")
+            ib_contracts = abs(qty)
+
+            if local_side != ib_side or local_contracts != ib_contracts:
+                logger.warning(
+                    f"POSITION MISMATCH: local state={local_side} {local_contracts}ct, "
+                    f"IB={ib_side} {ib_contracts}ct — using IB as source of truth")
+                print(f"\n  ⚠ POSITION MISMATCH:")
+                print(f"    Local state: {local_side} {local_contracts} contracts")
+                print(f"    IB position: {ib_side} {ib_contracts} contracts")
+                print(f"    → Using IB as source of truth")
+
             if qty == 0:
                 logger.info("No existing IB position found — starting flat")
                 return
