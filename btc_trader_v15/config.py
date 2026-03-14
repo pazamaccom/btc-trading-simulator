@@ -97,7 +97,7 @@ CHOPPY = {
     "long_max_hold_hours":  336,    # 14 days — triggers re-evaluation, not auto-exit
     "long_max_hold_hard_cap_hours": 672,  # 28 days — absolute backstop, exit regardless
     "long_max_hold_adverse_pct": 0.08,    # 8% — exit if regime unchanged but loss exceeds this
-    # NO hard stop-loss on longs — building exposure is OK
+    "long_circuit_breaker_pct": 0.15,  # 15% — emergency stop for catastrophic drops
     # NO ADX exit on longs — let them ride
 
     # ── SHORT entries ──

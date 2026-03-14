@@ -467,6 +467,16 @@ class ChoppyStrategy:
             pyramid_signal.timestamp = now
             return pyramid_signal
 
+        # 0. Circuit breaker — emergency stop for catastrophic drops
+        avg = pos.avg_entry or pos.entry_price
+        circuit_breaker_pct = p.get("long_circuit_breaker_pct", 0.15)  # default 15%
+        if avg > 0 and price < avg * (1 - circuit_breaker_pct):
+            loss_pct = (avg - price) / avg * 100
+            return self._exit_long("CIRCUIT_BREAKER",
+                                   f"Emergency stop: price ${price:,.0f} down {loss_pct:.1f}% "
+                                   f"from entry ${avg:,.0f} (limit: {circuit_breaker_pct*100:.0f}%)",
+                                   price, now, bars_held)
+
         # 1. Target reached (top of range)
         if rng_pos >= p["long_target_zone"]:
             return self._exit_long("TARGET",
@@ -474,7 +484,6 @@ class ChoppyStrategy:
                                    price, now, bars_held)
 
         # 2. RSI overbought + in profit
-        avg = pos.avg_entry or pos.entry_price
         if rsi_val > p["long_rsi_overbought"] and price > avg:
             return self._exit_long("RSI_OB",
                                    f"RSI={rsi_val:.1f} overbought + profitable",
