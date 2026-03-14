@@ -23,24 +23,12 @@ from backtest_multitf import run_multitf_backtest
 with open(os.path.join(_DIR, "v3_cache.json")) as f:
     raw_cache = json.load(f)
 
-CLUSTER_TO_ENGINE = {
-    "momentum": "bull",
-    "neg_momentum": None,
-    "volatile": "bear",
-    "range": "choppy",
-}
-
 engine_cache = {}
-engine_to_cluster = {"bull": "momentum", "bear": "volatile", "choppy": "range"}
 date_to_cluster = {}
 
 for date_str, cluster in raw_cache.items():
     d = datetime.strptime(date_str, "%Y-%m-%d").date()
-    engine_label = CLUSTER_TO_ENGINE[cluster]
-    if engine_label is not None:
-        engine_cache[d] = engine_label
-    else:
-        engine_cache[d] = "neg_momentum_skip"
+    engine_cache[d] = cluster
     date_to_cluster[date_str] = cluster
 
 # ── V3 Final Optimized Parameters (confirmed on full 2020-2026 period) ────
@@ -110,8 +98,7 @@ def get_cluster_for_trade(trade):
     cluster = date_to_cluster.get(date_str)
     if cluster:
         return cluster
-    regime = trade.get("regime", "")
-    return engine_to_cluster.get(regime, regime)
+    return trade.get("regime", "unknown")
 
 # ── Analyze by cluster ───────────────────────────────────────────────────
 closed_trades = [t for t in trades if t["action"] in ("SELL", "COVER") and t.get("pnl") is not None]
@@ -136,7 +123,7 @@ print("\n" + "=" * 75)
 print("  REGIME DISTRIBUTION (full period)")
 print("=" * 75)
 total_days = sum(bt_cluster_days.values())
-for cluster in ["range", "volatile", "momentum", "neg_momentum"]:
+for cluster in ["range", "transition", "trend_up", "crash", "trend_down"]:
     days = bt_cluster_days.get(cluster, 0)
     pct = days / total_days * 100
     print(f"  {cluster:<15s}: {days:>5d} days ({pct:.1f}%)")
@@ -147,31 +134,29 @@ print("\n" + "=" * 75)
 print("  PERFORMANCE BY CLUSTER")
 print("=" * 75)
 
-cluster_order = ["range", "volatile", "momentum", "neg_momentum"]
+cluster_order = ["range", "transition", "trend_up", "crash", "trend_down"]
 
 for cluster in cluster_order:
     ct = cluster_trades.get(cluster, [])
     days = bt_cluster_days.get(cluster, 0)
-    engine_label = CLUSTER_TO_ENGINE[cluster]
-    
     print(f"\n{'─' * 75}")
-    if engine_label:
-        print(f"  {cluster.upper()} (engine: {engine_label}) — {days} trading days")
+    if cluster not in ("crash", "trend_down"):
+        print(f"  {cluster.upper()} — {days} trading days")
     else:
         print(f"  {cluster.upper()} — {days} days (NO TRADING by design)")
     print(f"{'─' * 75}")
     
     if not ct:
         # For neg_momentum, show what BTC did during those periods
-        if cluster == "neg_momentum":
+        if cluster in ("crash", "trend_down"):
             print(f"  Strategy: FLAT (no trades)")
-            print(f"  This cluster captured crash periods — staying flat avoided losses.")
-            # Show BTC price action during neg_momentum periods
+            print(f"  This cluster captured crash/trend_down periods — staying flat avoided losses.")
+            # Show BTC price action during crash/trend_down periods
             import pandas as pd
             hourly = pd.read_csv(os.path.join(_V15_DIR, "data", "btc_hourly.csv"), parse_dates=["time"])
             daily = hourly.set_index("time").resample("1D").agg({"open": "first", "close": "last"}).dropna()
-            
-            neg_dates = sorted([d for d, r in date_to_cluster.items() if r == "neg_momentum"])
+
+            neg_dates = sorted([d for d, r in date_to_cluster.items() if r == cluster])
             # Group into periods
             from datetime import timedelta
             periods = []
@@ -186,7 +171,7 @@ for cluster in cluster_order:
                 prev = d
             periods.append((start, prev))
             
-            print(f"\n  Neg_momentum periods (BTC stayed flat = avoided these moves):")
+            print(f"\n  {cluster} periods (BTC stayed flat = avoided these moves):")
             print(f"  {'Period':<30s} {'Days':>5s} {'BTC Start':>12s} {'BTC End':>12s} {'Change':>8s}")
             print(f"  {'─'*30} {'─'*5} {'─'*12} {'─'*12} {'─'*8}")
             
@@ -280,7 +265,7 @@ for cluster in cluster_order:
     pct = days / total_days * 100 if total_days > 0 else 0
     
     if not ct:
-        strategy_desc = "FLAT" if cluster == "neg_momentum" else "—"
+        strategy_desc = "FLAT" if cluster in ("crash", "trend_down") else "—"
         print(f"  {cluster:<15s} {days:>5d} {pct:>4.1f}% {0:>7d} {'$0':>12s} {'—':>6s} {'—':>6s} {'$0':>10s} {strategy_desc:>12s}")
         continue
     

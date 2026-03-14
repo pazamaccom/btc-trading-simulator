@@ -1,6 +1,6 @@
 """
 Analyze ALL three regime classifications to check if they match
-their labels (bull/bear/choppy) or are misclassified.
+their labels (momentum/volatile/range) or are misclassified.
 
 Usage: python analyze_all_regimes.py
 """
@@ -59,28 +59,28 @@ print("=" * 100)
 print("  REGIME COMPARISON — IS EACH LABEL ACCURATE?")
 print("=" * 100)
 
-header = (f"  {'Metric':<35} {'BULL':>15} {'BEAR':>15} {'CHOPPY':>15}")
+header = (f"  {'Metric':<35} {'TREND_UP':>15} {'TRANSITION':>15} {'RANGE':>15}")
 print(f"\n{header}")
 print(f"  {'-'*75}")
 
-for regime in ["bull", "bear", "choppy"]:
+for regime in ["trend_up", "transition", "range"]:
     df = classified[classified["regime"] == regime]
     if len(df) == 0:
         continue
     globals()[f"df_{regime}"] = df
 
-def row(label, bull_val, bear_val, choppy_val, fmt=">15.2f"):
-    print(f"  {label:<35} {bull_val:{fmt}} {bear_val:{fmt}} {choppy_val:{fmt}}")
+def row(label, trend_up_val, transition_val, range_val, fmt=">15.2f"):
+    print(f"  {label:<35} {trend_up_val:{fmt}} {transition_val:{fmt}} {range_val:{fmt}}")
 
-def row_s(label, bull_val, bear_val, choppy_val):
-    print(f"  {label:<35} {bull_val:>15} {bear_val:>15} {choppy_val:>15}")
+def row_s(label, trend_up_val, transition_val, range_val):
+    print(f"  {label:<35} {trend_up_val:>15} {transition_val:>15} {range_val:>15}")
 
-for regime in ["bull", "bear", "choppy"]:
+for regime in ["trend_up", "transition", "range"]:
     globals()[f"df_{regime}"] = classified[classified["regime"] == regime]
 
-b = df_bull
-r = df_bear
-c = df_choppy
+b = df_trend_up
+r = df_transition
+c = df_range
 
 # Day counts
 row_s("Days", str(len(b)), str(len(r)), str(len(c)))
@@ -100,10 +100,10 @@ row("Cumulative return (%)",
     (c["close"].iloc[-1]/c["close"].iloc[0]-1)*100 if len(c)>1 else 0, ">+15.1f")
 
 # Annualized return
-for regime, df in [("bull", b), ("bear", r), ("choppy", c)]:
+for regime, df in [("trend_up", b), ("transition", r), ("range", c)]:
     ann_ret = df["log_ret"].mean() * 365 * 100
     globals()[f"ann_{regime}"] = ann_ret
-row("Annualized return (%)", ann_bull, ann_bear, ann_choppy, ">+15.1f")
+row("Annualized return (%)", ann_trend_up, ann_transition, ann_range, ">+15.1f")
 
 # Negative days
 row("% negative days", 
@@ -131,37 +131,37 @@ print(f"\n  {'-'*75}")
 print(f"  {'— PRICE ACTION —':<35}")
 
 # Start/end prices for each regime (first and last occurrence)
-for regime, df, label in [("bull", b, "BULL"), ("bear", r, "BEAR"), ("choppy", c, "CHOPPY")]:
+for regime, df, label in [("trend_up", b, "TREND_UP"), ("transition", r, "TRANSITION"), ("range", c, "RANGE")]:
     pass
 
 # Max drawdown within each regime
-for regime, df in [("bull", b), ("bear", r), ("choppy", c)]:
+for regime, df in [("trend_up", b), ("transition", r), ("range", c)]:
     peak = df["close"].cummax()
     dd = (df["close"] - peak) / peak * 100
     globals()[f"mdd_{regime}"] = dd.min()
-row("Max intra-regime DD (%)", mdd_bull, mdd_bear, mdd_choppy, ">+15.1f")
+row("Max intra-regime DD (%)", mdd_trend_up, mdd_transition, mdd_range, ">+15.1f")
 
 # Max rally within each regime
-for regime, df in [("bull", b), ("bear", r), ("choppy", c)]:
+for regime, df in [("trend_up", b), ("transition", r), ("range", c)]:
     trough = df["close"].cummin()
     rally = (df["close"] - trough) / trough * 100
     globals()[f"rally_{regime}"] = rally.max()
-row("Max intra-regime rally (%)", rally_bull, rally_bear, rally_choppy, ">+15.1f")
+row("Max intra-regime rally (%)", rally_trend_up, rally_transition, rally_range, ">+15.1f")
 
 # ── Contiguous blocks analysis ───────────────────────────────────────────────
 print(f"\n\n{'='*100}")
 print(f"  CONTIGUOUS REGIME BLOCKS")
 print(f"{'='*100}")
 
-for regime in ["bull", "bear", "choppy"]:
+for regime in ["trend_up", "transition", "range"]:
     df = classified[classified["regime"] == regime].copy()
     if len(df) == 0:
         continue
-    
+
     # Find contiguous blocks
     df = df.reset_index()
     df["block"] = (df["index"].diff() > 1).cumsum()
-    
+
     blocks = []
     for block_id, group in df.groupby("block"):
         start = group["date"].iloc[0]
@@ -172,13 +172,13 @@ for regime in ["bull", "bear", "choppy"]:
         ret = (close_px / open_px - 1) * 100
         avg_rsi = group["rsi"].mean()
         avg_adx = group["adx"].mean()
-        bullish_di = (group["pdi"] > group["mdi"]).mean() * 100
-        
+        pos_di = (group["pdi"] > group["mdi"]).mean() * 100
+
         blocks.append({
             "start": start, "end": end, "days": days,
             "open": open_px, "close": close_px,
             "return_pct": ret, "avg_rsi": avg_rsi,
-            "avg_adx": avg_adx, "bullish_di_pct": bullish_di,
+            "avg_adx": avg_adx, "pos_di_pct": pos_di,
         })
     
     print(f"\n  ── {regime.upper()} BLOCKS ({len(blocks)} blocks, {len(df)} days total) ──")
@@ -191,7 +191,7 @@ for regime in ["bull", "bear", "choppy"]:
         print(f"  {i+1:<4} {str(bl['start']):<12} {str(bl['end']):<12} {bl['days']:>5} "
               f"${bl['open']:>8,.0f} ${bl['close']:>8,.0f} "
               f"{bl['return_pct']:>+7.1f}% {bl['avg_rsi']:>6.1f} {bl['avg_adx']:>6.1f} "
-              f"{bl['bullish_di_pct']:>8.0f}% {direction}")
+              f"{bl['pos_di_pct']:>8.0f}% {direction}")
     
     # Summary for this regime
     rets = [bl["return_pct"] for bl in blocks]
@@ -210,32 +210,32 @@ print(f"  VERDICT: ARE THE LABELS ACCURATE?")
 print(f"{'='*100}")
 
 print(f"""
-  BULL regime:
+  TREND_UP regime:
     Mean daily return:  {b['ret_1d'].mean()*100:+.3f}%
-    Annualized:         {ann_bull:+.0f}%
+    Annualized:         {ann_trend_up:+.0f}%
     Mean RSI:           {b['rsi'].mean():.1f}
     +DI > -DI:          {(b['pdi']>b['mdi']).mean()*100:.0f}% of days
-    Assessment:         {"CORRECTLY labeled as bullish" if b['ret_1d'].mean() > 0.001 and (b['pdi']>b['mdi']).mean() > 0.55 else "POTENTIALLY MISLABELED"}
+    Assessment:         {"CORRECTLY labeled as trend_up" if b['ret_1d'].mean() > 0.001 and (b['pdi']>b['mdi']).mean() > 0.55 else "POTENTIALLY MISLABELED"}
 
-  BEAR regime:
+  TRANSITION regime:
     Mean daily return:  {r['ret_1d'].mean()*100:+.3f}%
-    Annualized:         {ann_bear:+.0f}%
+    Annualized:         {ann_transition:+.0f}%
     Mean RSI:           {r['rsi'].mean():.1f}
     +DI > -DI:          {(r['pdi']>r['mdi']).mean()*100:.0f}% of days
-    Assessment:         {"CORRECTLY labeled as bearish" if r['ret_1d'].mean() < -0.001 and (r['pdi']>r['mdi']).mean() < 0.45 else "MISLABELED — not truly bearish (volatile/ranging)"}
+    Assessment:         {"CORRECTLY labeled as transition" if r['ret_1d'].std() > b['ret_1d'].std() else "POTENTIALLY MISLABELED — not higher vol than trend_up"}
 
-  CHOPPY regime:
+  RANGE regime:
     Mean daily return:  {c['ret_1d'].mean()*100:+.3f}%
-    Annualized:         {ann_choppy:+.0f}%
+    Annualized:         {ann_range:+.0f}%
     Mean RSI:           {c['rsi'].mean():.1f}
     +DI > -DI:          {(c['pdi']>c['mdi']).mean()*100:.0f}% of days
-    Assessment:         {"CORRECTLY labeled as choppy/ranging" if abs(c['ret_1d'].mean()) < 0.002 else "POTENTIALLY MISLABELED"}
+    Assessment:         {"CORRECTLY labeled as ranging" if abs(c['ret_1d'].mean()) < 0.002 else "POTENTIALLY MISLABELED"}
 """)
 
-# Check for the specific concern: does bull look like bear?
-print(f"  Cross-check: Do bull and bear look different enough?")
-print(f"    Return gap:  bull {b['ret_1d'].mean()*100:+.3f}% vs bear {r['ret_1d'].mean()*100:+.3f}% "
+# Check for the specific concern: do momentum and volatile look different enough?
+print(f"  Cross-check: Do trend_up and transition look different enough?")
+print(f"    Return gap:  trend_up {b['ret_1d'].mean()*100:+.3f}% vs transition {r['ret_1d'].mean()*100:+.3f}% "
       f"(delta: {(b['ret_1d'].mean()-r['ret_1d'].mean())*100:.3f}%)")
-print(f"    RSI gap:     bull {b['rsi'].mean():.1f} vs bear {r['rsi'].mean():.1f}")
-print(f"    Vol gap:     bull {b['ret_1d'].std()*100:.3f}% vs bear {r['ret_1d'].std()*100:.3f}%")
-print(f"    ADX gap:     bull {b['adx'].mean():.1f} vs bear {r['adx'].mean():.1f}")
+print(f"    RSI gap:     trend_up {b['rsi'].mean():.1f} vs transition {r['rsi'].mean():.1f}")
+print(f"    Vol gap:     trend_up {b['ret_1d'].std()*100:.3f}% vs transition {r['ret_1d'].std()*100:.3f}%")
+print(f"    ADX gap:     trend_up {b['adx'].mean():.1f} vs transition {r['adx'].mean():.1f}")

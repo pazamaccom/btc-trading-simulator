@@ -75,10 +75,10 @@ def run_single(params):
         m = results.get("metrics", {})
         trades = results.get("trades", [])
         closed = [t for t in trades if t.get("pnl") is not None]
-        choppy_pnl = sum(t["pnl"] for t in closed if t.get("regime") == "choppy")
-        bear_pnl = sum(t["pnl"] for t in closed if t.get("regime") == "bear")
-        choppy_trades = sum(1 for t in closed if t.get("regime") == "choppy")
-        bear_trades = sum(1 for t in closed if t.get("regime") == "bear")
+        choppy_pnl = sum(t["pnl"] for t in closed if t.get("regime") == "range")
+        bear_pnl = sum(t["pnl"] for t in closed if t.get("regime") == "transition")
+        choppy_trades = sum(1 for t in closed if t.get("regime") == "range")
+        bear_trades = sum(1 for t in closed if t.get("regime") == "transition")
 
         return {
             "label": params.get("label", ""),
@@ -159,9 +159,9 @@ def run_wf_for_config(args):
             trades = result.get("trades", [])
             closed = [t for t in trades if t.get("pnl") is not None]
             w_pnl = m.get("cumulative_pnl", 0)
-            w_bear = sum(t["pnl"] for t in closed if t.get("regime") == "bear")
-            w_choppy = sum(t["pnl"] for t in closed if t.get("regime") == "choppy")
-            w_bear_trades = sum(1 for t in closed if t.get("regime") == "bear")
+            w_bear = sum(t["pnl"] for t in closed if t.get("regime") == "transition")
+            w_choppy = sum(t["pnl"] for t in closed if t.get("regime") == "range")
+            w_bear_trades = sum(1 for t in closed if t.get("regime") == "transition")
             w_trades = m.get("total_trades", 0)
             total_pnl += w_pnl
             total_bear_pnl += w_bear

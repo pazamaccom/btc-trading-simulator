@@ -65,10 +65,9 @@ def load_v3_cache():
     from datetime import datetime as _dt
     with open(cache_path) as f:
         raw = json.load(f)
-    V3_MAP = {"momentum": "bull", "range": "choppy", "volatile": "bear", "neg_momentum": "neg_momentum_skip"}
     engine_cache = {}
     for date_str, cluster in raw.items():
-        engine_cache[_dt.strptime(date_str, "%Y-%m-%d").date()] = V3_MAP[cluster]
+        engine_cache[_dt.strptime(date_str, "%Y-%m-%d").date()] = cluster
     return engine_cache
 
 
@@ -178,14 +177,15 @@ def build_regime_periods(date_to_regime, daily_bars):
 
 # Display names for the 4 clusters (engine label → user-facing name)
 CLUSTER_DISPLAY = {
-    "bull": "Positive Momentum",
-    "choppy": "Range",
-    "bear": "Volatile",
-    "neg_momentum_skip": "Negative Momentum",
+    "trend_up": "Trend Up",
+    "range": "Range",
+    "transition": "Transition",
+    "crash": "Crash",
+    "trend_down": "Trend Down",
 }
 
 # Desired display order
-CLUSTER_ORDER = ["bull", "choppy", "bear", "neg_momentum_skip"]
+CLUSTER_ORDER = ["trend_up", "range", "transition", "crash", "trend_down"]
 
 
 def build_regime_summary(trades, regime_periods=None, regime_cache=None,
@@ -530,7 +530,7 @@ def compute_exposure_stats(trades, total_pnl, start_date_str, end_date_str, regi
     neg_momentum_days = 0
     if regime_cache:
         for d_date, regime in regime_cache.items():
-            if regime == "neg_momentum_skip":
+            if regime in ("crash", "trend_down"):
                 neg_momentum_days += 1
     tradeable_days = total_calendar_days - neg_momentum_days
 

@@ -20,12 +20,10 @@ from backtest_multitf import run_multitf_backtest
 with open(os.path.join(_DIR, "v3_cache.json")) as f:
     raw_cache = json.load(f)
 
-V3_LABEL_MAP = {"momentum": "bull", "range": "choppy", "volatile": "bear", "neg_momentum": None}
 full_cache = {}
 for date_str, v3_label in raw_cache.items():
-    engine_label = V3_LABEL_MAP.get(v3_label)
-    if engine_label:
-        full_cache[datetime.strptime(date_str, "%Y-%m-%d").date()] = engine_label
+    if v3_label not in ("crash", "trend_down"):
+        full_cache[datetime.strptime(date_str, "%Y-%m-%d").date()] = v3_label
 
 # Current optimized params
 BASE = {

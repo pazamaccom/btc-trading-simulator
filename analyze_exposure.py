@@ -142,7 +142,7 @@ def main():
         print(f"    Mean:    {sum(cts)/len(cts):.1f}")
 
         # By regime
-        for regime in ["choppy", "bear", "bull"]:
+        for regime in ["range", "transition", "trend_up"]:
             regime_entries = [(t, e, m) for t, e, m in zip(entries, exposures, margin_reqs)
                              if t.get("regime") == regime]
             if regime_entries:

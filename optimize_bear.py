@@ -67,10 +67,10 @@ def run_single(params):
         m = results.get("metrics", {})
         trades = results.get("trades", [])
         closed = [t for t in trades if t.get("pnl") is not None]
-        choppy_pnl = sum(t["pnl"] for t in closed if t.get("regime") == "choppy")
-        bear_pnl = sum(t["pnl"] for t in closed if t.get("regime") == "bear")
-        choppy_trades = sum(1 for t in closed if t.get("regime") == "choppy")
-        bear_trades = sum(1 for t in closed if t.get("regime") == "bear")
+        choppy_pnl = sum(t["pnl"] for t in closed if t.get("regime") == "range")
+        bear_pnl = sum(t["pnl"] for t in closed if t.get("regime") == "transition")
+        choppy_trades = sum(1 for t in closed if t.get("regime") == "range")
+        bear_trades = sum(1 for t in closed if t.get("regime") == "transition")
 
         elapsed = time.time() - t0
         return {

@@ -90,10 +90,11 @@ logger = logging.getLogger("main")
 # ── Display name mapping ──────────────────────────────
 # Engine labels → user-facing names (NEVER show engine labels in output)
 _CLUSTER_NAMES = {
-    "bull": "Positive Momentum",
-    "choppy": "Range",
-    "bear": "Volatile",
-    "neg_momentum_skip": "Negative Momentum",
+    "trend_up": "Trend Up",
+    "trend_down": "Trend Down",
+    "crash": "Crash",
+    "range": "Range",
+    "transition": "Transition",
 }
 
 def _display_regime(engine_label: str) -> str:
@@ -248,7 +249,7 @@ class Trader:
 
     def _get_volatile_params(self) -> dict:
         """Get ChoppyStrategy params for Volatile regime from strategy_config.json."""
-        sc = self._strat_config.get("volatile", {})
+        sc = self._strat_config.get("transition", {})
         overrides = {}
         _PARAM_MAP = {
             "bear_short_trail_pct": "short_trail_pct",
@@ -282,11 +283,11 @@ class Trader:
 
     def _get_calib_days(self) -> int:
         """Get calibration window for current regime."""
-        if self.regime == "choppy":
+        if self.regime == "range":
             return self._strat_config.get("range", {}).get("calib_days", cfg.CALIBRATION_MAX_DAYS)
-        elif self.regime == "bear":
-            return self._strat_config.get("volatile", {}).get("bear_calib_days", 9)
-        elif self.regime == "bull":
+        elif self.regime == "transition":
+            return self._strat_config.get("transition", {}).get("bear_calib_days", 9)
+        elif self.regime == "trend_up":
             return self._get_bull_params().get("calib_days", 30)
         return cfg.CALIBRATION_MAX_DAYS
 
@@ -355,9 +356,9 @@ class Trader:
             print(f"  Range:       ${strat.support:,.0f} - ${strat.resistance:,.0f} "
                   f"({strat.range_pct * 100:.1f}%)")
 
-        if self.regime == "neg_momentum_skip":
+        if self.regime in ("crash", "trend_down"):
             print(f"  Action:      FLAT — waiting for regime change")
-        elif self.regime == "bull":
+        elif self.regime == "trend_up":
             print(f"  Action:      Donchian breakout trend-following")
         else:
             print(f"  Action:      Mean-reversion (long + short)")
@@ -440,17 +441,20 @@ class Trader:
 
         det_result = detector.fit(daily_df)
 
+        # Map V2 detector labels to V3 canonical names
+        _V2_TO_V3 = {"bull": "trend_up", "choppy": "range", "bear": "transition"}
+
         if det_result.get("status") == "ok":
-            regimes = det_result.get("regimes", [])
+            regimes = [_V2_TO_V3.get(r, r) for r in det_result.get("regimes", [])]
             if regimes:
                 self.detected_regime = regimes[-1]  # last day's regime
             else:
-                self.detected_regime = "choppy"
+                self.detected_regime = "range"
 
             # Estimate confidence from transition matrix diagonal
             tm = det_result.get("transition_matrix", [[]])
             try:
-                regime_labels = det_result.get("regime_labels", ["bull", "bear", "choppy", "neg_momentum_skip"])
+                regime_labels = [_V2_TO_V3.get(r, r) for r in det_result.get("regime_labels", ["trend_up", "transition", "range", "crash", "trend_down"])]
                 idx = regime_labels.index(self.detected_regime)
                 self.regime_confidence = tm[idx][idx] if tm and len(tm) > idx else 0.5
             except (ValueError, IndexError):
@@ -474,7 +478,7 @@ class Trader:
                 f"Regime detection failed ({det_result.get('message', 'unknown')}), "
                 f"defaulting to Range"
             )
-            self.detected_regime = "choppy"
+            self.detected_regime = "range"
             self.regime_confidence = 0.5
             self.regime_days = 0
 
@@ -495,7 +499,7 @@ class Trader:
         self.secondary_strategy = None
         self.active_is_secondary = False
 
-        if self.regime == "choppy":
+        if self.regime == "range":
             # Range → ChoppyStrategy + secondary BullStrategy
             calib_days = self._strat_config.get("range", {}).get("calib_days", cfg.CALIBRATION_MAX_DAYS)
             choppy_params = self._get_range_params()
@@ -522,9 +526,9 @@ class Trader:
                     logger.warning(f"Secondary BullStrategy calibration failed: {exc}")
                     self.secondary_strategy = None
 
-        elif self.regime == "bear":
-            # Volatile → ChoppyStrategy(wider params) + secondary BullStrategy
-            calib_days = self._strat_config.get("volatile", {}).get("bear_calib_days", 14)
+        elif self.regime == "transition":
+            # Transition → ChoppyStrategy(wider params) + secondary BullStrategy
+            calib_days = self._strat_config.get("transition", {}).get("bear_calib_days", 14)
             volatile_params = self._get_volatile_params()
             self.primary_strategy = ChoppyStrategy(params=volatile_params)
             _patch_for_daily_bars(self.primary_strategy, calib_days)
@@ -532,10 +536,10 @@ class Trader:
             calib_slice = daily_df.tail(calib_days)
             if len(calib_slice) >= 7:
                 result = self.primary_strategy.calibrate(calib_slice)
-                logger.info(f"Volatile strategy calibrated: S=${result['support']:,.0f} "
+                logger.info(f"Transition strategy calibrated: S=${result['support']:,.0f} "
                            f"R=${result['resistance']:,.0f} ({result['range_pct']:.1f}%)")
             else:
-                logger.warning(f"Not enough daily bars for Volatile calibration: {len(calib_slice)}")
+                logger.warning(f"Not enough daily bars for Transition calibration: {len(calib_slice)}")
 
             # Secondary: BullStrategy
             bull_params = self._get_bull_params()
@@ -544,27 +548,27 @@ class Trader:
                 try:
                     self.secondary_strategy = BullStrategy(params=bull_params)
                     self.secondary_strategy.calibrate(daily_df.tail(bull_calib))
-                    logger.info("Secondary BullStrategy calibrated for Volatile regime")
+                    logger.info("Secondary BullStrategy calibrated for Transition regime")
                 except Exception as exc:
                     logger.warning(f"Secondary BullStrategy calibration failed: {exc}")
                     self.secondary_strategy = None
 
-        elif self.regime == "bull":
-            # Positive Momentum → BullStrategy
+        elif self.regime == "trend_up":
+            # Trend Up → BullStrategy
             bull_params = self._get_bull_params()
             calib_days = bull_params.get("calib_days", 30)
             if len(daily_df) >= calib_days:
                 try:
                     self.primary_strategy = BullStrategy(params=bull_params)
                     self.primary_strategy.calibrate(daily_df.tail(calib_days))
-                    logger.info("Positive Momentum (BullStrategy) calibrated")
+                    logger.info("Trend Up (BullStrategy) calibrated")
                 except Exception as exc:
                     logger.warning(f"BullStrategy calibration failed: {exc}")
                     self.primary_strategy = None
 
-        elif self.regime == "neg_momentum_skip":
-            # Negative Momentum → no trading
-            logger.info("Negative Momentum regime — holding flat, no strategy active")
+        elif self.regime in ("crash", "trend_down"):
+            # Crash / Trend Down → no trading
+            logger.info(f"{_display_regime(self.regime)} regime — holding flat, no strategy active")
             # Create a dummy ChoppyStrategy for dashboard display (calibration data)
             self.primary_strategy = ChoppyStrategy()
             _patch_for_daily_bars(self.primary_strategy, 14)
@@ -577,7 +581,7 @@ class Trader:
 
         else:
             logger.warning(f"Unknown regime '{self.regime}', defaulting to Range")
-            self.regime = "choppy"
+            self.regime = "range"
             self.primary_strategy = ChoppyStrategy(params=self._get_range_params())
             _patch_for_daily_bars(self.primary_strategy, cfg.CALIBRATION_MAX_DAYS)
             calib_slice = daily_df.tail(cfg.CALIBRATION_MAX_DAYS)
@@ -678,11 +682,11 @@ class Trader:
                 if hasattr(strat, 'support') and strat.support > 0:
                     rng = strat.resistance - strat.support
                     if side == "long":
-                        params = self._get_range_params() if self.regime in ("choppy", "bear") else {}
+                        params = self._get_range_params() if self.regime in ("range", "transition") else {}
                         target_zone = params.get("long_target_zone", 0.75)
                         pos.target_price = strat.support + rng * target_zone
                     else:
-                        params = self._get_range_params() if self.regime in ("choppy", "bear") else {}
+                        params = self._get_range_params() if self.regime in ("range", "transition") else {}
                         target_zone = params.get("short_target_zone", 0.2)
                         pos.target_price = strat.support + rng * target_zone
 
@@ -845,8 +849,8 @@ class Trader:
                     f"L={bar['low']:.0f} C={bar['close']:.0f}")
 
         # If Negative Momentum, skip all trading
-        if self.regime == "neg_momentum_skip":
-            logger.debug("Negative Momentum — holding flat")
+        if self.regime in ("crash", "trend_down"):
+            logger.debug(f"{_display_regime(self.regime)} — holding flat")
             return
 
         # Check for daily recalibration
@@ -1350,13 +1354,13 @@ class Trader:
         if not strat or not hasattr(strat, 'support') or strat.support <= 0:
             return {}
 
-        if self.regime in ("choppy", "bear"):
+        if self.regime in ("range", "transition"):
             rng_pos = self._compute_range_position(strat)
             rsi = self._get_indicator(strat, 'rsi')
             adx = self._get_indicator(strat, 'adx')
             cooldown_active = getattr(strat, 'cooldown_until', None) is not None and datetime.now() < getattr(strat, 'cooldown_until', datetime.min)
 
-            params = self._get_range_params() if self.regime == "choppy" else self._get_volatile_params()
+            params = self._get_range_params() if self.regime == "range" else self._get_volatile_params()
             le = params.get("long_entry_zone", 0.45)
             se = params.get("short_entry_zone", 0.55)
             adx_max = params.get("short_adx_max", 35)
@@ -1429,8 +1433,8 @@ class Trader:
         if not strat or not hasattr(strat, 'support') or strat.support <= 0:
             return {}
 
-        if self.regime in ("choppy", "bear"):
-            params = self._get_range_params() if self.regime == "choppy" else self._get_volatile_params()
+        if self.regime in ("range", "transition"):
+            params = self._get_range_params() if self.regime == "range" else self._get_volatile_params()
             rng_pos = self._compute_range_position(strat)
             rsi = self._get_indicator(strat, 'rsi')
             adx = self._get_indicator(strat, 'adx')
@@ -1501,7 +1505,7 @@ class Trader:
 
     def _build_bull_conditions(self) -> dict:
         """Build bull (Positive Momentum) conditions for dashboard."""
-        if self.regime == "bull" and self.primary_strategy:
+        if self.regime == "trend_up" and self.primary_strategy:
             return {
                 "long": {
                     "breakout": {"threshold": "Price > channel high", "label": "Channel Breakout"},

@@ -1,12 +1,12 @@
 """
-backtest_multitf.py — Multi-Timeframe Backtest Engine (Option A)
-================================================================
-Daily bars generate BUY/SELL/SHORT/COVER signals (preserving the
-strategy's designed timeframe).  Hourly bars provide precise
-execution timing within the signal day.
+backtest_multitf.py — Multi-Timeframe Backtest Engine
+=====================================================
+Hourly bars drive strategy signals for ChoppyStrategy (matching live
+trading).  BullStrategy evaluates on completed daily bars but checks
+stops on every hourly bar.  Regime detection is per-day.
 
 Data: local CSV with true hourly bars → resampled to daily for
-signals + regime detection, hourly for execution.
+regime detection and BullStrategy signals.
 
 Usage:
     python backtest_multitf.py
@@ -178,12 +178,14 @@ def compute_regime_cache(
             f"RegimeDetector failed: {fit_result.get('message', '')}"
         )
 
+    # Map V2 regime labels to V3 canonical names
+    _V2_TO_V3 = {"bull": "trend_up", "choppy": "range", "bear": "transition"}
     daily_regimes = fit_result["regimes"]
     full_daily_dates = full_daily["time"].dt.date.tolist()
     date_to_regime = {}
     for idx, d in enumerate(full_daily_dates):
         if idx < len(daily_regimes):
-            date_to_regime[d] = daily_regimes[idx]
+            date_to_regime[d] = _V2_TO_V3.get(daily_regimes[idx], daily_regimes[idx])
 
     return {
         "date_to_regime": date_to_regime,
@@ -200,11 +202,11 @@ def run_multitf_backtest(
 ) -> dict:
     """
     Multi-timeframe backtest (synchronous, suitable for multiprocessing).
-    
-    Daily bars drive strategy signals (RSI/ADX computed on daily).
-    When a daily bar triggers a signal, the corresponding hourly bars
-    for that day are used for precise entry/exit.
-    
+
+    Hourly bars drive ChoppyStrategy signals (matching live trading).
+    BullStrategy evaluates on completed daily bars but checks stops
+    on every hourly bar.  Regime detection is per-day.
+
     Args:
         start_date: "YYYY-MM-DD"
         end_date:   "YYYY-MM-DD" or None (today)
@@ -213,54 +215,47 @@ def run_multitf_backtest(
                     compute_regime_cache(). When provided, skips the
                     expensive rolling HMM refit.
         verbose:    print progress messages
-    
+
     Returns:
         Results dict with metrics, trades, equity curve.
     """
     t_start = time.time()
     p = params or {}
-    
+
     if end_date is None:
         end_date = datetime.utcnow().strftime("%Y-%m-%d")
-    
+
     start_dt = datetime.strptime(start_date, "%Y-%m-%d")
     end_dt = datetime.strptime(end_date, "%Y-%m-%d")
-    
+
     # ── 1. Load hourly data ──────────────────────────────────────────────────
     hourly_df = _load_hourly_csv()
     hourly_df = hourly_df[
         (hourly_df["time"] >= pd.Timestamp(start_dt)) &
         (hourly_df["time"] <= pd.Timestamp(end_dt))
     ].reset_index(drop=True)
-    
+
     if len(hourly_df) < 500:
-        return _error_result(start_date, end_date, 
-                           f"Not enough hourly bars: {len(hourly_df)}", 
+        return _error_result(start_date, end_date,
+                           f"Not enough hourly bars: {len(hourly_df)}",
                            time.time() - t_start)
-    
+
     # ── 2. Resample to daily ─────────────────────────────────────────────────
     daily_df = resample_to_daily(hourly_df)
-    
+
     if verbose:
         print(f"  Loaded {len(hourly_df)} hourly bars → {len(daily_df)} daily bars")
-    
-    # ── 3. Build date→hourly lookup ──────────────────────────────────────────
-    # Group hourly bars by date for execution precision
-    hourly_df["date"] = hourly_df["time"].dt.date
-    hourly_by_date: Dict[object, pd.DataFrame] = {
-        d: group.reset_index(drop=True) 
-        for d, group in hourly_df.groupby("date")
-    }
     
     # ── 4. Fit RegimeDetector on daily bars ──────────────────────────────────
     # Check for pre-computed regime cache (from optimizer)
     regime_cache = p.get("_regime_cache")
     # Display name mapping for terminal output
     _CLUSTER_NAMES = {
-        "bull": "Positive Momentum",
-        "choppy": "Range",
-        "bear": "Volatile",
-        "neg_momentum_skip": "Negative Momentum",
+        "trend_up": "Trend Up",
+        "trend_down": "Trend Down",
+        "crash": "Crash",
+        "range": "Range",
+        "transition": "Transition",
     }
 
     if regime_cache is not None:
@@ -301,13 +296,14 @@ def run_multitf_backtest(
                                f"RegimeDetector failed: {fit_result.get('message', '')}",
                                time.time() - t_start)
         
-        # Map each date to its regime label
+        # Map each date to its regime label (V2→V3 canonical names)
+        _V2_TO_V3 = {"bull": "trend_up", "choppy": "range", "bear": "transition"}
         daily_regimes = fit_result["regimes"]
         full_daily_dates = full_daily["time"].dt.date.tolist()
         date_to_regime = {}
         for idx, d in enumerate(full_daily_dates):
             if idx < len(daily_regimes):
-                date_to_regime[d] = daily_regimes[idx]
+                date_to_regime[d] = _V2_TO_V3.get(daily_regimes[idx], daily_regimes[idx])
         
         if verbose:
             regime_counts = {}
@@ -365,9 +361,7 @@ def run_multitf_backtest(
                     val = int(val * 24)
                 bear_overrides[cfg_key] = val
         bear_choppy_params = {**cfg.CHOPPY, **bear_overrides}
-    
-    bear_ind_period = p.get("bear_ind_period", p.get("ind_period", 14))
-    
+
     # -- Bull params (prefixed with "bull_") → BullStrategy instance --
     # Bull regime uses momentum breakout. If no bull_* keys, bull regime is inactive.
     bull_calib_days = p.get("bull_calib_days", None)
@@ -387,24 +381,16 @@ def run_multitf_backtest(
             "calib_days":     bull_calib_days,
         }
     
-    # RSI/ADX indicator period — for daily bars, 14 is the standard
+    # RSI/ADX indicator period
     ind_period = p.get("ind_period", 14)
-    
-    # Hourly execution parameters
-    # How to pick the execution price within the signal day
-    exec_mode = p.get("exec_mode", "best_price")
-    # "best_price" = scan all hourly bars, pick lowest for longs / highest for shorts
-    # "first_signal" = execute at the first hourly bar that meets threshold
-    # "close" = just use the daily close (baseline, like the original)
-    
-    # ── 6. Walk-forward on daily bars ────────────────────────────────────────
-    # Build the strategy operating on daily bars
-    # We need enough daily bars for calibration before we start
-    calib_bars_daily = calib_days  # calibration window in daily bars
-    bear_calib_bars_daily = bear_calib_days if bear_enabled else 90
+    bear_ind_period = p.get("bear_ind_period", ind_period)
+
+    # ── 6. Prepare data structures ───────────────────────────────────────────
+    calib_bars_hourly = calib_days * 24       # hourly bars needed for calibration
+    bear_calib_bars_hourly = (bear_calib_days * 24) if bear_enabled else 90 * 24
     bull_calib_bars_daily = bull_calib_days if bull_enabled else 90
-    
-    daily_dates = daily_df["time"].dt.date.tolist()
+
+    # Build daily bars list (for BullStrategy calibration and regime-switch index)
     daily_bars = []
     for _, row in daily_df.iterrows():
         daily_bars.append({
@@ -415,201 +401,310 @@ def run_multitf_backtest(
             "close": float(row["close"]),
             "volume": float(row["volume"]),
         })
-    
+    # Map date → daily bar index for BullStrategy calibration lookups
+    daily_date_to_idx = {}
+    for di, db in enumerate(daily_bars):
+        d = db["time"].date() if hasattr(db["time"], 'date') else db["time"]
+        if isinstance(d, datetime):
+            d = d.date()
+        daily_date_to_idx[d] = di
+
+    # Build flat hourly bars list
+    hourly_bars = []
+    for _, row in hourly_df.iterrows():
+        hourly_bars.append({
+            "time": row["time"],
+            "open": float(row["open"]),
+            "high": float(row["high"]),
+            "low": float(row["low"]),
+            "close": float(row["close"]),
+            "volume": float(row.get("volume", 0)),
+        })
+
     trades = []
     equity_curve = []
     cumulative_pnl = 0.0
-    virt = {"side": "flat", "entry_price": 0.0, "avg_entry": 0.0, 
+    virt = {"side": "flat", "entry_price": 0.0, "avg_entry": 0.0,
             "contracts": 0, "entry_time": None}
-    
-    active_strategy = None
+
+    active_strategy = None         # ChoppyStrategy or BullStrategy
     active_regime = None
-    secondary_strategy = None  # BullStrategy as secondary in choppy/bear
-    active_is_secondary = False  # tracks which strategy owns the open position
-    
-    for i, daily_bar in enumerate(daily_bars):
-        bar_date = daily_bar["time"].date() if hasattr(daily_bar["time"], 'date') else daily_bar["time"]
+    secondary_strategy = None      # BullStrategy as secondary in choppy/bear
+    active_is_secondary = False
+    last_regime_check_date = None   # only check regime on day boundaries
+    last_equity_date = None         # aggregate equity curve to daily
+    day_pnl = 0.0
+
+    # Track completed daily bars for BullStrategy (aggregated from hourly)
+    bull_daily_bars_agg = []        # completed daily bars for secondary strategy
+    bull_current_day = None
+    bull_day_ohlcv = None           # accumulator for current day
+
+    # ── 7. Main loop — iterate over HOURLY bars ──────────────────────────────
+    for hi, hbar in enumerate(hourly_bars):
+        bar_time = hbar["time"]
+        bar_date = bar_time.date() if hasattr(bar_time, 'date') else bar_time
         if isinstance(bar_date, datetime):
             bar_date = bar_date.date()
-        
-        bar_regime = date_to_regime.get(bar_date)
-        if bar_regime is None:
-            continue
-        
-        # ── Regime switch ────────────────────────────────────────────────
-        if bar_regime != active_regime:
-            # Force close open position
-            if virt["side"] != "flat":
-                close_px = daily_bar["close"]
-                if virt["side"] == "long":
-                    pnl = _long_pnl(virt["avg_entry"], close_px, virt["contracts"])
-                else:
-                    pnl = _short_pnl(virt["avg_entry"], close_px, virt["contracts"])
-                cumulative_pnl += pnl
-                trades.append({
-                    "time": str(daily_bar["time"]),
-                    "action": "SELL" if virt["side"] == "long" else "COVER",
-                    "price": round(close_px, 2),
-                    "contracts": virt["contracts"],
-                    "entry_price": round(virt["avg_entry"], 2),
-                    "pnl": round(pnl, 2),
-                    "reason": f"regime_switch:{active_regime}→{bar_regime}",
-                    "regime": active_regime,
-                    "exec_hour": "daily_close",
-                })
-                # Record fill on whichever strategy owns the position
-                close_strat = secondary_strategy if active_is_secondary else active_strategy
-                if close_strat:
-                    try:
-                        close_strat.record_fill(
-                            "SELL" if virt["side"] == "long" else "COVER",
-                            close_px, virt["contracts"], daily_bar["time"])
-                    except Exception:
-                        pass
-                virt = {"side": "flat", "entry_price": 0.0, "avg_entry": 0.0,
-                        "contracts": 0, "entry_time": None}
+
+        bar_pnl = 0.0
+
+        # ── Aggregate hourly→daily for BullStrategy ─────────────────────
+        if bull_current_day != bar_date:
+            # Flush previous day if any
+            if bull_day_ohlcv is not None:
+                bull_daily_bars_agg.append(bull_day_ohlcv)
+            # Start new day
+            bull_current_day = bar_date
+            bull_day_ohlcv = {
+                "time": bar_time,
+                "open": hbar["open"],
+                "high": hbar["high"],
+                "low": hbar["low"],
+                "close": hbar["close"],
+                "volume": hbar["volume"],
+            }
+        else:
+            # Update running OHLCV
+            if bull_day_ohlcv is not None:
+                bull_day_ohlcv["high"] = max(bull_day_ohlcv["high"], hbar["high"])
+                bull_day_ohlcv["low"] = min(bull_day_ohlcv["low"], hbar["low"])
+                bull_day_ohlcv["close"] = hbar["close"]
+                bull_day_ohlcv["volume"] += hbar["volume"]
+
+        # ── Regime check (once per day) ─────────────────────────────────
+        if bar_date != last_regime_check_date:
+            last_regime_check_date = bar_date
+            bar_regime = date_to_regime.get(bar_date)
+            if bar_regime is None:
+                # Emit equity curve for days with no regime
+                if bar_date != last_equity_date:
+                    equity_curve.append({
+                        "time": str(bar_time),
+                        "pnl": round(cumulative_pnl, 2),
+                        "trade_pnl": 0.0,
+                        "regime": active_regime,
+                    })
+                    last_equity_date = bar_date
+                continue
+
+            # ── Regime switch ───────────────────────────────────────────
+            if bar_regime != active_regime:
+                # Force close open position
+                if virt["side"] != "flat":
+                    close_px = hbar["close"]
+                    if virt["side"] == "long":
+                        pnl = _long_pnl(virt["avg_entry"], close_px, virt["contracts"])
+                    else:
+                        pnl = _short_pnl(virt["avg_entry"], close_px, virt["contracts"])
+                    cumulative_pnl += pnl
+                    bar_pnl += pnl
+                    trades.append({
+                        "time": str(bar_time),
+                        "action": "SELL" if virt["side"] == "long" else "COVER",
+                        "price": round(close_px, 2),
+                        "contracts": virt["contracts"],
+                        "entry_price": round(virt["avg_entry"], 2),
+                        "pnl": round(pnl, 2),
+                        "reason": f"regime_switch:{active_regime}→{bar_regime}",
+                        "regime": active_regime,
+                    })
+                    close_strat = secondary_strategy if active_is_secondary else active_strategy
+                    if close_strat:
+                        try:
+                            close_strat.record_fill(
+                                "SELL" if virt["side"] == "long" else "COVER",
+                                close_px, virt["contracts"], bar_time)
+                        except Exception:
+                            pass
+                    virt = {"side": "flat", "entry_price": 0.0, "avg_entry": 0.0,
+                            "contracts": 0, "entry_time": None}
+                    active_is_secondary = False
+
+                active_regime = bar_regime
+                active_strategy = None
+                secondary_strategy = None
                 active_is_secondary = False
-            
-            active_regime = bar_regime
-            active_strategy = None
-            secondary_strategy = None
-            active_is_secondary = False
-            
-            # Calibrate new strategy for this regime
-            if bar_regime == "choppy":
-                needed = calib_bars_daily
-                if i >= needed:
-                    calib_slice = daily_bars[i - needed: i]
-                    calib_df = pd.DataFrame(calib_slice)
-                    try:
-                        strategy = ChoppyStrategy(params=choppy_params)
-                        _patch_for_daily_bars(strategy, calib_days)
-                        if ind_period != 14:
-                            _patch_indicators(strategy, ind_period)
-                        strategy.calibrate(calib_df)
-                        active_strategy = strategy
-                    except Exception as exc:
-                        if verbose:
-                            print(f"  Calibration failed for choppy at day {i}: {exc}")
-                        active_strategy = None
-                    
-                    # Secondary: TrendFollower in range regime
-                    if bull_enabled:
-                        bull_needed = bull_calib_bars_daily
-                        if i >= bull_needed:
-                            bull_calib_df = pd.DataFrame(daily_bars[i - bull_needed: i])
-                            try:
-                                sec = BullStrategy(params=bull_params)
-                                sec.calibrate(bull_calib_df)
-                                secondary_strategy = sec
-                            except Exception:
-                                secondary_strategy = None
-            
-            elif bar_regime == "bear" and bear_enabled:
-                needed = bear_calib_bars_daily
-                if i >= needed:
-                    calib_slice = daily_bars[i - needed: i]
-                    calib_df = pd.DataFrame(calib_slice)
-                    try:
-                        strategy = ChoppyStrategy(params=bear_choppy_params)
-                        _patch_for_daily_bars(strategy, bear_calib_days)
-                        if bear_ind_period != 14:
-                            _patch_indicators(strategy, bear_ind_period)
-                        strategy.calibrate(calib_df)
-                        active_strategy = strategy
-                    except Exception as exc:
-                        if verbose:
-                            print(f"  Calibration failed for bear at day {i}: {exc}")
-                        active_strategy = None
-                    
-                    # Secondary: TrendFollower in volatile regime
-                    if bull_enabled:
-                        bull_needed = bull_calib_bars_daily
-                        if i >= bull_needed:
-                            bull_calib_df = pd.DataFrame(daily_bars[i - bull_needed: i])
-                            try:
-                                sec = BullStrategy(params=bull_params)
-                                sec.calibrate(bull_calib_df)
-                                secondary_strategy = sec
-                            except Exception:
-                                secondary_strategy = None
-            
-            elif bar_regime == "bull" and bull_enabled:
-                needed = bull_calib_bars_daily
-                if i >= needed:
-                    calib_slice = daily_bars[i - needed: i]
-                    calib_df = pd.DataFrame(calib_slice)
+
+                # Calibrate new strategy for this regime
+                if bar_regime == "range":
+                    if hi >= calib_bars_hourly:
+                        calib_slice = hourly_bars[hi - calib_bars_hourly: hi]
+                        calib_df = pd.DataFrame(calib_slice)
+                        try:
+                            strategy = ChoppyStrategy(params=choppy_params)
+                            if ind_period != 14:
+                                _patch_indicators(strategy, ind_period)
+                            strategy.calibrate(calib_df)
+                            active_strategy = strategy
+                        except Exception as exc:
+                            if verbose:
+                                print(f"  Calibration failed for choppy at bar {hi}: {exc}")
+                            active_strategy = None
+
+                        # Secondary: BullStrategy (daily bars)
+                        if bull_enabled:
+                            di = daily_date_to_idx.get(bar_date, 0)
+                            if di >= bull_calib_bars_daily:
+                                bull_calib_df = pd.DataFrame(
+                                    daily_bars[di - bull_calib_bars_daily: di])
+                                try:
+                                    sec = BullStrategy(params=bull_params)
+                                    sec.calibrate(bull_calib_df)
+                                    secondary_strategy = sec
+                                except Exception:
+                                    secondary_strategy = None
+
+                elif bar_regime == "transition" and bear_enabled:
+                    if hi >= bear_calib_bars_hourly:
+                        calib_slice = hourly_bars[hi - bear_calib_bars_hourly: hi]
+                        calib_df = pd.DataFrame(calib_slice)
+                        try:
+                            strategy = ChoppyStrategy(params=bear_choppy_params)
+                            if bear_ind_period != 14:
+                                _patch_indicators(strategy, bear_ind_period)
+                            strategy.calibrate(calib_df)
+                            active_strategy = strategy
+                        except Exception as exc:
+                            if verbose:
+                                print(f"  Calibration failed for bear at bar {hi}: {exc}")
+                            active_strategy = None
+
+                        if bull_enabled:
+                            di = daily_date_to_idx.get(bar_date, 0)
+                            if di >= bull_calib_bars_daily:
+                                bull_calib_df = pd.DataFrame(
+                                    daily_bars[di - bull_calib_bars_daily: di])
+                                try:
+                                    sec = BullStrategy(params=bull_params)
+                                    sec.calibrate(bull_calib_df)
+                                    secondary_strategy = sec
+                                except Exception:
+                                    secondary_strategy = None
+
+                elif bar_regime == "trend_up" and bull_enabled:
+                    di = daily_date_to_idx.get(bar_date, 0)
+                    if di >= bull_calib_bars_daily:
+                        bull_calib_df = pd.DataFrame(
+                            daily_bars[di - bull_calib_bars_daily: di])
+                        try:
+                            strategy = BullStrategy(params=bull_params)
+                            strategy.calibrate(bull_calib_df)
+                            active_strategy = strategy
+                        except Exception as exc:
+                            if verbose:
+                                print(f"  Calibration failed for bull at bar {hi}: {exc}")
+                            active_strategy = None
+        else:
+            bar_regime = active_regime
+
+        # ── Deferred calibration: retry once when enough bars become available
+        if active_strategy is None and bar_regime is not None:
+            if bar_regime == "range" and hi >= calib_bars_hourly:
+                calib_slice = hourly_bars[hi - calib_bars_hourly: hi]
+                calib_df = pd.DataFrame(calib_slice)
+                try:
+                    strategy = ChoppyStrategy(params=choppy_params)
+                    if ind_period != 14:
+                        _patch_indicators(strategy, ind_period)
+                    strategy.calibrate(calib_df)
+                    active_strategy = strategy
+                except Exception:
+                    pass
+            elif bar_regime == "transition" and bear_enabled and hi >= bear_calib_bars_hourly:
+                calib_slice = hourly_bars[hi - bear_calib_bars_hourly: hi]
+                calib_df = pd.DataFrame(calib_slice)
+                try:
+                    strategy = ChoppyStrategy(params=bear_choppy_params)
+                    if bear_ind_period != 14:
+                        _patch_indicators(strategy, bear_ind_period)
+                    strategy.calibrate(calib_df)
+                    active_strategy = strategy
+                except Exception:
+                    pass
+            elif bar_regime == "trend_up" and bull_enabled:
+                di = daily_date_to_idx.get(bar_date, 0)
+                if di >= bull_calib_bars_daily:
+                    bull_calib_df = pd.DataFrame(
+                        daily_bars[di - bull_calib_bars_daily: di])
                     try:
                         strategy = BullStrategy(params=bull_params)
-                        strategy.calibrate(calib_df)
+                        strategy.calibrate(bull_calib_df)
                         active_strategy = strategy
-                    except Exception as exc:
-                        if verbose:
-                            print(f"  Calibration failed for bull at day {i}: {exc}")
-                        active_strategy = None
-        
-        # ── Feed daily bar to strategy ───────────────────────────────────
-        if active_strategy is None and secondary_strategy is None:
-            equity_curve.append({
-                "time": str(daily_bar["time"]),
-                "pnl": round(cumulative_pnl, 2),
-                "trade_pnl": 0.0,
-                "regime": active_regime,
-            })
+                    except Exception:
+                        pass
+
+        # Skip bars with no regime
+        if bar_regime is None:
             continue
-        
-        # Determine which strategy to use for this bar
+
+        # ── Feed bar to strategies ──────────────────────────────────────
+        if active_strategy is None and secondary_strategy is None:
+            # Emit equity on day boundary
+            if bar_date != last_equity_date:
+                equity_curve.append({
+                    "time": str(bar_time),
+                    "pnl": round(cumulative_pnl, 2),
+                    "trade_pnl": 0.0,
+                    "regime": active_regime,
+                })
+                last_equity_date = bar_date
+            continue
+
+        # Determine which strategy to use
         if active_is_secondary:
-            # Secondary owns the position — it manages the trade
             current_strat = secondary_strategy
         else:
             current_strat = active_strategy
-        
+
         signal = None
         sec_signal = None
-        
-        # Get signal from the strategy that owns the current position (or primary if flat)
+
+        # ── Primary strategy signal ─────────────────────────────────────
+        # ChoppyStrategy: feed hourly bar directly
+        # BullStrategy (as primary in bull regime): feed completed daily bars
         if current_strat is not None:
             try:
-                signal = current_strat.on_bar(daily_bar, current_regime=active_regime or "")
+                if isinstance(current_strat, BullStrategy):
+                    # BullStrategy handles daily bar aggregation internally
+                    # via on_bar — feed every hourly bar for both entries and stops
+                    signal = current_strat.on_bar(hbar, current_regime=active_regime or "")
+                else:
+                    signal = current_strat.on_bar(hbar, current_regime=active_regime or "")
             except Exception:
                 signal = None
-        
-        # Feed bar to secondary so it tracks indicators (only when primary is active)
-        # and capture its signal in case primary gives HOLD while we're flat
+
+        # ── Secondary strategy (BullStrategy in choppy/bear regimes) ────
         if not active_is_secondary and secondary_strategy is not None:
             try:
-                sec_signal = secondary_strategy.on_bar(daily_bar, current_regime=active_regime or "")
+                # Feed hourly bar so BullStrategy can check stops
+                sec_signal = secondary_strategy.on_bar(hbar, current_regime=active_regime or "")
             except Exception:
                 sec_signal = None
-        
-        bar_pnl = 0.0
-        
-        # If primary gives HOLD/None and we're flat, check secondary signal
+
+        # If primary gives HOLD/None and we're flat, check secondary
         if (signal is None or signal.action == "HOLD") and virt["side"] == "flat" \
                 and not active_is_secondary and sec_signal is not None \
                 and sec_signal.action in ("BUY", "SHORT"):
             signal = sec_signal
             active_is_secondary = True
             current_strat = secondary_strategy
-        
+
+        # ── Execute signal ──────────────────────────────────────────────
         if signal is None or signal.action == "HOLD":
             pass
-        
+
         elif signal.action == "BUY" and virt["side"] == "flat":
-            # Daily signal says BUY — find best hourly entry price
-            exec_price, exec_hour = _find_entry_price(
-                hourly_by_date.get(bar_date), "long", exec_mode, daily_bar)
-            
+            exec_price = hbar["close"]
             virt["side"] = "long"
             virt["entry_price"] = exec_price
             virt["avg_entry"] = exec_price
             virt["contracts"] = signal.contracts
-            virt["entry_time"] = daily_bar["time"]
-            
+            virt["entry_time"] = bar_time
+
             strat_tag = "secondary" if active_is_secondary else "primary"
             trades.append({
-                "time": str(daily_bar["time"]),
+                "time": str(bar_time),
                 "action": "BUY",
                 "price": round(exec_price, 2),
                 "contracts": signal.contracts,
@@ -617,29 +712,24 @@ def run_multitf_backtest(
                 "reason": signal.reason,
                 "regime": active_regime,
                 "strategy": strat_tag,
-                "exec_hour": exec_hour,
-                "daily_close": round(daily_bar["close"], 2),
-                "improvement": round(daily_bar["close"] - exec_price, 2),
             })
             current_strat.record_fill(
-                "BUY", exec_price, signal.contracts, daily_bar["time"],
-                **_record_fill_kwargs(current_strat, active_regime, daily_bar))
-        
+                "BUY", exec_price, signal.contracts, bar_time,
+                **_record_fill_kwargs(current_strat, active_regime, hbar))
+
         elif signal.action == "BUY" and virt["side"] == "long":
             # Pyramid
-            exec_price, exec_hour = _find_entry_price(
-                hourly_by_date.get(bar_date), "long", exec_mode, daily_bar)
-            
+            exec_price = hbar["close"]
             old_sz = virt["contracts"]
             old_avg = virt["avg_entry"]
             new_sz = old_sz + signal.contracts
             new_avg = (old_avg * old_sz + exec_price * signal.contracts) / new_sz
             virt["contracts"] = new_sz
             virt["avg_entry"] = new_avg
-            
+
             strat_tag = "secondary" if active_is_secondary else "primary"
             trades.append({
-                "time": str(daily_bar["time"]),
+                "time": str(bar_time),
                 "action": "PYRAMID",
                 "price": round(exec_price, 2),
                 "contracts": signal.contracts,
@@ -647,23 +737,19 @@ def run_multitf_backtest(
                 "reason": signal.reason,
                 "regime": active_regime,
                 "strategy": strat_tag,
-                "exec_hour": exec_hour,
             })
             current_strat.record_fill(
-                "BUY", exec_price, signal.contracts, daily_bar["time"],
-                **_record_fill_kwargs(current_strat, active_regime, daily_bar))
-        
+                "BUY", exec_price, signal.contracts, bar_time,
+                **_record_fill_kwargs(current_strat, active_regime, hbar))
+
         elif signal.action == "SELL" and virt["side"] == "long":
-            # Close long — find best hourly exit
-            exec_price, exec_hour = _find_exit_price(
-                hourly_by_date.get(bar_date), "long", exec_mode, daily_bar)
-            
+            exec_price = hbar["close"]
             bar_pnl = _long_pnl(virt["avg_entry"], exec_price, virt["contracts"])
             cumulative_pnl += bar_pnl
-            
+
             strat_tag = "secondary" if active_is_secondary else "primary"
             trades.append({
-                "time": str(daily_bar["time"]),
+                "time": str(bar_time),
                 "action": "SELL",
                 "price": round(exec_price, 2),
                 "contracts": virt["contracts"],
@@ -672,29 +758,24 @@ def run_multitf_backtest(
                 "reason": signal.reason,
                 "regime": active_regime,
                 "strategy": strat_tag,
-                "exec_hour": exec_hour,
-                "daily_close": round(daily_bar["close"], 2),
-                "improvement": round(exec_price - daily_bar["close"], 2),
             })
             current_strat.record_fill(
-                "SELL", exec_price, virt["contracts"], daily_bar["time"])
+                "SELL", exec_price, virt["contracts"], bar_time)
             virt = {"side": "flat", "entry_price": 0.0, "avg_entry": 0.0,
                     "contracts": 0, "entry_time": None}
             active_is_secondary = False
-        
+
         elif signal.action == "SHORT" and virt["side"] == "flat":
-            exec_price, exec_hour = _find_entry_price(
-                hourly_by_date.get(bar_date), "short", exec_mode, daily_bar)
-            
+            exec_price = hbar["close"]
             virt["side"] = "short"
             virt["entry_price"] = exec_price
             virt["avg_entry"] = exec_price
             virt["contracts"] = signal.contracts
-            virt["entry_time"] = daily_bar["time"]
-            
+            virt["entry_time"] = bar_time
+
             strat_tag = "secondary" if active_is_secondary else "primary"
             trades.append({
-                "time": str(daily_bar["time"]),
+                "time": str(bar_time),
                 "action": "SHORT",
                 "price": round(exec_price, 2),
                 "contracts": signal.contracts,
@@ -702,24 +783,19 @@ def run_multitf_backtest(
                 "reason": signal.reason,
                 "regime": active_regime,
                 "strategy": strat_tag,
-                "exec_hour": exec_hour,
-                "daily_close": round(daily_bar["close"], 2),
-                "improvement": round(exec_price - daily_bar["close"], 2),
             })
             current_strat.record_fill(
-                "SHORT", exec_price, signal.contracts, daily_bar["time"],
-                **_record_fill_kwargs(current_strat, active_regime, daily_bar))
-        
+                "SHORT", exec_price, signal.contracts, bar_time,
+                **_record_fill_kwargs(current_strat, active_regime, hbar))
+
         elif signal.action == "COVER" and virt["side"] == "short":
-            exec_price, exec_hour = _find_exit_price(
-                hourly_by_date.get(bar_date), "short", exec_mode, daily_bar)
-            
+            exec_price = hbar["close"]
             bar_pnl = _short_pnl(virt["avg_entry"], exec_price, virt["contracts"])
             cumulative_pnl += bar_pnl
-            
+
             strat_tag = "secondary" if active_is_secondary else "primary"
             trades.append({
-                "time": str(daily_bar["time"]),
+                "time": str(bar_time),
                 "action": "COVER",
                 "price": round(exec_price, 2),
                 "contracts": virt["contracts"],
@@ -728,51 +804,43 @@ def run_multitf_backtest(
                 "reason": signal.reason,
                 "regime": active_regime,
                 "strategy": strat_tag,
-                "exec_hour": exec_hour,
-                "daily_close": round(daily_bar["close"], 2),
-                "improvement": round(daily_bar["close"] - exec_price, 2),
             })
             current_strat.record_fill(
-                "COVER", exec_price, virt["contracts"], daily_bar["time"])
+                "COVER", exec_price, virt["contracts"], bar_time)
             virt = {"side": "flat", "entry_price": 0.0, "avg_entry": 0.0,
                     "contracts": 0, "entry_time": None}
             active_is_secondary = False
-        
-        equity_curve.append({
-            "time": str(daily_bar["time"]),
-            "pnl": round(cumulative_pnl, 2),
-            "trade_pnl": round(bar_pnl, 2),
-            "regime": active_regime,
-        })
-    
-    # ── 7. Compute metrics ───────────────────────────────────────────────────
+
+        # ── Equity curve (daily aggregation) ────────────────────────────
+        if bar_date != last_equity_date:
+            equity_curve.append({
+                "time": str(bar_time),
+                "pnl": round(cumulative_pnl, 2),
+                "trade_pnl": round(day_pnl + bar_pnl, 2),
+                "regime": active_regime,
+            })
+            day_pnl = 0.0
+            last_equity_date = bar_date
+        else:
+            day_pnl += bar_pnl
+
+    # ── 8. Compute metrics ───────────────────────────────────────────────────
     metrics = _compute_metrics(trades)
     elapsed = round(time.time() - t_start, 2)
-    
-    # Compute execution improvement stats
-    improvements = []
-    for t in trades:
-        imp = t.get("improvement")
-        if imp is not None:
-            improvements.append(imp)
-    
-    avg_improvement = round(np.mean(improvements), 2) if improvements else 0.0
-    
+
     results = {
-        "mode": "multitf_daily_signal_hourly_exec",
+        "mode": "multitf_hourly_signal_hourly_exec",
         "start_date": start_date,
         "end_date": end_date,
         "total_daily_bars": len(daily_bars),
-        "total_hourly_bars": len(hourly_df),
+        "total_hourly_bars": len(hourly_bars),
         "trades": trades,
         "metrics": metrics,
         "equity_curve": equity_curve,
-        "exec_mode": exec_mode,
-        "avg_execution_improvement": avg_improvement,
         "status": "completed",
         "elapsed_seconds": elapsed,
     }
-    
+
     return results
 
 
@@ -787,116 +855,6 @@ def _record_fill_kwargs(strategy, regime, daily_bar):
     else:
         return {"regime": regime or ""}
 
-def _find_entry_price(
-    hourly_bars_df: Optional[pd.DataFrame],
-    side: str,
-    mode: str,
-    daily_bar: dict,
-) -> tuple:
-    """
-    Given the hourly bars for a day and a BUY/SHORT signal,
-    find the optimal entry price.
-    
-    For longs: best entry = lowest price in the day
-    For shorts: best entry = highest price in the day
-    
-    Returns (exec_price, exec_hour_info).
-    """
-    if hourly_bars_df is None or len(hourly_bars_df) == 0 or mode == "close":
-        return daily_bar["close"], "daily_close"
-    
-    if mode == "best_price":
-        if side == "long":
-            # Enter long at the lowest low of the day
-            idx = hourly_bars_df["low"].idxmin()
-            row = hourly_bars_df.loc[idx]
-            # Use the low as entry (realistic: limit order at day's low)
-            # But to be more conservative, use the close of that hour
-            # (we can't know in advance which hour has the low)
-            # Realistic approach: use VWAP-like average of bottom quartile
-            closes = hourly_bars_df["close"].values
-            lows = hourly_bars_df["low"].values
-            # Use the average of the lowest 25% of hourly closes
-            sorted_closes = np.sort(closes)
-            bottom_q = sorted_closes[:max(1, len(sorted_closes) // 4)]
-            exec_price = float(np.mean(bottom_q))
-            hour_str = f"avg_bottom_q({len(bottom_q)}h)"
-        else:
-            # Enter short at the highest high of the day
-            closes = hourly_bars_df["close"].values
-            sorted_closes = np.sort(closes)[::-1]
-            top_q = sorted_closes[:max(1, len(sorted_closes) // 4)]
-            exec_price = float(np.mean(top_q))
-            hour_str = f"avg_top_q({len(top_q)}h)"
-        
-        return exec_price, hour_str
-    
-    elif mode == "vwap":
-        # Volume-weighted average price for the day
-        if "volume" in hourly_bars_df.columns:
-            vols = hourly_bars_df["volume"].values.astype(float)
-            closes = hourly_bars_df["close"].values.astype(float)
-            total_vol = vols.sum()
-            if total_vol > 0:
-                vwap = float(np.sum(closes * vols) / total_vol)
-                return vwap, "vwap"
-        return daily_bar["close"], "daily_close"
-    
-    elif mode == "open":
-        # Use the daily open (first hourly bar's open)
-        return float(hourly_bars_df.iloc[0]["open"]), "day_open"
-    
-    else:
-        return daily_bar["close"], "daily_close"
-
-
-def _find_exit_price(
-    hourly_bars_df: Optional[pd.DataFrame],
-    side: str,
-    mode: str,
-    daily_bar: dict,
-) -> tuple:
-    """
-    Find optimal exit price within the day's hourly bars.
-    
-    For closing longs: best exit = highest price
-    For covering shorts: best exit = lowest price
-    """
-    if hourly_bars_df is None or len(hourly_bars_df) == 0 or mode == "close":
-        return daily_bar["close"], "daily_close"
-    
-    if mode == "best_price":
-        closes = hourly_bars_df["close"].values
-        if side == "long":
-            # Exit long at the highest close (top quartile average)
-            sorted_closes = np.sort(closes)[::-1]
-            top_q = sorted_closes[:max(1, len(sorted_closes) // 4)]
-            exec_price = float(np.mean(top_q))
-            hour_str = f"avg_top_q({len(top_q)}h)"
-        else:
-            # Cover short at the lowest close (bottom quartile average)
-            sorted_closes = np.sort(closes)
-            bottom_q = sorted_closes[:max(1, len(sorted_closes) // 4)]
-            exec_price = float(np.mean(bottom_q))
-            hour_str = f"avg_bottom_q({len(bottom_q)}h)"
-        
-        return exec_price, hour_str
-    
-    elif mode == "vwap":
-        if "volume" in hourly_bars_df.columns:
-            vols = hourly_bars_df["volume"].values.astype(float)
-            closes = hourly_bars_df["close"].values.astype(float)
-            total_vol = vols.sum()
-            if total_vol > 0:
-                vwap = float(np.sum(closes * vols) / total_vol)
-                return vwap, "vwap"
-        return daily_bar["close"], "daily_close"
-    
-    elif mode == "open":
-        return float(hourly_bars_df.iloc[0]["open"]), "day_open"
-    
-    else:
-        return daily_bar["close"], "daily_close"
 
 
 def _patch_indicators(strategy, period):
@@ -918,269 +876,9 @@ def _patch_indicators(strategy, period):
     strategy._compute_indicators = types.MethodType(patched, strategy)
 
 
-def _patch_for_daily_bars(strategy, calib_days=14):
-    """
-    Monkey-patch a ChoppyStrategy instance so it works correctly with
-    DAILY bars instead of hourly bars.
-    
-    The original strategy assumes hourly bars everywhere:
-      - _update_range: min/max bars = CALIBRATION_DAYS * 24
-      - on_bar: trim window = CALIBRATION_MAX_DAYS * 24 + 100
-      - bars_held = (now - entry_time).total_seconds() / 3600
-      - max_hold_hours in config are in hours
-      - cooldown_hours in hours
-    
-    For daily bars:
-      - Range detection: use CALIBRATION_DAYS (not *24)
-      - Trim: keep calib_days + buffer
-      - bars_held is in DAYS (each bar = 1 day)
-      - max_hold: divide hours by 24 to get days
-      - cooldown: 1 bar = 1 day minimum
-    """
-    import types
-    from indicators import calc_rsi, calc_adx
-    
-    # Store original params
-    p = strategy.p
-    
-    # ── Patch _update_range to use daily bar counts ──
-    def patched_update_range(self):
-        min_bars = calib_days // 2  # e.g., 7 days minimum
-        if len(self.bars) < min_bars:
-            self.is_range = False
-            return
-        
-        max_bars = calib_days
-        window = self.bars[-max_bars:]
-        
-        highs = np.array([b["high"] for b in window])
-        lows = np.array([b["low"] for b in window])
-        
-        self.support = float(np.percentile(lows, cfg.SR_PERCENTILE_LOW))
-        self.resistance = float(np.percentile(highs, cfg.SR_PERCENTILE_HIGH))
-        
-        if self.support <= 0:
-            self.is_range = False
-            return
-        
-        self.range_pct = (self.resistance - self.support) / self.support
-        self.is_range = self.range_pct >= cfg.MIN_RANGE_PCT
-        
-        if cfg.CONVICTION_ENABLED:
-            # For daily bars, gap=1 day (not 12 hours)
-            self.support_touches, self.resistance_touches = self._count_touches(
-                lows, highs, self.support, self.resistance,
-                zone_pct=cfg.CONVICTION_TOUCH_ZONE_PCT,
-                gap_hrs=1)  # 1 bar = 1 day gap
-    
-    # ── Patch on_bar to trim daily bars correctly ──
-    def patched_on_bar(self, bar, current_regime=""):
-        if not self.calibrated:
-            return Signal("HOLD", "Not calibrated yet", bar.get("close", 0),
-                          bar.get("time", datetime.now()))
-        
-        self.bars.append(bar)
-        max_bars = calib_days + 20  # keep some buffer
-        if len(self.bars) > max_bars:
-            self.bars = self.bars[-max_bars:]
-        
-        self._update_range()
-        self._compute_indicators()
-        
-        price = bar["close"]
-        high_val = bar["high"]
-        low_val = bar["low"]
-        now = bar.get("time", datetime.now())
-        if isinstance(now, str):
-            now = pd.Timestamp(now)
-        
-        adx_val = self._adx[-1] if len(self._adx) > 0 else 20
-        rsi_val = self._rsi[-1] if len(self._rsi) > 0 else 50
-        
-        # EXIT LOGIC
-        if not self.position.is_flat:
-            if self.position.side == "long":
-                sig = self._check_long_exit(price, high_val, low_val, now, adx_val, rsi_val, current_regime)
-            elif self.position.side == "short":
-                sig = self._check_short_exit(price, high_val, low_val, now, adx_val, rsi_val)
-            else:
-                sig = Signal("HOLD", "Unknown position side", price, now)
-        else:
-            sig = self._check_entry(price, now, adx_val, rsi_val)
-        
-        self._last_signal_reason = sig.reason if sig else ""
-        return sig
-    
-    # ── Patch _check_long_exit to use daily bar counting ──
-    def patched_check_long_exit(self, price, high_val, low_val, now, adx_val, rsi_val, current_regime=""):
-        pos = self.position
-        # bars_held in DAYS (each bar = 1 day, so use days not hours)
-        bars_held_days = 0
-        if pos.entry_time:
-            bars_held_days = int((now - pos.entry_time).total_seconds() / 86400)
-        
-        rng_pos = self._range_position(price)
-        
-        # Pyramid check
-        pyramid_signal = self._check_pyramid(price, rng_pos, rsi_val)
-        if pyramid_signal is not None:
-            pyramid_signal.timestamp = now
-            return pyramid_signal
-        
-        # 1. Target reached
-        if rng_pos >= p["long_target_zone"]:
-            return self._exit_long("TARGET",
-                                   f"Target zone reached ({rng_pos*100:.0f}%)",
-                                   price, now, bars_held_days)
-        
-        # 2. RSI overbought + in profit
-        avg = pos.avg_entry or pos.entry_price
-        if rsi_val > p["long_rsi_overbought"] and price > avg:
-            return self._exit_long("RSI_OB",
-                                   f"RSI={rsi_val:.1f} overbought + profitable",
-                                   price, now, bars_held_days)
-        
-        # 3. Max hold — convert hours to days
-        hard_cap_days = p.get("long_max_hold_hard_cap_hours", 672) // 24
-        max_hold_days = p["long_max_hold_hours"] // 24
-        adverse_pct = p.get("long_max_hold_adverse_pct", 0.08)
-        unrealized_loss_pct = (avg - price) / avg if avg > 0 else 0
-        
-        if bars_held_days >= hard_cap_days:
-            return self._exit_long("MAX_HOLD",
-                                   f"Hard cap {hard_cap_days}d reached",
-                                   price, now, bars_held_days)
-        
-        if bars_held_days >= max_hold_days:
-            entry_regime = pos.entry_regime or ""
-            regime_changed = current_regime and entry_regime and current_regime != entry_regime
-            
-            if regime_changed:
-                return self._exit_long("MAX_HOLD",
-                                       f"Max hold {max_hold_days}d + regime changed",
-                                       price, now, bars_held_days)
-            elif unrealized_loss_pct >= adverse_pct:
-                return self._exit_long("MAX_HOLD",
-                                       f"Max hold {max_hold_days}d + adverse {unrealized_loss_pct*100:.1f}%",
-                                       price, now, bars_held_days)
-        
-        pnl_pct = (price / avg - 1) * 100 if avg > 0 else 0
-        return Signal("HOLD",
-                       f"LONG {bars_held_days}d, {pos.contracts}ct, PnL={pnl_pct:+.2f}%, RSI={rsi_val:.1f}",
-                       price, now)
-    
-    # ── Patch _check_short_exit for daily bars ──
-    def patched_check_short_exit(self, price, high_val, low_val, now, adx_val, rsi_val):
-        pos = self.position
-        bars_held_days = 0
-        if pos.entry_time:
-            bars_held_days = int((now - pos.entry_time).total_seconds() / 86400)
-        
-        # Update trailing stop
-        if price < pos.peak_price:
-            pos.peak_price = price
-            pos.trailing_stop = price * (1 + p["short_trail_pct"])
-        
-        rng_pos = self._range_position(price)
-        
-        # 1. Hard stop
-        if pos.stop_loss > 0 and high_val >= pos.stop_loss:
-            return self._exit_short("STOP", f"Stop hit: ${pos.stop_loss:,.0f}",
-                                    pos.stop_loss, now, bars_held_days, is_loss=True)
-        
-        # 2. Trailing stop
-        if pos.trailing_stop > 0 and high_val >= pos.trailing_stop:
-            is_loss = price > pos.entry_price
-            return self._exit_short("TRAIL", f"Trailing stop: ${pos.trailing_stop:,.0f}",
-                                    pos.trailing_stop, now, bars_held_days, is_loss=is_loss)
-        
-        # 3. ADX breakout
-        if adx_val > p["short_adx_exit"] and price > pos.entry_price:
-            return self._exit_short("ADX", f"ADX={adx_val:.1f} trending up",
-                                    price, now, bars_held_days, is_loss=True)
-        
-        # 4. Target
-        if rng_pos <= p["short_target_zone"]:
-            return self._exit_short("TARGET", f"Target zone ({rng_pos*100:.0f}%)",
-                                    price, now, bars_held_days, is_loss=False)
-        
-        # 5. RSI oversold + in profit
-        if rsi_val < p["short_rsi_oversold"] and price < pos.entry_price:
-            return self._exit_short("RSI_OS", f"RSI={rsi_val:.1f} oversold + profitable",
-                                    price, now, bars_held_days, is_loss=False)
-        
-        # 6. Max hold (convert hours to days)
-        max_hold_days = p["short_max_hold_hours"] // 24
-        if bars_held_days >= max_hold_days:
-            is_loss = price > pos.entry_price
-            return self._exit_short("MAX_HOLD", f"Max hold {max_hold_days}d",
-                                    price, now, bars_held_days, is_loss=is_loss)
-        
-        pnl_pct = (pos.entry_price / price - 1) * 100 if price > 0 else 0
-        return Signal("HOLD",
-                       f"SHORT {bars_held_days}d, PnL={pnl_pct:+.2f}%, ADX={adx_val:.1f}",
-                       price, now)
-    
-    # ── Patch _exit_long to use daily cooldown ──
-    def patched_exit_long(self, exit_type, reason, price, now, bars_held):
-        cd_hours = self.p["cooldown_hours"]
-        # In daily mode, cooldown of e.g. 3 hours = 1 day minimum
-        cd_days = max(1, cd_hours // 24) if cd_hours >= 24 else 1
-        self.cooldown_until = now + timedelta(days=cd_days)
-        self.consecutive_short_losses = 0
-        return Signal(
-            action="SELL",
-            reason=f"{exit_type}: {reason} (held {bars_held}d)",
-            price=price, timestamp=now,
-            contracts=self.position.contracts,
-        )
-    
-    # ── Patch _exit_short to use daily cooldown ──
-    def patched_exit_short(self, exit_type, reason, price, now, bars_held, is_loss=False):
-        if is_loss:
-            self.consecutive_short_losses += 1
-        else:
-            self.consecutive_short_losses = 0
-        
-        if (p.get("dynamic_cooldown", False)
-                and self.consecutive_short_losses >= p.get("consecutive_loss_trigger", 2)):
-            cd_hours = p.get("dynamic_cooldown_hrs", 12)
-        else:
-            cd_hours = p["cooldown_hours"]
-        
-        cd_days = max(1, cd_hours // 24) if cd_hours >= 24 else 1
-        self.cooldown_until = now + timedelta(days=cd_days)
-        
-        return Signal(
-            action="COVER",
-            reason=f"{exit_type}: {reason} (held {bars_held}d)",
-            price=price, timestamp=now,
-            contracts=self.position.contracts,
-        )
-    
-    # ── Patch _compute_indicators for daily bar counts ──
-    # Original requires 30 bars (designed for hourly), but with daily bars
-    # we only have ~21.  RSI/ADX period=14 needs 15+ bars minimum.
-    def patched_compute_indicators(self):
-        min_bars = 16  # 14 (period) + 2 buffer for daily bars
-        if len(self.bars) < min_bars:
-            self._adx = np.array([20])
-            self._rsi = np.array([50])
-            return
-        closes = np.array([b["close"] for b in self.bars])
-        highs = np.array([b["high"] for b in self.bars])
-        lows = np.array([b["low"] for b in self.bars])
-        self._rsi = calc_rsi(closes, 14)
-        self._adx, _, _ = calc_adx(highs, lows, closes, 14)
 
-    # Apply all patches
-    strategy._update_range = types.MethodType(patched_update_range, strategy)
-    strategy._compute_indicators = types.MethodType(patched_compute_indicators, strategy)
-    strategy.on_bar = types.MethodType(patched_on_bar, strategy)
-    strategy._check_long_exit = types.MethodType(patched_check_long_exit, strategy)
-    strategy._check_short_exit = types.MethodType(patched_check_short_exit, strategy)
-    strategy._exit_long = types.MethodType(patched_exit_long, strategy)
-    strategy._exit_short = types.MethodType(patched_exit_short, strategy)
+# _patch_for_daily_bars removed — backtest now feeds hourly bars directly
+# to ChoppyStrategy (its native timeframe).
 
 
 # ── PnL Helpers ──────────────────────────────────────────────────────────────
@@ -1278,7 +976,7 @@ def _compute_metrics(trades):
 
 def _error_result(start_date, end_date, msg, elapsed):
     return {
-        "mode": "multitf_daily_signal_hourly_exec",
+        "mode": "multitf_hourly_signal_hourly_exec",
         "start_date": start_date, "end_date": end_date,
         "total_daily_bars": 0, "total_hourly_bars": 0,
         "trades": [], "metrics": _compute_metrics([]),

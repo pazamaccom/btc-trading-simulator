@@ -205,7 +205,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             "cooldown_hours": cfg.CHOPPY.get("cooldown_hours", 3),
             "regime": {
                 "current": "Range",
-                "engine_label": "choppy",
+                "engine_label": "range",
                 "since": (now - __import__('datetime').timedelta(days=3)).isoformat(),
                 "days_in_regime": 3,
             },
@@ -463,10 +463,11 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     --green: #22c55e;
     --red: #ef4444;
     --amber: #f59e0b;
-    --bull: #22c55e;
-    --bear: #ef4444;
-    --choppy: #3b82f6;
-    --neg-momentum: #f97316;
+    --trend-up: #22c55e;
+    --trend-down: #f97316;
+    --transition: #ef4444;
+    --range: #3b82f6;
+    --crash: #dc2626;
     --font: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   }
 
@@ -591,10 +592,11 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     white-space: nowrap;
   }
 
-  .regime-indicator.bull  { color: var(--bull);   border-color: rgba(34, 197, 94, 0.3); }
-  .regime-indicator.bear  { color: var(--bear);   border-color: rgba(239, 68, 68, 0.3); }
-  .regime-indicator.choppy { color: var(--choppy); border-color: rgba(59, 130, 246, 0.3); }
-  .regime-indicator.neg_momentum { color: var(--neg-momentum); border-color: rgba(249, 115, 22, 0.3); }
+  .regime-indicator.trend_up  { color: var(--trend-up);   border-color: rgba(34, 197, 94, 0.3); }
+  .regime-indicator.trend_down { color: var(--trend-down); border-color: rgba(249, 115, 22, 0.3); }
+  .regime-indicator.transition  { color: var(--transition);   border-color: rgba(239, 68, 68, 0.3); }
+  .regime-indicator.range { color: var(--range); border-color: rgba(59, 130, 246, 0.3); }
+  .regime-indicator.crash { color: var(--crash); border-color: rgba(220, 38, 38, 0.3); }
 
   .regime-dot {
     width: 5px; height: 5px;
@@ -1172,17 +1174,19 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     text-transform: uppercase;
     font-family: var(--font);
   }
-  .regime-chip.bull   { background: rgba(34, 197, 94, 0.12); color: var(--bull); }
-  .regime-chip.bear   { background: rgba(239, 68, 68, 0.12); color: var(--bear); }
-  .regime-chip.choppy { background: rgba(59, 130, 246, 0.12); color: var(--choppy); }
-  .regime-chip.neg_momentum { background: rgba(249, 115, 22, 0.12); color: var(--neg-momentum); }
+  .regime-chip.trend_up   { background: rgba(34, 197, 94, 0.12); color: var(--trend-up); }
+  .regime-chip.trend_down { background: rgba(249, 115, 22, 0.12); color: var(--trend-down); }
+  .regime-chip.transition   { background: rgba(239, 68, 68, 0.12); color: var(--transition); }
+  .regime-chip.range { background: rgba(59, 130, 246, 0.12); color: var(--range); }
+  .regime-chip.crash { background: rgba(220, 38, 38, 0.12); color: var(--crash); }
 
 
   /* ── Paper Trading — Regime badge colors ─────────── */
-  .regime-pos-momentum { background: rgba(34, 197, 94, 0.15); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); }
+  .regime-trend-up     { background: rgba(34, 197, 94, 0.15); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.3); }
+  .regime-trend-down   { background: rgba(249, 115, 22, 0.15); color: #f97316; border: 1px solid rgba(249, 115, 22, 0.3); }
   .regime-range        { background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); }
-  .regime-volatile      { background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); }
-  .regime-neg-momentum  { background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+  .regime-transition   { background: rgba(245, 158, 11, 0.15); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.3); }
+  .regime-crash        { background: rgba(220, 38, 38, 0.15); color: #dc2626; border: 1px solid rgba(220, 38, 38, 0.3); }
 
   /* ── Condition rows ──────────────────────────────── */
   .cond-row {
@@ -1329,10 +1333,11 @@ DASHBOARD_HTML = r"""<!DOCTYPE html>
     letter-spacing: 0.06em;
   }
 
-  .regime-card-title.bull   { color: var(--bull); }
-  .regime-card-title.bear   { color: var(--bear); }
-  .regime-card-title.choppy { color: var(--choppy); }
-  .regime-card-title.neg_momentum { color: var(--neg-momentum); }
+  .regime-card-title.trend_up   { color: var(--trend-up); }
+  .regime-card-title.trend_down { color: var(--trend-down); }
+  .regime-card-title.transition   { color: var(--transition); }
+  .regime-card-title.range { color: var(--range); }
+  .regime-card-title.crash { color: var(--crash); }
 
   .regime-card-stat {
     display: flex;
@@ -2259,10 +2264,11 @@ function actionClass(a) {
 
 // ── Regime helpers ────────────────────────────────────
 const CLUSTER_DISPLAY = {
-  bull: 'Positive Momentum',
-  choppy: 'Range',
-  bear: 'Volatile',
-  neg_momentum_skip: 'Negative Momentum',
+  trend_up: 'Trend Up',
+  trend_down: 'Trend Down',
+  range: 'Range',
+  transition: 'Transition',
+  crash: 'Crash',
 };
 
 function regimeDisplayName(r) {
@@ -2275,17 +2281,19 @@ function regimeClass(r) {
   if (typeof r === 'object') r = r.engine_label || r.current || '';
   if (!r) return '';
   const l = String(r).toLowerCase();
-  if (l.includes('bull') || l === 'positive momentum') return 'bull';
-  if (l.includes('neg_momentum') || l === 'negative momentum') return 'neg_momentum';
-  if (l.includes('bear') || l === 'volatile') return 'bear';
-  return 'choppy';
+  if (l.includes('trend_up') || l === 'trend up') return 'trend_up';
+  if (l.includes('crash')) return 'crash';
+  if (l.includes('trend_down') || l === 'trend down') return 'trend_down';
+  if (l.includes('transition')) return 'transition';
+  return 'range';
 }
 
 function regimeColor(r) {
   const c = regimeClass(r);
-  if (c === 'bull')           return '#22c55e';
-  if (c === 'bear')           return '#ef4444';
-  if (c === 'neg_momentum')   return '#f97316';
+  if (c === 'trend_up')       return '#22c55e';
+  if (c === 'trend_down')     return '#f97316';
+  if (c === 'transition')     return '#ef4444';
+  if (c === 'crash')          return '#dc2626';
   return '#3b82f6';
 }
 
@@ -2509,9 +2517,11 @@ function updateBacktestView(data) {
     // Color points by regime
     const ptColors = equityCurve.map(e => {
       const r = (e.regime || '').toLowerCase();
-      if (r.includes('bull'))  return '#22c55e';
-      if (r.includes('bear'))  return '#ef4444';
-      if (r)                   return '#3b82f6';
+      if (r.includes('trend_up'))    return '#22c55e';
+      if (r.includes('crash'))       return '#dc2626';
+      if (r.includes('trend_down'))  return '#f97316';
+      if (r.includes('transition'))  return '#ef4444';
+      if (r)                         return '#3b82f6';
       // Fallback: color by trade pnl direction
       return (e.trade_pnl ?? 0) >= 0 ? '#22c55e' : '#ef4444';
     });
@@ -2640,7 +2650,7 @@ function updateBacktestView(data) {
     const tradeable = exposure.tradeable_days || 0;
     const exposed = exposure.days_exposed || 0;
     const notExposed = exposure.days_not_exposed || 0;
-    const negMomDays = exposure.neg_momentum_days || 0;
+    const negMomDays = exposure.crash_days || exposure.neg_momentum_days || 0;
     const totalCal = exposure.total_calendar_days || 0;
     const utilPct = exposure.utilization_pct || 0;
     const utilTotalPct = exposure.utilization_total_pct || 0;
@@ -2765,7 +2775,7 @@ function updateBacktestView(data) {
       const worstTrade = s.worst_trade ?? 0;
       const profitFactor = s.profit_factor ?? 0;
       const avgPnl = s.avg_pnl ?? 0;
-      const isNegMom = (r === 'neg_momentum_skip');
+      const isNegMom = (r === 'crash');
 
       cardsHtml += `
         <div class="regime-card">
@@ -2790,7 +2800,7 @@ function updateBacktestView(data) {
             <span class="rcs-val ${colorClass(totalPnl)}">${fmt(totalPnl)}</span>
           </div>`;
 
-      // Extra trade stats (non-neg_momentum only)
+      // Extra trade stats (non-crash only)
       if (totalTrades > 0) {
         cardsHtml += `
           <div class="regime-card-stat">
@@ -3255,19 +3265,21 @@ function updatePaperTradingPanels(data) {
 
   // Set color class
   const regClasses = {
-    'Positive Momentum': 'regime-pos-momentum',
+    'Trend Up': 'regime-trend-up',
+    'Trend Down': 'regime-trend-down',
     'Range': 'regime-range',
-    'Volatile': 'regime-volatile',
-    'Negative Momentum': 'regime-neg-momentum',
+    'Transition': 'regime-transition',
+    'Crash': 'regime-crash',
   };
   regBadge.className = regClasses[regName] || '';
 
   // Strategy label
   const stratLabels = {
-    'Positive Momentum': 'BullStrategy — Donchian breakout trend-following',
+    'Trend Up': 'BullStrategy — Donchian breakout trend-following',
+    'Trend Down': 'No trading — flat (capital preservation)',
     'Range': 'ChoppyStrategy — Mean-reversion (Long + Short)',
-    'Volatile': 'ChoppyStrategy — Wider params (Long + Short)',
-    'Negative Momentum': 'No trading — flat (capital preservation)',
+    'Transition': 'ChoppyStrategy — Wider params (Long + Short)',
+    'Crash': 'No trading — flat (capital preservation)',
   };
   document.getElementById('regime-strategy-label').textContent =
     'Strategy: ' + (stratLabels[regName] || '—');
@@ -3279,10 +3291,10 @@ function updatePaperTradingPanels(data) {
   }
 
   const detail = document.getElementById('regime-detail');
-  if (regName === 'Negative Momentum') {
+  if (regName === 'Crash' || regName === 'Trend Down') {
     detail.textContent = 'All positions closed. Waiting for regime change.';
     detail.style.color = 'var(--red)';
-  } else if (regName === 'Positive Momentum') {
+  } else if (regName === 'Trend Up') {
     detail.textContent = 'Trend-following mode: looking for Donchian channel breakouts.';
     detail.style.color = '';
   } else {
@@ -3305,28 +3317,28 @@ function updatePaperTradingPanels(data) {
   document.getElementById('pt-signal').textContent = strat.last_signal || '—';
 
   // ── Entry Conditions ──
-  const isMeanReversion = (regName === 'Range' || regName === 'Volatile');
-  const isBull = (regName === 'Positive Momentum');
-  const isNeg = (regName === 'Negative Momentum');
+  const isMeanReversion = (regName === 'Range' || regName === 'Transition');
+  const isBull = (regName === 'Trend Up');
+  const isNeg = (regName === 'Crash' || regName === 'Trend Down');
 
   const buyDiv = document.getElementById('buy-conditions-list');
   const shortDiv = document.getElementById('short-conditions-list');
 
   if (isNeg) {
-    buyDiv.innerHTML = '<div style="color:var(--text-dim); font-size:12px; padding:8px 0;">No entries — Negative Momentum regime (flat)</div>';
-    shortDiv.innerHTML = '<div style="color:var(--text-dim); font-size:12px; padding:8px 0;">No entries — Negative Momentum regime (flat)</div>';
+    buyDiv.innerHTML = '<div style="color:var(--text-dim); font-size:12px; padding:8px 0;">No entries — ' + regName + ' regime (flat)</div>';
+    shortDiv.innerHTML = '<div style="color:var(--text-dim); font-size:12px; padding:8px 0;">No entries — ' + regName + ' regime (flat)</div>';
     document.getElementById('buy-summary').textContent = '';
     document.getElementById('short-summary').textContent = '';
-    document.getElementById('entry-status').textContent = 'Trading paused — Negative Momentum';
+    document.getElementById('entry-status').textContent = 'Trading paused — ' + regName;
   } else if (isBull && bullConds) {
-    // Positive Momentum: show bull breakout conditions
+    // Trend Up: show bull breakout conditions
     renderConditions(buyDiv, bullConds.long || {});
     renderConditions(shortDiv, bullConds.short || {});
-    document.getElementById('entry-status').textContent = 'Positive Momentum — Donchian breakout';
+    document.getElementById('entry-status').textContent = 'Trend Up — Donchian breakout';
     document.getElementById('buy-summary').textContent = '';
     document.getElementById('short-summary').textContent = '';
   } else if (isMeanReversion && conds) {
-    // Range / Volatile: show mean-reversion conditions
+    // Range / Transition: show mean-reversion conditions
     const longConds = conds.long || {};
     const shortConds = conds.short || {};
     renderConditions(buyDiv, longConds);

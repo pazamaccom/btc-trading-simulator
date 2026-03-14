@@ -18,10 +18,11 @@ Method:
   (TrendFollower) across regimes.
 
 V3 cluster → engine label mapping:
-    momentum     → bull    (TrendFollower — primary)
-    range        → choppy  (RangeTrader primary + TrendFollower secondary)
-    volatile     → bear    (VolatilityTrader primary + TrendFollower secondary)
-    neg_momentum → [skip]  (Flat — no trading)
+    trend_up     → bull    (TrendFollower — primary)
+    range        → range   (RangeTrader primary + TrendFollower secondary)
+    transition   → bear    (VolatilityTrader primary + TrendFollower secondary)
+    crash        → [skip]  (Flat — no trading)
+    trend_down   → [skip]  (Flat — no trading)
 
 Run locally:  python3 optimize_v3.py
 Requires:     v3_cache.json in same directory
@@ -168,36 +169,25 @@ def load_v3_regime_caches():
     """
     Load v3 cache, translate labels to engine labels, and slice per WF window.
     
-    V3 labels → engine labels:
-        momentum     → bull
-        range        → choppy
-        volatile     → bear
-        neg_momentum → [skipped]
+    V3 labels used directly: momentum, range, volatile.
+    neg_momentum → [skipped — no strategy]
     """
-    V3_LABEL_MAP = {
-        "momentum": "bull",
-        "range": "choppy",
-        "volatile": "bear",
-        "neg_momentum": None,  # Flat — skip
-    }
-    
     with open(os.path.join(_DIR, "v3_cache.json")) as f:
         raw_cache = json.load(f)
-    
-    # Build full date→regime map with datetime.date keys
+
+    # Build full date→regime map with datetime.date keys (V3 labels used directly)
     full_map = {}
     skipped = 0
     for date_str, v3_label in raw_cache.items():
-        engine_label = V3_LABEL_MAP.get(v3_label)
-        if engine_label is not None:
-            full_map[datetime.strptime(date_str, "%Y-%m-%d").date()] = engine_label
+        if v3_label not in ("crash", "trend_down"):
+            full_map[datetime.strptime(date_str, "%Y-%m-%d").date()] = v3_label
         else:
             skipped += 1
-    
-    print(f"  V3 cache: {len(raw_cache)} total days, {len(full_map)} trading, {skipped} flat (Negative Momentum)")
-    
+
+    print(f"  V3 cache: {len(raw_cache)} total days, {len(full_map)} trading, {skipped} flat (Crash/Trend Down)")
+
     # Count regime distribution
-    _DISPLAY_NAMES = {"choppy": "Range", "bull": "Positive Momentum", "bear": "Volatile"}
+    _DISPLAY_NAMES = {"range": "Range", "trend_up": "Trend Up", "transition": "Transition"}
     regime_counts = {}
     for r in full_map.values():
         display = _DISPLAY_NAMES.get(r, r)
@@ -262,8 +252,8 @@ def run_wf_for_config(config):
     gross_wins = 0.0
     gross_losses = 0.0
     profitable_windows = 0
-    per_regime_pnl = {"bull": 0, "bear": 0, "choppy": 0}
-    per_regime_trades = {"bull": 0, "bear": 0, "choppy": 0}
+    per_regime_pnl = {"trend_up": 0, "transition": 0, "range": 0}
+    per_regime_trades = {"trend_up": 0, "transition": 0, "range": 0}
     primary_pnl = 0
     primary_trades = 0
     secondary_pnl = 0
@@ -350,12 +340,12 @@ def run_wf_for_config(config):
         "wf_worst_window": worst_window,
         "wf_profit_factor": pf,
         "per_window_pnl": per_window_pnl,
-        "trend_pnl": per_regime_pnl["bull"],
-        "vol_pnl": per_regime_pnl["bear"],
-        "range_pnl": per_regime_pnl["choppy"],
-        "trend_trades": per_regime_trades["bull"],
-        "vol_trades": per_regime_trades["bear"],
-        "range_trades": per_regime_trades["choppy"],
+        "trend_pnl": per_regime_pnl["trend_up"],
+        "vol_pnl": per_regime_pnl["transition"],
+        "range_pnl": per_regime_pnl["range"],
+        "trend_trades": per_regime_trades["trend_up"],
+        "vol_trades": per_regime_trades["transition"],
+        "range_trades": per_regime_trades["range"],
         "primary_pnl": primary_pnl,
         "primary_trades": primary_trades,
         "secondary_pnl": secondary_pnl,

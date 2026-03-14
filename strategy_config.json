@@ -29,8 +29,8 @@
     "short_target_zone": 0.25
   },
 
-  "volatile": {
-    "_cluster": "Volatile (17.5% of days)",
+  "transition": {
+    "_cluster": "Transition (17.5% of days)",
     "_strategy": "ChoppyStrategy with wider params + secondary BullStrategy",
     "bear_calib_days": 9,
     "bear_short_trail_pct": 0.06,
@@ -43,8 +43,8 @@
     "bear_short_target_zone": 0.15
   },
 
-  "positive_momentum": {
-    "_cluster": "Positive Momentum (6.2% of days)",
+  "trend_up": {
+    "_cluster": "Trend Up (6.2% of days)",
     "_strategy": "BullStrategy — Donchian breakout trend-following",
     "bull_calib_days": 32,
     "bull_lookback": 3,
@@ -57,8 +57,13 @@
     "bull_cooldown_hours": 24
   },
 
-  "negative_momentum": {
-    "_cluster": "Negative Momentum (5.0% of days)",
+  "crash": {
+    "_cluster": "Crash (5.0% of days)",
+    "_strategy": "No trading — flat"
+  },
+
+  "trend_down": {
+    "_cluster": "Trend Down",
     "_strategy": "No trading — flat"
   },
 
