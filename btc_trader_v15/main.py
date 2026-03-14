@@ -1668,27 +1668,10 @@ async def run_interactive(trader: Trader):
             except (ConnectionError, OSError, asyncio.CancelledError) as e:
                 if not trader.running:
                     break
-                logger.warning(f"TWS connection interrupted: {e}")
-                print(f"\n  TWS connection lost ({e}). Waiting for auto-reconnect...")
-                # Wait for the auto-reconnect logic in ib_execution.py
-                reconnect_wait = 0
-                max_reconnect_wait = 300  # 5 minutes max wait
-                while reconnect_wait < max_reconnect_wait and trader.running:
-                    await asyncio.sleep(5)
-                    reconnect_wait += 5
-                    if trader.ib_exec.connected:
-                        logger.info("Main loop: TWS reconnected, resuming")
-                        print("  TWS reconnected. Resuming trading loop.")
-                        break
-                    if reconnect_wait % 30 == 0:
-                        print(f"  Still waiting for TWS... ({reconnect_wait}s elapsed)")
-                else:
-                    if not trader.ib_exec.connected and trader.running:
-                        logger.error("TWS did not reconnect within 5 minutes")
-                        print("  TWS did not reconnect. Stopping engine.")
-                        await trader.stop(flatten=False)
-                        break
-                continue
+                # Let the outer restart loop handle reconnection —
+                # it creates a fresh IBExecution and re-runs start()
+                logger.warning(f"TWS connection lost: {e} — deferring to outer restart loop")
+                raise ConnectionError(f"TWS disconnected: {e}") from e
             except Exception as e:
                 if not trader.running:
                     break
@@ -1926,8 +1909,9 @@ def main():
                 logger.error("TWS did not restart within 5 minutes")
                 break
 
-            # Give TWS a few more seconds to fully initialize its API
-            _time.sleep(5)
+            # Give TWS extra time to fully initialize its API
+            # (TCP accepts connections before API is ready)
+            _time.sleep(10)
 
             # Cleanly disconnect old IB to release clientId
             try:
