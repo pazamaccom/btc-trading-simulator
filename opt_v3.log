@@ -1,0 +1,1799 @@
+V3 4-Cluster Optimization (Iterative Coordinate Descent)
+  2026-03-13 15:09:53
+  CPU cores available: 24, using 22 workers
+  Max rounds: 5, convergence threshold: 1.0%
+
+Loading V3 regime caches...
+  V3 cache: 2252 total days, 2139 trading, 113 flat (Negative Momentum)
+  Distribution: {'Range': 1604, 'Positive Momentum': 140, 'Volatile': 395}
+
+  Training windows: 6 (holdout: Q1 2026)
+  Estimated grid sizes per round:
+    Range:     1452 coarse + ~405 fine
+    Volatile:  3896 coarse + ~405 fine
+    Trend:    16200 coarse + ~405 fine
+    Total:    ~22,763 configs/round × 6 WF windows = ~136,578 backtests/round
+
+################################################################################
+  ROUND 1 of 5
+################################################################################
+
+================================================================================
+  PHASE: R1 Range (Volatile=CfgI, Trend=CfgI)
+  Grid size: 1452 configs × 6 WF windows = 8712 backtests
+  Workers: 22
+================================================================================
+  [   50/1452] 163s elapsed, 0.3 configs/s, ETA 76.0min
+  [  100/1452] 163s elapsed, 0.6 configs/s, ETA 36.7min
+  [  150/1452] 163s elapsed, 0.9 configs/s, ETA 23.6min
+  [  200/1452] 163s elapsed, 1.2 configs/s, ETA 17.1min
+  [  250/1452] 164s elapsed, 1.5 configs/s, ETA 13.1min
+  [  300/1452] 164s elapsed, 1.8 configs/s, ETA 10.5min
+  [  350/1452] 164s elapsed, 2.1 configs/s, ETA 8.6min
+  [  400/1452] 305s elapsed, 1.3 configs/s, ETA 13.4min
+  [  450/1452] 321s elapsed, 1.4 configs/s, ETA 11.9min
+  [  500/1452] 322s elapsed, 1.6 configs/s, ETA 10.2min
+  [  550/1452] 322s elapsed, 1.7 configs/s, ETA 8.8min
+  [  600/1452] 323s elapsed, 1.9 configs/s, ETA 7.6min
+  [  650/1452] 324s elapsed, 2.0 configs/s, ETA 6.7min
+  [  700/1452] 325s elapsed, 2.2 configs/s, ETA 5.8min
+  [  750/1452] 433s elapsed, 1.7 configs/s, ETA 6.8min
+  [  800/1452] 485s elapsed, 1.7 configs/s, ETA 6.6min
+  [  850/1452] 486s elapsed, 1.7 configs/s, ETA 5.7min
+  [  900/1452] 487s elapsed, 1.8 configs/s, ETA 5.0min
+  [  950/1452] 489s elapsed, 1.9 configs/s, ETA 4.3min
+  [ 1000/1452] 490s elapsed, 2.0 configs/s, ETA 3.7min
+  [ 1050/1452] 491s elapsed, 2.1 configs/s, ETA 3.1min
+  [ 1100/1452] 562s elapsed, 2.0 configs/s, ETA 3.0min
+  [ 1150/1452] 647s elapsed, 1.8 configs/s, ETA 2.8min
+  [ 1200/1452] 649s elapsed, 1.9 configs/s, ETA 2.3min
+  [ 1250/1452] 650s elapsed, 1.9 configs/s, ETA 1.8min
+  [ 1300/1452] 651s elapsed, 2.0 configs/s, ETA 1.3min
+  [ 1350/1452] 652s elapsed, 2.1 configs/s, ETA 0.8min
+  [ 1400/1452] 653s elapsed, 2.1 configs/s, ETA 0.4min
+  [ 1450/1452] 679s elapsed, 2.1 configs/s, ETA 0.0min
+  [ 1452/1452] 679s elapsed, 2.1 configs/s, ETA 0.0min
+
+  Coarse pass completed in 679.5s (11.3min)
+
+  FINE PASS: 405 configs around top 5 coarse winners
+  [FINE    50/405] 47s elapsed, 1.1 configs/s, ETA 5.5min
+  [FINE   100/405] 71s elapsed, 1.4 configs/s, ETA 3.6min
+  [FINE   150/405] 89s elapsed, 1.7 configs/s, ETA 2.5min
+  [FINE   200/405] 129s elapsed, 1.5 configs/s, ETA 2.2min
+  [FINE   250/405] 132s elapsed, 1.9 configs/s, ETA 1.4min
+  [FINE   300/405] 167s elapsed, 1.8 configs/s, ETA 1.0min
+  [FINE   350/405] 173s elapsed, 2.0 configs/s, ETA 0.5min
+  [FINE   400/405] 203s elapsed, 2.0 configs/s, ETA 0.0min
+  [FINE   405/405] 203s elapsed, 2.0 configs/s, ETA 0.0min
+  Fine pass completed in 203.3s (3.4min)
+  Total phase time: 882.8s (14.7min)
+  Deduped: 664 duplicate configs removed
+
+  TOP 10 RESULTS (ranked by risk-adjusted score):
+  Rank      Score     WF PnL  Trades     WR     PF     MaxDD ProfW     Worst       Pri$       Sec$ Label
+  ──── ────────── ────────── ─────── ────── ────── ───────── ───── ───────── ────────── ────────── ────────────────────────────────────────
+     1       40.0 $2,985,632    246  77.6%   5.3x $ 173,116    6/6 $ 119,967 $2,134,675 $  850,957 FINE days=21 zone=0.45 zone=0.525 max=35
+     2       39.9 $2,981,711    245  77.6%   5.3x $ 173,116    6/6 $ 119,967 $2,130,754 $  850,957 RNG AM35 AX24 LT75% EZ45%/55% C21 ST20%
+     3       39.8 $2,976,003    245  77.6%   5.3x $ 173,116    6/6 $ 119,967 $2,132,193 $  843,811 FINE days=21 zone=0.475 zone=0.525 max=3
+     4       39.7 $2,972,083    244  77.5%   5.3x $ 173,116    6/6 $ 119,967 $2,128,272 $  843,811 FINE days=21 zone=0.475 zone=0.575 max=3
+     5       39.5 $2,968,474    242  77.3%   5.3x $ 173,116    6/6 $ 117,330 $2,117,516 $  850,957 FINE days=21 zone=0.45 zone=0.525 max=35
+     6       39.5 $2,963,626    246  77.6%   5.3x $ 173,116    6/6 $ 119,967 $2,112,668 $  850,957 FINE days=21 zone=0.45 zone=0.525 max=35
+     7       39.5 $2,964,553    241  77.2%   5.2x $ 173,116    6/6 $ 117,330 $2,113,596 $  850,957 RNG AM35 AX28 LT75% EZ45%/55% C21 ST20%
+     8       39.5 $2,959,705    245  77.6%   5.3x $ 173,116    6/6 $ 119,967 $2,108,748 $  850,957 RNG AM35 AX24 LT75% EZ45%/55% C21 ST30%
+     9       39.3 $2,958,845    241  77.2%   5.2x $ 173,116    6/6 $ 117,330 $2,115,035 $  843,811 FINE days=21 zone=0.475 zone=0.525 max=3
+    10       39.3 $2,957,836    238  76.9%   5.2x $ 173,116    6/6 $ 116,322 $2,106,878 $  850,957 RNG AM35 AX32 LT75% EZ45%/55% C21 ST20%
+
+  ★ Best Range: Score 40.0, WF PnL $2,985,632, MaxDD $173,116
+
+================================================================================
+  PHASE: R1 Volatile (Range=R1, Trend=CfgI)
+  Grid size: 3896 configs × 6 WF windows = 23376 backtests
+  Workers: 22
+================================================================================
+  [   50/3896] 563s elapsed, 0.1 configs/s, ETA 721.2min
+  [  100/3896] 564s elapsed, 0.2 configs/s, ETA 356.7min
+  [  150/3896] 564s elapsed, 0.3 configs/s, ETA 234.8min
+  [  200/3896] 565s elapsed, 0.4 configs/s, ETA 174.1min
+  [  250/3896] 566s elapsed, 0.4 configs/s, ETA 137.5min
+  [  300/3896] 566s elapsed, 0.5 configs/s, ETA 113.0min
+  [  350/3896] 567s elapsed, 0.6 configs/s, ETA 95.7min
+  [  400/3896] 661s elapsed, 0.6 configs/s, ETA 96.4min
+  [  450/3896] 662s elapsed, 0.7 configs/s, ETA 84.5min
+  [  500/3896] 663s elapsed, 0.8 configs/s, ETA 75.0min
+  [  550/3896] 663s elapsed, 0.8 configs/s, ETA 67.2min
+  [  600/3896] 663s elapsed, 0.9 configs/s, ETA 60.7min
+  [  650/3896] 663s elapsed, 1.0 configs/s, ETA 55.2min
+  [  700/3896] 664s elapsed, 1.1 configs/s, ETA 50.5min
+  [  750/3896] 664s elapsed, 1.1 configs/s, ETA 46.4min
+  [  800/3896] 664s elapsed, 1.2 configs/s, ETA 42.9min
+  [  850/3896] 666s elapsed, 1.3 configs/s, ETA 39.8min
+  [  900/3896] 668s elapsed, 1.3 configs/s, ETA 37.0min
+  [  950/3896] 668s elapsed, 1.4 configs/s, ETA 34.5min
+  [ 1000/3896] 1656s elapsed, 0.6 configs/s, ETA 79.9min
+  [ 1050/3896] 1657s elapsed, 0.6 configs/s, ETA 74.8min
+  [ 1100/3896] 1657s elapsed, 0.7 configs/s, ETA 70.2min
+  [ 1150/3896] 1659s elapsed, 0.7 configs/s, ETA 66.0min
+  [ 1200/3896] 1659s elapsed, 0.7 configs/s, ETA 62.1min
+  [ 1250/3896] 1660s elapsed, 0.8 configs/s, ETA 58.6min
+  [ 1300/3896] 1678s elapsed, 0.8 configs/s, ETA 55.8min
+  [ 1350/3896] 1680s elapsed, 0.8 configs/s, ETA 52.8min
+  [ 1400/3896] 2061s elapsed, 0.7 configs/s, ETA 61.3min
+  [ 1450/3896] 2062s elapsed, 0.7 configs/s, ETA 58.0min
+  [ 1500/3896] 2064s elapsed, 0.7 configs/s, ETA 54.9min
+  [ 1550/3896] 2064s elapsed, 0.8 configs/s, ETA 52.1min
+  [ 1600/3896] 2065s elapsed, 0.8 configs/s, ETA 49.4min
+  [ 1650/3896] 2066s elapsed, 0.8 configs/s, ETA 46.9min
+  [ 1700/3896] 2066s elapsed, 0.8 configs/s, ETA 44.5min
+  [ 1750/3896] 2068s elapsed, 0.8 configs/s, ETA 42.3min
+  [ 1800/3896] 2068s elapsed, 0.9 configs/s, ETA 40.1min
+  [ 1850/3896] 2073s elapsed, 0.9 configs/s, ETA 38.2min
+  [ 1900/3896] 2076s elapsed, 0.9 configs/s, ETA 36.3min
+  [ 1950/3896] 2636s elapsed, 0.7 configs/s, ETA 43.8min
+  [ 2000/3896] 2638s elapsed, 0.8 configs/s, ETA 41.7min
+  [ 2050/3896] 2638s elapsed, 0.8 configs/s, ETA 39.6min
+  [ 2100/3896] 2640s elapsed, 0.8 configs/s, ETA 37.6min
+  [ 2150/3896] 2641s elapsed, 0.8 configs/s, ETA 35.7min
+  [ 2200/3896] 2641s elapsed, 0.8 configs/s, ETA 33.9min
+  [ 2250/3896] 2646s elapsed, 0.9 configs/s, ETA 32.3min
+  [ 2300/3896] 2648s elapsed, 0.9 configs/s, ETA 30.6min
+  [ 2350/3896] 3665s elapsed, 0.6 configs/s, ETA 40.2min
+  [ 2400/3896] 3665s elapsed, 0.7 configs/s, ETA 38.1min
+  [ 2450/3896] 3666s elapsed, 0.7 configs/s, ETA 36.1min
+  [ 2500/3896] 3668s elapsed, 0.7 configs/s, ETA 34.1min
+  [ 2550/3896] 3669s elapsed, 0.7 configs/s, ETA 32.3min
+  [ 2600/3896] 3672s elapsed, 0.7 configs/s, ETA 30.5min
+  [ 2650/3896] 3672s elapsed, 0.7 configs/s, ETA 28.8min
+  [ 2700/3896] 3675s elapsed, 0.7 configs/s, ETA 27.1min
+  [ 2750/3896] 3675s elapsed, 0.7 configs/s, ETA 25.5min
+  [ 2800/3896] 3676s elapsed, 0.8 configs/s, ETA 24.0min
+  [ 2850/3896] 3677s elapsed, 0.8 configs/s, ETA 22.5min
+  [ 2900/3896] 3679s elapsed, 0.8 configs/s, ETA 21.1min
+  [ 2950/3896] 3682s elapsed, 0.8 configs/s, ETA 19.7min
+  [ 3000/3896] 3683s elapsed, 0.8 configs/s, ETA 18.3min
+  [ 3050/3896] 3683s elapsed, 0.8 configs/s, ETA 17.0min
+  [ 3100/3896] 3684s elapsed, 0.8 configs/s, ETA 15.8min
+  [ 3150/3896] 3685s elapsed, 0.9 configs/s, ETA 14.5min
+  [ 3200/3896] 3685s elapsed, 0.9 configs/s, ETA 13.4min
+  [ 3250/3896] 3691s elapsed, 0.9 configs/s, ETA 12.2min
+  [ 3300/3896] 3694s elapsed, 0.9 configs/s, ETA 11.1min
+  [ 3350/3896] 4938s elapsed, 0.7 configs/s, ETA 13.4min
+  [ 3400/3896] 4939s elapsed, 0.7 configs/s, ETA 12.0min
+  [ 3450/3896] 4939s elapsed, 0.7 configs/s, ETA 10.6min
+  [ 3500/3896] 4941s elapsed, 0.7 configs/s, ETA 9.3min
+  [ 3550/3896] 4943s elapsed, 0.7 configs/s, ETA 8.0min
+  [ 3600/3896] 4943s elapsed, 0.7 configs/s, ETA 6.8min
+  [ 3650/3896] 4945s elapsed, 0.7 configs/s, ETA 5.6min
+  [ 3700/3896] 4945s elapsed, 0.7 configs/s, ETA 4.4min
+  [ 3750/3896] 4946s elapsed, 0.8 configs/s, ETA 3.2min
+  [ 3800/3896] 4947s elapsed, 0.8 configs/s, ETA 2.1min
+  [ 3850/3896] 4947s elapsed, 0.8 configs/s, ETA 1.0min
+  [ 3896/3896] 5149s elapsed, 0.8 configs/s, ETA 0.0min
+
+  Coarse pass completed in 5149.3s (85.8min)
+
+  FINE PASS: 405 configs around top 5 coarse winners
+  [FINE    50/405] 55s elapsed, 0.9 configs/s, ETA 6.5min
+  [FINE   100/405] 92s elapsed, 1.1 configs/s, ETA 4.7min
+  [FINE   150/405] 94s elapsed, 1.6 configs/s, ETA 2.7min
+  [FINE   200/405] 132s elapsed, 1.5 configs/s, ETA 2.3min
+  [FINE   250/405] 133s elapsed, 1.9 configs/s, ETA 1.4min
+  [FINE   300/405] 246s elapsed, 1.2 configs/s, ETA 1.4min
+  [FINE   350/405] 247s elapsed, 1.4 configs/s, ETA 0.6min
+  [FINE   400/405] 291s elapsed, 1.4 configs/s, ETA 0.1min
+  [FINE   405/405] 291s elapsed, 1.4 configs/s, ETA 0.0min
+  Fine pass completed in 291.5s (4.9min)
+  Total phase time: 5440.7s (90.7min)
+  Deduped: 4191 duplicate configs removed
+
+  TOP 10 RESULTS (ranked by risk-adjusted score):
+  Rank      Score     WF PnL  Trades     WR     PF     MaxDD ProfW     Worst       Pri$       Sec$ Label
+  ──── ────────── ────────── ─────── ────── ────── ───────── ───── ───────── ────────── ────────── ────────────────────────────────────────
+     1      100.5 $3,254,554    241  78.8%   7.2x $  86,595    6/6 $  96,048 $2,251,880 $1,002,674 FINE days=11 zone=0.175 zone=0.575 max=4
+     2       99.1 $3,221,870    240  78.8%   7.1x $  86,595    6/6 $  96,048 $2,219,196 $1,002,674 FINE days=11 zone=0.175 zone=0.6 max=48
+     3       96.4 $3,200,981    241  78.4%   6.8x $  86,595    6/6 $  96,048 $2,198,307 $1,002,674 FINE days=11 zone=0.2 zone=0.575 max=48
+     4       96.2 $3,199,168    241  78.4%   6.8x $  86,595    6/6 $  96,048 $2,196,494 $1,002,674 FINE days=11 zone=0.225 zone=0.575 max=5
+     5       95.0 $3,168,297    240  78.3%   6.8x $  86,595    6/6 $  96,048 $2,165,623 $1,002,674 FINE days=11 zone=0.2 zone=0.625 max=50
+     6       94.8 $3,166,483    240  78.3%   6.7x $  86,595    6/6 $  96,048 $2,163,809 $1,002,674 FINE days=11 zone=0.225 zone=0.6 max=48
+     7       83.9 $3,075,246    250  77.6%   5.6x $  86,595    6/6 $ 100,009 $2,192,337 $  882,909 FINE days=14 zone=0.175 zone=0.575 max=4
+     8       83.5 $3,075,816    251  77.3%   5.5x $  86,595    6/6 $ 100,009 $2,192,907 $  882,909 FINE days=14 zone=0.2 zone=0.575 max=48
+     9       82.3 $3,035,540    248  77.4%   5.5x $  86,595    6/6 $ 100,009 $2,152,632 $  882,909 FINE days=14 zone=0.175 zone=0.6 max=48
+    10       82.0 $3,036,110    249  77.1%   5.4x $  86,595    6/6 $ 100,009 $2,153,201 $  882,909 VOL C14 AM50 AX28 LE20% SE60% LT90% ST25
+
+  ★ Best Volatile: Score 100.5, WF PnL $3,254,554, MaxDD $86,595
+
+================================================================================
+  PHASE: R1 Positive Momentum (Range=R1, Volatile=R1)
+  Grid size: 16200 configs × 6 WF windows = 97200 backtests
+  Workers: 22
+================================================================================
+  [   50/16200] 3830s elapsed, 0.0 configs/s, ETA 20619.3min
+  [  100/16200] 3830s elapsed, 0.0 configs/s, ETA 10277.7min
+  [  150/16200] 3830s elapsed, 0.0 configs/s, ETA 6830.5min
+  [  200/16200] 3843s elapsed, 0.1 configs/s, ETA 5124.4min
+  [  250/16200] 3843s elapsed, 0.1 configs/s, ETA 4086.7min
+  [  300/16200] 3843s elapsed, 0.1 configs/s, ETA 3394.9min
+  [  350/16200] 3843s elapsed, 0.1 configs/s, ETA 2900.8min
+  [  400/16200] 3985s elapsed, 0.1 configs/s, ETA 2623.2min
+  [  450/16200] 3985s elapsed, 0.1 configs/s, ETA 2324.3min
+  [  500/16200] 3985s elapsed, 0.1 configs/s, ETA 2085.2min
+  [  550/16200] 3985s elapsed, 0.1 configs/s, ETA 1889.6min
+  [  600/16200] 4005s elapsed, 0.1 configs/s, ETA 1735.3min
+  [  650/16200] 4005s elapsed, 0.2 configs/s, ETA 1596.7min
+  [  700/16200] 4005s elapsed, 0.2 configs/s, ETA 1477.9min
+  [  750/16200] 4249s elapsed, 0.2 configs/s, ETA 1458.7min
+  [  800/16200] 4249s elapsed, 0.2 configs/s, ETA 1363.1min
+  [  850/16200] 4249s elapsed, 0.2 configs/s, ETA 1278.8min
+  [  900/16200] 4249s elapsed, 0.2 configs/s, ETA 1203.8min
+  [  950/16200] 4256s elapsed, 0.2 configs/s, ETA 1138.7min
+  [ 1000/16200] 4256s elapsed, 0.2 configs/s, ETA 1078.2min
+  [ 1050/16200] 4256s elapsed, 0.2 configs/s, ETA 1023.5min
+  [ 1100/16200] 4256s elapsed, 0.3 configs/s, ETA 973.8min
+  [ 1150/16200] 4267s elapsed, 0.3 configs/s, ETA 930.7min
+  [ 1200/16200] 4267s elapsed, 0.3 configs/s, ETA 889.0min
+  [ 1250/16200] 4267s elapsed, 0.3 configs/s, ETA 850.6min
+  [ 1300/16200] 4342s elapsed, 0.3 configs/s, ETA 829.5min
+  [ 1350/16200] 4342s elapsed, 0.3 configs/s, ETA 796.1min
+  [ 1400/16200] 4342s elapsed, 0.3 configs/s, ETA 765.1min
+  [ 1450/16200] 4342s elapsed, 0.3 configs/s, ETA 736.2min
+  [ 1500/16200] 5366s elapsed, 0.3 configs/s, ETA 876.5min
+  [ 1550/16200] 5366s elapsed, 0.3 configs/s, ETA 845.3min
+  [ 1600/16200] 5366s elapsed, 0.3 configs/s, ETA 816.1min
+  [ 1650/16200] 5366s elapsed, 0.3 configs/s, ETA 788.7min
+  [ 1700/16200] 5381s elapsed, 0.3 configs/s, ETA 765.0min
+  [ 1750/16200] 5381s elapsed, 0.3 configs/s, ETA 740.6min
+  [ 1800/16200] 5381s elapsed, 0.3 configs/s, ETA 717.5min
+  [ 1850/16200] 5382s elapsed, 0.3 configs/s, ETA 695.8min
+  [ 1900/16200] 5382s elapsed, 0.4 configs/s, ETA 675.1min
+  [ 1950/16200] 5382s elapsed, 0.4 configs/s, ETA 655.5min
+  [ 2000/16200] 5382s elapsed, 0.4 configs/s, ETA 636.9min
+  [ 2050/16200] 5385s elapsed, 0.4 configs/s, ETA 619.5min
+  [ 2100/16200] 5385s elapsed, 0.4 configs/s, ETA 602.6min
+  [ 2150/16200] 5385s elapsed, 0.4 configs/s, ETA 586.5min
+  [ 2200/16200] 5385s elapsed, 0.4 configs/s, ETA 571.1min
+  [ 2250/16200] 5386s elapsed, 0.4 configs/s, ETA 556.5min
+  [ 2300/16200] 5386s elapsed, 0.4 configs/s, ETA 542.5min
+  [ 2350/16200] 5386s elapsed, 0.4 configs/s, ETA 529.0min
+  [ 2400/16200] 5400s elapsed, 0.4 configs/s, ETA 517.5min
+  [ 2450/16200] 5400s elapsed, 0.5 configs/s, ETA 505.1min
+  [ 2500/16200] 5400s elapsed, 0.5 configs/s, ETA 493.2min
+  [ 2550/16200] 5400s elapsed, 0.5 configs/s, ETA 481.8min
+  [ 2600/16200] 5401s elapsed, 0.5 configs/s, ETA 470.9min
+  [ 2650/16200] 5401s elapsed, 0.5 configs/s, ETA 460.3min
+  [ 2700/16200] 5401s elapsed, 0.5 configs/s, ETA 450.1min
+  [ 2750/16200] 5401s elapsed, 0.5 configs/s, ETA 440.3min
+  [ 2800/16200] 5406s elapsed, 0.5 configs/s, ETA 431.2min
+  [ 2850/16200] 5406s elapsed, 0.5 configs/s, ETA 422.1min
+  [ 2900/16200] 5406s elapsed, 0.5 configs/s, ETA 413.3min
+  [ 2950/16200] 5409s elapsed, 0.5 configs/s, ETA 404.9min
+  [ 3000/16200] 5409s elapsed, 0.6 configs/s, ETA 396.7min
+  [ 3050/16200] 5409s elapsed, 0.6 configs/s, ETA 388.7min
+  [ 3100/16200] 5409s elapsed, 0.6 configs/s, ETA 381.0min
+  [ 3150/16200] 5738s elapsed, 0.5 configs/s, ETA 396.2min
+  [ 3200/16200] 5738s elapsed, 0.6 configs/s, ETA 388.5min
+  [ 3250/16200] 5738s elapsed, 0.6 configs/s, ETA 381.0min
+  [ 3300/16200] 5738s elapsed, 0.6 configs/s, ETA 373.8min
+  [ 3350/16200] 5745s elapsed, 0.6 configs/s, ETA 367.3min
+  [ 3400/16200] 5745s elapsed, 0.6 configs/s, ETA 360.4min
+  [ 3450/16200] 5745s elapsed, 0.6 configs/s, ETA 353.8min
+  [ 3500/16200] 5757s elapsed, 0.6 configs/s, ETA 348.2min
+  [ 3550/16200] 5757s elapsed, 0.6 configs/s, ETA 341.9min
+  [ 3600/16200] 5757s elapsed, 0.6 configs/s, ETA 335.8min
+  [ 3650/16200] 5757s elapsed, 0.6 configs/s, ETA 329.9min
+  [ 3700/16200] 5816s elapsed, 0.6 configs/s, ETA 327.5min
+  [ 3750/16200] 5816s elapsed, 0.6 configs/s, ETA 321.8min
+  [ 3800/16200] 5816s elapsed, 0.7 configs/s, ETA 316.3min
+  [ 3850/16200] 5816s elapsed, 0.7 configs/s, ETA 310.9min
+  [ 3900/16200] 5818s elapsed, 0.7 configs/s, ETA 305.8min
+  [ 3950/16200] 5818s elapsed, 0.7 configs/s, ETA 300.7min
+  [ 4000/16200] 5818s elapsed, 0.7 configs/s, ETA 295.7min
+  [ 4050/16200] 8414s elapsed, 0.5 configs/s, ETA 420.7min
+  [ 4100/16200] 8414s elapsed, 0.5 configs/s, ETA 413.8min
+  [ 4150/16200] 8414s elapsed, 0.5 configs/s, ETA 407.2min
+  [ 4200/16200] 8414s elapsed, 0.5 configs/s, ETA 400.7min
+  [ 4250/16200] 8863s elapsed, 0.5 configs/s, ETA 415.3min
+  [ 4300/16200] 8863s elapsed, 0.5 configs/s, ETA 408.8min
+  [ 4350/16200] 8863s elapsed, 0.5 configs/s, ETA 402.4min
+  [ 4400/16200] 8863s elapsed, 0.5 configs/s, ETA 396.1min
+  [ 4450/16200] 9195s elapsed, 0.5 configs/s, ETA 404.7min
+  [ 4500/16200] 9195s elapsed, 0.5 configs/s, ETA 398.5min
+  [ 4550/16200] 9195s elapsed, 0.5 configs/s, ETA 392.4min
+  [ 4600/16200] 9195s elapsed, 0.5 configs/s, ETA 386.5min
+  [ 4650/16200] 9277s elapsed, 0.5 configs/s, ETA 384.0min
+  [ 4700/16200] 9277s elapsed, 0.5 configs/s, ETA 378.3min
+  [ 4750/16200] 9277s elapsed, 0.5 configs/s, ETA 372.7min
+  [ 4800/16200] 9307s elapsed, 0.5 configs/s, ETA 368.4min
+  [ 4850/16200] 9307s elapsed, 0.5 configs/s, ETA 363.0min
+  [ 4900/16200] 9307s elapsed, 0.5 configs/s, ETA 357.7min
+  [ 4950/16200] 9307s elapsed, 0.5 configs/s, ETA 352.5min
+  [ 5000/16200] 9326s elapsed, 0.5 configs/s, ETA 348.2min
+  [ 5050/16200] 9326s elapsed, 0.5 configs/s, ETA 343.2min
+  [ 5100/16200] 9326s elapsed, 0.5 configs/s, ETA 338.3min
+  [ 5150/16200] 9326s elapsed, 0.6 configs/s, ETA 333.5min
+  [ 5200/16200] 9360s elapsed, 0.6 configs/s, ETA 330.0min
+  [ 5250/16200] 9360s elapsed, 0.6 configs/s, ETA 325.4min
+  [ 5300/16200] 9360s elapsed, 0.6 configs/s, ETA 320.8min
+  [ 5350/16200] 9469s elapsed, 0.6 configs/s, ETA 320.0min
+  [ 5400/16200] 9469s elapsed, 0.6 configs/s, ETA 315.6min
+  [ 5450/16200] 9469s elapsed, 0.6 configs/s, ETA 311.3min
+  [ 5500/16200] 9469s elapsed, 0.6 configs/s, ETA 307.0min
+  [ 5550/16200] 9855s elapsed, 0.6 configs/s, ETA 315.2min
+  [ 5600/16200] 9855s elapsed, 0.6 configs/s, ETA 310.9min
+  [ 5650/16200] 9855s elapsed, 0.6 configs/s, ETA 306.7min
+  [ 5700/16200] 9855s elapsed, 0.6 configs/s, ETA 302.6min
+  [ 5750/16200] 9859s elapsed, 0.6 configs/s, ETA 298.6min
+  [ 5800/16200] 9859s elapsed, 0.6 configs/s, ETA 294.6min
+  [ 5850/16200] 9859s elapsed, 0.6 configs/s, ETA 290.7min
+  [ 5900/16200] 9891s elapsed, 0.6 configs/s, ETA 287.8min
+  [ 5950/16200] 9891s elapsed, 0.6 configs/s, ETA 284.0min
+  [ 6000/16200] 9891s elapsed, 0.6 configs/s, ETA 280.2min
+  [ 6050/16200] 9891s elapsed, 0.6 configs/s, ETA 276.6min
+  [ 6100/16200] 9894s elapsed, 0.6 configs/s, ETA 273.0min
+  [ 6150/16200] 9894s elapsed, 0.6 configs/s, ETA 269.5min
+  [ 6200/16200] 9894s elapsed, 0.6 configs/s, ETA 266.0min
+  [ 6250/16200] 9894s elapsed, 0.6 configs/s, ETA 262.5min
+  [ 6300/16200] 9927s elapsed, 0.6 configs/s, ETA 260.0min
+  [ 6350/16200] 9927s elapsed, 0.6 configs/s, ETA 256.6min
+  [ 6400/16200] 9927s elapsed, 0.6 configs/s, ETA 253.4min
+  [ 6450/16200] 10064s elapsed, 0.6 configs/s, ETA 253.6min
+  [ 6500/16200] 10064s elapsed, 0.6 configs/s, ETA 250.3min
+  [ 6550/16200] 10064s elapsed, 0.7 configs/s, ETA 247.1min
+  [ 6600/16200] 10064s elapsed, 0.7 configs/s, ETA 244.0min
+  [ 6650/16200] 10079s elapsed, 0.7 configs/s, ETA 241.2min
+  [ 6700/16200] 10079s elapsed, 0.7 configs/s, ETA 238.2min
+  [ 6750/16200] 10079s elapsed, 0.7 configs/s, ETA 235.2min
+  [ 6800/16200] 10079s elapsed, 0.7 configs/s, ETA 232.2min
+  [ 6850/16200] 10081s elapsed, 0.7 configs/s, ETA 229.3min
+  [ 6900/16200] 10081s elapsed, 0.7 configs/s, ETA 226.5min
+  [ 6950/16200] 10081s elapsed, 0.7 configs/s, ETA 223.6min
+  [ 7000/16200] 10083s elapsed, 0.7 configs/s, ETA 220.9min
+  [ 7050/16200] 10083s elapsed, 0.7 configs/s, ETA 218.1min
+  [ 7100/16200] 10083s elapsed, 0.7 configs/s, ETA 215.4min
+  [ 7150/16200] 10083s elapsed, 0.7 configs/s, ETA 212.7min
+  [ 7200/16200] 10088s elapsed, 0.7 configs/s, ETA 210.2min
+  [ 7250/16200] 10088s elapsed, 0.7 configs/s, ETA 207.6min
+  [ 7300/16200] 10088s elapsed, 0.7 configs/s, ETA 205.0min
+  [ 7350/16200] 10088s elapsed, 0.7 configs/s, ETA 202.4min
+  [ 7400/16200] 10089s elapsed, 0.7 configs/s, ETA 200.0min
+  [ 7450/16200] 10089s elapsed, 0.7 configs/s, ETA 197.5min
+  [ 7500/16200] 10089s elapsed, 0.7 configs/s, ETA 195.1min
+  [ 7550/16200] 10140s elapsed, 0.7 configs/s, ETA 193.6min
+  [ 7600/16200] 10140s elapsed, 0.7 configs/s, ETA 191.2min
+  [ 7650/16200] 10140s elapsed, 0.8 configs/s, ETA 188.9min
+  [ 7700/16200] 10140s elapsed, 0.8 configs/s, ETA 186.6min
+  [ 7750/16200] 10179s elapsed, 0.8 configs/s, ETA 185.0min
+  [ 7800/16200] 10179s elapsed, 0.8 configs/s, ETA 182.7min
+  [ 7850/16200] 10179s elapsed, 0.8 configs/s, ETA 180.5min
+  [ 7900/16200] 10179s elapsed, 0.8 configs/s, ETA 178.2min
+  [ 7950/16200] 10189s elapsed, 0.8 configs/s, ETA 176.2min
+  [ 8000/16200] 10189s elapsed, 0.8 configs/s, ETA 174.1min
+  [ 8050/16200] 10189s elapsed, 0.8 configs/s, ETA 171.9min
+  [ 8100/16200] 11021s elapsed, 0.7 configs/s, ETA 183.7min
+  [ 8150/16200] 11021s elapsed, 0.7 configs/s, ETA 181.4min
+  [ 8200/16200] 11021s elapsed, 0.7 configs/s, ETA 179.2min
+  [ 8250/16200] 11021s elapsed, 0.7 configs/s, ETA 177.0min
+  [ 8300/16200] 11176s elapsed, 0.7 configs/s, ETA 177.3min
+  [ 8350/16200] 11176s elapsed, 0.7 configs/s, ETA 175.1min
+  [ 8400/16200] 11176s elapsed, 0.8 configs/s, ETA 173.0min
+  [ 8450/16200] 11176s elapsed, 0.8 configs/s, ETA 170.8min
+  [ 8500/16200] 11229s elapsed, 0.8 configs/s, ETA 169.5min
+  [ 8550/16200] 11229s elapsed, 0.8 configs/s, ETA 167.4min
+  [ 8600/16200] 11229s elapsed, 0.8 configs/s, ETA 165.4min
+  [ 8650/16200] 11267s elapsed, 0.8 configs/s, ETA 163.9min
+  [ 8700/16200] 11267s elapsed, 0.8 configs/s, ETA 161.9min
+  [ 8750/16200] 11267s elapsed, 0.8 configs/s, ETA 159.9min
+  [ 8800/16200] 11267s elapsed, 0.8 configs/s, ETA 157.9min
+  [ 8850/16200] 11476s elapsed, 0.8 configs/s, ETA 158.9min
+  [ 8900/16200] 11476s elapsed, 0.8 configs/s, ETA 156.9min
+  [ 8950/16200] 11476s elapsed, 0.8 configs/s, ETA 154.9min
+  [ 9000/16200] 11476s elapsed, 0.8 configs/s, ETA 153.0min
+  [ 9050/16200] 11499s elapsed, 0.8 configs/s, ETA 151.4min
+  [ 9100/16200] 11499s elapsed, 0.8 configs/s, ETA 149.5min
+  [ 9150/16200] 11499s elapsed, 0.8 configs/s, ETA 147.7min
+  [ 9200/16200] 11499s elapsed, 0.8 configs/s, ETA 145.8min
+  [ 9250/16200] 11509s elapsed, 0.8 configs/s, ETA 144.1min
+  [ 9300/16200] 11509s elapsed, 0.8 configs/s, ETA 142.3min
+  [ 9350/16200] 11509s elapsed, 0.8 configs/s, ETA 140.5min
+  [ 9400/16200] 11533s elapsed, 0.8 configs/s, ETA 139.1min
+  [ 9450/16200] 11533s elapsed, 0.8 configs/s, ETA 137.3min
+  [ 9500/16200] 11533s elapsed, 0.8 configs/s, ETA 135.6min
+  [ 9550/16200] 11533s elapsed, 0.8 configs/s, ETA 133.8min
+  [ 9600/16200] 11609s elapsed, 0.8 configs/s, ETA 133.0min
+  [ 9650/16200] 11609s elapsed, 0.8 configs/s, ETA 131.3min
+  [ 9700/16200] 11609s elapsed, 0.8 configs/s, ETA 129.7min
+  [ 9750/16200] 11609s elapsed, 0.8 configs/s, ETA 128.0min
+  [ 9800/16200] 11675s elapsed, 0.8 configs/s, ETA 127.1min
+  [ 9850/16200] 11675s elapsed, 0.8 configs/s, ETA 125.4min
+  [ 9900/16200] 11675s elapsed, 0.8 configs/s, ETA 123.8min
+  [ 9950/16200] 11686s elapsed, 0.9 configs/s, ETA 122.3min
+  [10000/16200] 11686s elapsed, 0.9 configs/s, ETA 120.8min
+  [10050/16200] 11686s elapsed, 0.9 configs/s, ETA 119.2min
+  [10100/16200] 11686s elapsed, 0.9 configs/s, ETA 117.6min
+  [10150/16200] 11692s elapsed, 0.9 configs/s, ETA 116.2min
+  [10200/16200] 11692s elapsed, 0.9 configs/s, ETA 114.6min
+  [10250/16200] 11692s elapsed, 0.9 configs/s, ETA 113.1min
+  [10300/16200] 11692s elapsed, 0.9 configs/s, ETA 111.6min
+  [10350/16200] 11701s elapsed, 0.9 configs/s, ETA 110.2min
+  [10400/16200] 11701s elapsed, 0.9 configs/s, ETA 108.8min
+  [10450/16200] 11701s elapsed, 0.9 configs/s, ETA 107.3min
+  [10500/16200] 11706s elapsed, 0.9 configs/s, ETA 105.9min
+  [10550/16200] 11706s elapsed, 0.9 configs/s, ETA 104.5min
+  [10600/16200] 11706s elapsed, 0.9 configs/s, ETA 103.1min
+  [10650/16200] 11706s elapsed, 0.9 configs/s, ETA 101.7min
+  [10700/16200] 11828s elapsed, 0.9 configs/s, ETA 101.3min
+  [10750/16200] 11828s elapsed, 0.9 configs/s, ETA 99.9min
+  [10800/16200] 11828s elapsed, 0.9 configs/s, ETA 98.6min
+  [10850/16200] 11828s elapsed, 0.9 configs/s, ETA 97.2min
+  [10900/16200] 11841s elapsed, 0.9 configs/s, ETA 96.0min
+  [10950/16200] 11841s elapsed, 0.9 configs/s, ETA 94.6min
+  [11000/16200] 11841s elapsed, 0.9 configs/s, ETA 93.3min
+  [11050/16200] 11847s elapsed, 0.9 configs/s, ETA 92.0min
+  [11100/16200] 11847s elapsed, 0.9 configs/s, ETA 90.7min
+  [11150/16200] 11847s elapsed, 0.9 configs/s, ETA 89.4min
+  [11200/16200] 11847s elapsed, 0.9 configs/s, ETA 88.1min
+  [11250/16200] 11867s elapsed, 0.9 configs/s, ETA 87.0min
+  [11300/16200] 11867s elapsed, 1.0 configs/s, ETA 85.8min
+  [11350/16200] 11867s elapsed, 1.0 configs/s, ETA 84.5min
+  [11400/16200] 11867s elapsed, 1.0 configs/s, ETA 83.3min
+  [11450/16200] 11891s elapsed, 1.0 configs/s, ETA 82.2min
+  [11500/16200] 11891s elapsed, 1.0 configs/s, ETA 81.0min
+  [11550/16200] 11891s elapsed, 1.0 configs/s, ETA 79.8min
+  [11600/16200] 11926s elapsed, 1.0 configs/s, ETA 78.8min
+  [11650/16200] 11926s elapsed, 1.0 configs/s, ETA 77.6min
+  [11700/16200] 11926s elapsed, 1.0 configs/s, ETA 76.5min
+  [11750/16200] 11926s elapsed, 1.0 configs/s, ETA 75.3min
+  [11800/16200] 11943s elapsed, 1.0 configs/s, ETA 74.2min
+  [11850/16200] 11943s elapsed, 1.0 configs/s, ETA 73.1min
+  [11900/16200] 11943s elapsed, 1.0 configs/s, ETA 71.9min
+  [11950/16200] 11943s elapsed, 1.0 configs/s, ETA 70.8min
+  [12000/16200] 11980s elapsed, 1.0 configs/s, ETA 69.9min
+  [12050/16200] 11980s elapsed, 1.0 configs/s, ETA 68.8min
+  [12100/16200] 11980s elapsed, 1.0 configs/s, ETA 67.7min
+  [12150/16200] 12722s elapsed, 1.0 configs/s, ETA 70.7min
+  [12200/16200] 12722s elapsed, 1.0 configs/s, ETA 69.5min
+  [12250/16200] 12722s elapsed, 1.0 configs/s, ETA 68.4min
+  [12300/16200] 12722s elapsed, 1.0 configs/s, ETA 67.2min
+  [12350/16200] 12744s elapsed, 1.0 configs/s, ETA 66.2min
+  [12400/16200] 12744s elapsed, 1.0 configs/s, ETA 65.1min
+  [12450/16200] 12744s elapsed, 1.0 configs/s, ETA 64.0min
+  [12500/16200] 12744s elapsed, 1.0 configs/s, ETA 62.9min
+  [12550/16200] 12796s elapsed, 1.0 configs/s, ETA 62.0min
+  [12600/16200] 12796s elapsed, 1.0 configs/s, ETA 60.9min
+  [12650/16200] 12796s elapsed, 1.0 configs/s, ETA 59.8min
+  [12700/16200] 12796s elapsed, 1.0 configs/s, ETA 58.8min
+  [12750/16200] 12926s elapsed, 1.0 configs/s, ETA 58.3min
+  [12800/16200] 12926s elapsed, 1.0 configs/s, ETA 57.2min
+  [12850/16200] 12926s elapsed, 1.0 configs/s, ETA 56.2min
+  [12900/16200] 12973s elapsed, 1.0 configs/s, ETA 55.3min
+  [12950/16200] 12973s elapsed, 1.0 configs/s, ETA 54.3min
+  [13000/16200] 12973s elapsed, 1.0 configs/s, ETA 53.2min
+  [13050/16200] 12973s elapsed, 1.0 configs/s, ETA 52.2min
+  [13100/16200] 12978s elapsed, 1.0 configs/s, ETA 51.2min
+  [13150/16200] 12978s elapsed, 1.0 configs/s, ETA 50.2min
+  [13200/16200] 12978s elapsed, 1.0 configs/s, ETA 49.2min
+  [13250/16200] 12978s elapsed, 1.0 configs/s, ETA 48.2min
+  [13300/16200] 12979s elapsed, 1.0 configs/s, ETA 47.2min
+  [13350/16200] 12979s elapsed, 1.0 configs/s, ETA 46.2min
+  [13400/16200] 12979s elapsed, 1.0 configs/s, ETA 45.2min
+  [13450/16200] 12997s elapsed, 1.0 configs/s, ETA 44.3min
+  [13500/16200] 12997s elapsed, 1.0 configs/s, ETA 43.3min
+  [13550/16200] 12997s elapsed, 1.0 configs/s, ETA 42.4min
+  [13600/16200] 12997s elapsed, 1.0 configs/s, ETA 41.4min
+  [13650/16200] 13055s elapsed, 1.0 configs/s, ETA 40.6min
+  [13700/16200] 13055s elapsed, 1.0 configs/s, ETA 39.7min
+  [13750/16200] 13055s elapsed, 1.1 configs/s, ETA 38.8min
+  [13800/16200] 13055s elapsed, 1.1 configs/s, ETA 37.8min
+  [13850/16200] 13072s elapsed, 1.1 configs/s, ETA 37.0min
+  [13900/16200] 13072s elapsed, 1.1 configs/s, ETA 36.0min
+  [13950/16200] 13072s elapsed, 1.1 configs/s, ETA 35.1min
+  [14000/16200] 13171s elapsed, 1.1 configs/s, ETA 34.5min
+  [14050/16200] 13171s elapsed, 1.1 configs/s, ETA 33.6min
+  [14100/16200] 13171s elapsed, 1.1 configs/s, ETA 32.7min
+  [14150/16200] 13171s elapsed, 1.1 configs/s, ETA 31.8min
+  [14200/16200] 13257s elapsed, 1.1 configs/s, ETA 31.1min
+  [14250/16200] 13257s elapsed, 1.1 configs/s, ETA 30.2min
+  [14300/16200] 13257s elapsed, 1.1 configs/s, ETA 29.4min
+  [14350/16200] 13257s elapsed, 1.1 configs/s, ETA 28.5min
+  [14400/16200] 13309s elapsed, 1.1 configs/s, ETA 27.7min
+  [14450/16200] 13309s elapsed, 1.1 configs/s, ETA 26.9min
+  [14500/16200] 13309s elapsed, 1.1 configs/s, ETA 26.0min
+  [14550/16200] 13327s elapsed, 1.1 configs/s, ETA 25.2min
+  [14600/16200] 13327s elapsed, 1.1 configs/s, ETA 24.3min
+  [14650/16200] 13327s elapsed, 1.1 configs/s, ETA 23.5min
+  [14700/16200] 13327s elapsed, 1.1 configs/s, ETA 22.7min
+  [14750/16200] 13348s elapsed, 1.1 configs/s, ETA 21.9min
+  [14800/16200] 13348s elapsed, 1.1 configs/s, ETA 21.0min
+  [14850/16200] 13348s elapsed, 1.1 configs/s, ETA 20.2min
+  [14900/16200] 13348s elapsed, 1.1 configs/s, ETA 19.4min
+  [14950/16200] 13408s elapsed, 1.1 configs/s, ETA 18.7min
+  [15000/16200] 13408s elapsed, 1.1 configs/s, ETA 17.9min
+  [15050/16200] 13408s elapsed, 1.1 configs/s, ETA 17.1min
+  [15100/16200] 13419s elapsed, 1.1 configs/s, ETA 16.3min
+  [15150/16200] 13419s elapsed, 1.1 configs/s, ETA 15.5min
+  [15200/16200] 13419s elapsed, 1.1 configs/s, ETA 14.7min
+  [15250/16200] 13419s elapsed, 1.1 configs/s, ETA 13.9min
+  [15300/16200] 13475s elapsed, 1.1 configs/s, ETA 13.2min
+  [15350/16200] 13475s elapsed, 1.1 configs/s, ETA 12.4min
+  [15400/16200] 13475s elapsed, 1.1 configs/s, ETA 11.7min
+  [15450/16200] 13475s elapsed, 1.1 configs/s, ETA 10.9min
+  [15500/16200] 13489s elapsed, 1.1 configs/s, ETA 10.2min
+  [15550/16200] 13489s elapsed, 1.2 configs/s, ETA 9.4min
+  [15600/16200] 13489s elapsed, 1.2 configs/s, ETA 8.6min
+  [15650/16200] 13490s elapsed, 1.2 configs/s, ETA 7.9min
+  [15700/16200] 13490s elapsed, 1.2 configs/s, ETA 7.2min
+  [15750/16200] 13490s elapsed, 1.2 configs/s, ETA 6.4min
+  [15800/16200] 13490s elapsed, 1.2 configs/s, ETA 5.7min
+  [15850/16200] 13501s elapsed, 1.2 configs/s, ETA 5.0min
+  [15900/16200] 13501s elapsed, 1.2 configs/s, ETA 4.2min
+  [15950/16200] 13501s elapsed, 1.2 configs/s, ETA 3.5min
+  [16000/16200] 13501s elapsed, 1.2 configs/s, ETA 2.8min
+  [16050/16200] 13537s elapsed, 1.2 configs/s, ETA 2.1min
+  [16100/16200] 13537s elapsed, 1.2 configs/s, ETA 1.4min
+  [16150/16200] 13537s elapsed, 1.2 configs/s, ETA 0.7min
+  [16200/16200] 13537s elapsed, 1.2 configs/s, ETA 0.0min
+
+  Coarse pass completed in 13536.6s (225.6min)
+
+  FINE PASS: 351 configs around top 5 coarse winners
+  [FINE    50/351] 43s elapsed, 1.2 configs/s, ETA 4.3min
+  [FINE   100/351] 81s elapsed, 1.2 configs/s, ETA 3.4min
+  [FINE   150/351] 82s elapsed, 1.8 configs/s, ETA 1.8min
+  [FINE   200/351] 119s elapsed, 1.7 configs/s, ETA 1.5min
+  [FINE   250/351] 121s elapsed, 2.1 configs/s, ETA 0.8min
+  [FINE   300/351] 157s elapsed, 1.9 configs/s, ETA 0.4min
+  [FINE   350/351] 159s elapsed, 2.2 configs/s, ETA 0.0min
+  [FINE   351/351] 159s elapsed, 2.2 configs/s, ETA 0.0min
+  Fine pass completed in 159.0s (2.7min)
+  Total phase time: 13695.7s (228.3min)
+  Deduped: 12424 duplicate configs removed
+
+  TOP 10 RESULTS (ranked by risk-adjusted score):
+  Rank      Score     WF PnL  Trades     WR     PF     MaxDD ProfW     Worst       Pri$       Sec$ Label
+  ──── ────────── ────────── ─────── ────── ────── ───────── ───── ───────── ────────── ────────── ────────────────────────────────────────
+     1      120.1 $3,669,771    260  80.0%   8.1x $  86,595    6/6 $ 101,357 $2,391,601 $1,278,171 FINE lookback=3 mult=1.25 min=13 period=
+     2      119.0 $3,634,043    260  80.0%   8.1x $  86,595    6/6 $ 107,330 $2,346,897 $1,287,146 FINE lookback=3 mult=1.25 min=13 period=
+     3      116.4 $3,603,435    261  78.9%   7.9x $  86,595    6/6 $  97,347 $2,322,166 $1,281,269 FINE lookback=3 mult=1.25 min=15 period=
+     4      115.6 $3,582,577    257  79.8%   7.9x $  86,595    6/6 $ 102,078 $2,348,593 $1,233,984 FINE lookback=3 mult=1.25 min=13 period=
+     5      115.5 $3,583,913    259  79.5%   7.9x $  86,595    6/6 $ 102,078 $2,351,821 $1,232,091 FINE lookback=3 mult=1.25 min=13 period=
+     6      115.3 $3,567,707    261  78.9%   7.9x $  86,595    6/6 $ 103,320 $2,277,462 $1,290,245 FINE lookback=3 mult=1.25 min=15 period=
+     7      114.9 $3,573,871    260  78.8%   7.8x $  86,595    6/6 $ 100,111 $2,332,776 $1,241,095 FINE lookback=3 mult=1.25 min=17 period=
+     8      113.8 $3,538,143    260  78.8%   7.8x $  86,595    6/6 $ 106,084 $2,288,073 $1,250,070 FINE lookback=3 mult=1.25 min=17 period=
+     9      111.9 $3,515,520    258  78.7%   7.7x $  86,595    6/6 $  97,347 $2,279,158 $1,236,362 FINE lookback=3 mult=1.25 min=15 period=
+    10      111.9 $3,516,856    260  78.5%   7.7x $  86,595    6/6 $  97,347 $2,282,386 $1,234,469 FINE lookback=3 mult=1.25 min=15 period=
+
+  ★ Best Positive Momentum: Score 120.1, WF PnL $3,669,771, MaxDD $86,595
+
+  ── Round 1 Summary ──
+  Combined WF PnL: $3,669,771
+  Round runtime: 20019s (333.7min)
+  Throughput: 1.1 configs/s
+
+################################################################################
+  ROUND 2 of 5
+  Estimated round time: 352min (at 1.1 configs/s)
+################################################################################
+
+================================================================================
+  PHASE: R2 Range (Volatile=prev, Trend=prev)
+  Grid size: 1452 configs × 6 WF windows = 8712 backtests
+  Workers: 22
+================================================================================
+  [   50/1452] 155s elapsed, 0.3 configs/s, ETA 72.4min
+  [  100/1452] 155s elapsed, 0.6 configs/s, ETA 34.9min
+  [  150/1452] 155s elapsed, 1.0 configs/s, ETA 22.5min
+  [  200/1452] 155s elapsed, 1.3 configs/s, ETA 16.2min
+  [  250/1452] 156s elapsed, 1.6 configs/s, ETA 12.5min
+  [  300/1452] 156s elapsed, 1.9 configs/s, ETA 10.0min
+  [  350/1452] 158s elapsed, 2.2 configs/s, ETA 8.3min
+  [  400/1452] 306s elapsed, 1.3 configs/s, ETA 13.4min
+  [  450/1452] 307s elapsed, 1.5 configs/s, ETA 11.4min
+  [  500/1452] 307s elapsed, 1.6 configs/s, ETA 9.7min
+  [  550/1452] 307s elapsed, 1.8 configs/s, ETA 8.4min
+  [  600/1452] 308s elapsed, 1.9 configs/s, ETA 7.3min
+  [  650/1452] 309s elapsed, 2.1 configs/s, ETA 6.4min
+  [  700/1452] 311s elapsed, 2.2 configs/s, ETA 5.6min
+  [  750/1452] 458s elapsed, 1.6 configs/s, ETA 7.1min
+  [  800/1452] 459s elapsed, 1.7 configs/s, ETA 6.2min
+  [  850/1452] 460s elapsed, 1.8 configs/s, ETA 5.4min
+  [  900/1452] 460s elapsed, 2.0 configs/s, ETA 4.7min
+  [  950/1452] 461s elapsed, 2.1 configs/s, ETA 4.1min
+  [ 1000/1452] 462s elapsed, 2.2 configs/s, ETA 3.5min
+  [ 1050/1452] 466s elapsed, 2.3 configs/s, ETA 3.0min
+  [ 1100/1452] 610s elapsed, 1.8 configs/s, ETA 3.3min
+  [ 1150/1452] 612s elapsed, 1.9 configs/s, ETA 2.7min
+  [ 1200/1452] 612s elapsed, 2.0 configs/s, ETA 2.1min
+  [ 1250/1452] 613s elapsed, 2.0 configs/s, ETA 1.7min
+  [ 1300/1452] 614s elapsed, 2.1 configs/s, ETA 1.2min
+  [ 1350/1452] 615s elapsed, 2.2 configs/s, ETA 0.8min
+  [ 1400/1452] 618s elapsed, 2.3 configs/s, ETA 0.4min
+  [ 1450/1452] 731s elapsed, 2.0 configs/s, ETA 0.0min
+  [ 1452/1452] 731s elapsed, 2.0 configs/s, ETA 0.0min
+
+  Coarse pass completed in 730.9s (12.2min)
+
+  FINE PASS: 405 configs around top 5 coarse winners
+  [FINE    50/405] 44s elapsed, 1.1 configs/s, ETA 5.2min
+  [FINE   100/405] 82s elapsed, 1.2 configs/s, ETA 4.2min
+  [FINE   150/405] 82s elapsed, 1.8 configs/s, ETA 2.3min
+  [FINE   200/405] 121s elapsed, 1.7 configs/s, ETA 2.1min
+  [FINE   250/405] 122s elapsed, 2.1 configs/s, ETA 1.3min
+  [FINE   300/405] 160s elapsed, 1.9 configs/s, ETA 0.9min
+  [FINE   350/405] 162s elapsed, 2.2 configs/s, ETA 0.4min
+  [FINE   400/405] 191s elapsed, 2.1 configs/s, ETA 0.0min
+  [FINE   405/405] 191s elapsed, 2.1 configs/s, ETA 0.0min
+  Fine pass completed in 190.7s (3.2min)
+  Total phase time: 921.6s (15.4min)
+  Deduped: 679 duplicate configs removed
+
+  TOP 10 RESULTS (ranked by risk-adjusted score):
+  Rank      Score     WF PnL  Trades     WR     PF     MaxDD ProfW     Worst       Pri$       Sec$ Label
+  ──── ────────── ────────── ─────── ────── ────── ───────── ───── ───────── ────────── ────────── ────────────────────────────────────────
+     1      135.6 $3,608,348    259  79.9%   8.2x $  75,900    6/6 $ 103,273 $2,449,188 $1,159,160 FINE days=21 zone=0.45 zone=0.525 max=40
+     2      135.6 $3,608,067    259  79.9%   8.2x $  75,900    6/6 $ 103,273 $2,448,907 $1,159,160 FINE days=21 zone=0.45 zone=0.525 max=40
+     3      135.4 $3,604,427    258  79.8%   8.2x $  75,900    6/6 $ 103,273 $2,445,267 $1,159,160 RNG AM40 AX24 LT75% EZ45%/55% C21 ST25%
+     4      135.4 $3,604,146    258  79.8%   8.2x $  75,900    6/6 $ 103,273 $2,444,986 $1,159,160 RNG AM40 AX24 LT75% EZ45%/55% C21 ST20%
+     5      135.4 $3,606,984    260  79.6%   8.2x $  75,900    6/6 $ 103,273 $2,447,824 $1,159,160 FINE days=21 zone=0.475 zone=0.525 max=4
+     6      135.4 $3,606,703    260  79.6%   8.2x $  75,900    6/6 $ 103,273 $2,447,543 $1,159,160 FINE days=21 zone=0.475 zone=0.525 max=4
+     7      135.2 $3,603,064    259  79.5%   8.2x $  75,900    6/6 $ 103,273 $2,443,904 $1,159,160 FINE days=21 zone=0.475 zone=0.575 max=4
+     8      135.1 $3,602,782    259  79.5%   8.2x $  75,900    6/6 $ 103,273 $2,443,622 $1,159,160 FINE days=21 zone=0.475 zone=0.575 max=4
+     9      134.5 $3,590,040    259  79.9%   8.2x $  75,900    6/6 $ 103,273 $2,430,880 $1,159,160 FINE days=21 zone=0.45 zone=0.525 max=40
+    10      134.3 $3,586,119    258  79.8%   8.2x $  75,900    6/6 $ 103,273 $2,426,959 $1,159,160 RNG AM40 AX24 LT75% EZ45%/55% C21 ST30%
+
+  ★ Best Range: Score 135.6, WF PnL $3,608,348, MaxDD $75,900
+    (params CHANGED from previous round)
+
+================================================================================
+  PHASE: R2 Volatile (Range=R2, Trend=prev)
+  Grid size: 3896 configs × 6 WF windows = 23376 backtests
+  Workers: 22
+================================================================================
+  [   50/3896] 438s elapsed, 0.1 configs/s, ETA 561.1min
+  [  100/3896] 438s elapsed, 0.2 configs/s, ETA 277.0min
+  [  150/3896] 438s elapsed, 0.3 configs/s, ETA 182.3min
+  [  200/3896] 438s elapsed, 0.5 configs/s, ETA 135.0min
+  [  250/3896] 439s elapsed, 0.6 configs/s, ETA 106.6min
+  [  300/3896] 439s elapsed, 0.7 configs/s, ETA 87.7min
+  [  350/3896] 439s elapsed, 0.8 configs/s, ETA 74.2min
+  [  400/3896] 440s elapsed, 0.9 configs/s, ETA 64.0min
+  [  450/3896] 440s elapsed, 1.0 configs/s, ETA 56.2min
+  [  500/3896] 441s elapsed, 1.1 configs/s, ETA 49.9min
+  [  550/3896] 441s elapsed, 1.2 configs/s, ETA 44.7min
+  [  600/3896] 441s elapsed, 1.4 configs/s, ETA 40.4min
+  [  650/3896] 441s elapsed, 1.5 configs/s, ETA 36.7min
+  [  700/3896] 441s elapsed, 1.6 configs/s, ETA 33.6min
+  [  750/3896] 442s elapsed, 1.7 configs/s, ETA 30.9min
+  [  800/3896] 442s elapsed, 1.8 configs/s, ETA 28.5min
+  [  850/3896] 442s elapsed, 1.9 configs/s, ETA 26.4min
+  [  900/3896] 442s elapsed, 2.0 configs/s, ETA 24.5min
+  [  950/3896] 442s elapsed, 2.1 configs/s, ETA 22.9min
+  [ 1000/3896] 867s elapsed, 1.2 configs/s, ETA 41.9min
+  [ 1050/3896] 869s elapsed, 1.2 configs/s, ETA 39.3min
+  [ 1100/3896] 870s elapsed, 1.3 configs/s, ETA 36.9min
+  [ 1150/3896] 871s elapsed, 1.3 configs/s, ETA 34.6min
+  [ 1200/3896] 872s elapsed, 1.4 configs/s, ETA 32.7min
+  [ 1250/3896] 873s elapsed, 1.4 configs/s, ETA 30.8min
+  [ 1300/3896] 874s elapsed, 1.5 configs/s, ETA 29.1min
+  [ 1350/3896] 874s elapsed, 1.5 configs/s, ETA 27.5min
+  [ 1400/3896] 874s elapsed, 1.6 configs/s, ETA 26.0min
+  [ 1450/3896] 876s elapsed, 1.7 configs/s, ETA 24.6min
+  [ 1500/3896] 877s elapsed, 1.7 configs/s, ETA 23.3min
+  [ 1550/3896] 877s elapsed, 1.8 configs/s, ETA 22.1min
+  [ 1600/3896] 877s elapsed, 1.8 configs/s, ETA 21.0min
+  [ 1650/3896] 877s elapsed, 1.9 configs/s, ETA 19.9min
+  [ 1700/3896] 877s elapsed, 1.9 configs/s, ETA 18.9min
+  [ 1750/3896] 878s elapsed, 2.0 configs/s, ETA 17.9min
+  [ 1800/3896] 878s elapsed, 2.0 configs/s, ETA 17.0min
+  [ 1850/3896] 880s elapsed, 2.1 configs/s, ETA 16.2min
+  [ 1900/3896] 881s elapsed, 2.2 configs/s, ETA 15.4min
+  [ 1950/3896] 1301s elapsed, 1.5 configs/s, ETA 21.6min
+  [ 2000/3896] 1303s elapsed, 1.5 configs/s, ETA 20.6min
+  [ 2050/3896] 1306s elapsed, 1.6 configs/s, ETA 19.6min
+  [ 2100/3896] 1306s elapsed, 1.6 configs/s, ETA 18.6min
+  [ 2150/3896] 1306s elapsed, 1.6 configs/s, ETA 17.7min
+  [ 2200/3896] 1309s elapsed, 1.7 configs/s, ETA 16.8min
+  [ 2250/3896] 1310s elapsed, 1.7 configs/s, ETA 16.0min
+  [ 2300/3896] 1311s elapsed, 1.8 configs/s, ETA 15.2min
+  [ 2350/3896] 1312s elapsed, 1.8 configs/s, ETA 14.4min
+  [ 2400/3896] 1314s elapsed, 1.8 configs/s, ETA 13.6min
+  [ 2450/3896] 1315s elapsed, 1.9 configs/s, ETA 12.9min
+  [ 2500/3896] 1315s elapsed, 1.9 configs/s, ETA 12.2min
+  [ 2550/3896] 1315s elapsed, 1.9 configs/s, ETA 11.6min
+  [ 2600/3896] 1316s elapsed, 2.0 configs/s, ETA 10.9min
+  [ 2650/3896] 1317s elapsed, 2.0 configs/s, ETA 10.3min
+  [ 2700/3896] 1317s elapsed, 2.1 configs/s, ETA 9.7min
+  [ 2750/3896] 1317s elapsed, 2.1 configs/s, ETA 9.1min
+  [ 2800/3896] 1318s elapsed, 2.1 configs/s, ETA 8.6min
+  [ 2850/3896] 1319s elapsed, 2.2 configs/s, ETA 8.1min
+  [ 2900/3896] 1322s elapsed, 2.2 configs/s, ETA 7.6min
+  [ 2950/3896] 1738s elapsed, 1.7 configs/s, ETA 9.3min
+  [ 3000/3896] 1741s elapsed, 1.7 configs/s, ETA 8.7min
+  [ 3050/3896] 1741s elapsed, 1.8 configs/s, ETA 8.1min
+  [ 3100/3896] 1741s elapsed, 1.8 configs/s, ETA 7.5min
+  [ 3150/3896] 1745s elapsed, 1.8 configs/s, ETA 6.9min
+  [ 3200/3896] 1745s elapsed, 1.8 configs/s, ETA 6.3min
+  [ 3250/3896] 1745s elapsed, 1.9 configs/s, ETA 5.8min
+  [ 3300/3896] 1746s elapsed, 1.9 configs/s, ETA 5.3min
+  [ 3350/3896] 1750s elapsed, 1.9 configs/s, ETA 4.8min
+  [ 3400/3896] 1751s elapsed, 1.9 configs/s, ETA 4.3min
+  [ 3450/3896] 1751s elapsed, 2.0 configs/s, ETA 3.8min
+  [ 3500/3896] 1751s elapsed, 2.0 configs/s, ETA 3.3min
+  [ 3550/3896] 1752s elapsed, 2.0 configs/s, ETA 2.8min
+  [ 3600/3896] 1752s elapsed, 2.1 configs/s, ETA 2.4min
+  [ 3650/3896] 1752s elapsed, 2.1 configs/s, ETA 2.0min
+  [ 3700/3896] 1753s elapsed, 2.1 configs/s, ETA 1.5min
+  [ 3750/3896] 1755s elapsed, 2.1 configs/s, ETA 1.1min
+  [ 3800/3896] 1755s elapsed, 2.2 configs/s, ETA 0.7min
+  [ 3850/3896] 1759s elapsed, 2.2 configs/s, ETA 0.4min
+  [ 3896/3896] 1916s elapsed, 2.0 configs/s, ETA 0.0min
+
+  Coarse pass completed in 1915.8s (31.9min)
+
+  FINE PASS: 405 configs around top 5 coarse winners
+  [FINE    50/405] 45s elapsed, 1.1 configs/s, ETA 5.3min
+  [FINE   100/405] 82s elapsed, 1.2 configs/s, ETA 4.2min
+  [FINE   150/405] 84s elapsed, 1.8 configs/s, ETA 2.4min
+  [FINE   200/405] 123s elapsed, 1.6 configs/s, ETA 2.1min
+  [FINE   250/405] 123s elapsed, 2.0 configs/s, ETA 1.3min
+  [FINE   300/405] 162s elapsed, 1.8 configs/s, ETA 0.9min
+  [FINE   350/405] 163s elapsed, 2.1 configs/s, ETA 0.4min
+  [FINE   400/405] 194s elapsed, 2.1 configs/s, ETA 0.0min
+  [FINE   405/405] 194s elapsed, 2.1 configs/s, ETA 0.0min
+  Fine pass completed in 194.1s (3.2min)
+  Total phase time: 2109.9s (35.2min)
+  Deduped: 4197 duplicate configs removed
+
+  TOP 10 RESULTS (ranked by risk-adjusted score):
+  Rank      Score     WF PnL  Trades     WR     PF     MaxDD ProfW     Worst       Pri$       Sec$ Label
+  ──── ────────── ────────── ─────── ────── ────── ───────── ───── ───────── ────────── ────────── ────────────────────────────────────────
+     1      135.6 $3,608,348    259  79.9%   8.2x $  75,900    6/6 $ 103,273 $2,449,188 $1,159,160 FINE days=11 zone=0.175 zone=0.575 max=4
+     2      133.9 $3,575,664    258  79.8%   8.1x $  75,900    6/6 $ 103,273 $2,416,504 $1,159,160 FINE days=11 zone=0.175 zone=0.6 max=50
+     3      130.3 $3,558,004    259  79.5%   7.8x $  75,900    6/6 $ 103,273 $2,398,844 $1,159,160 FINE days=11 zone=0.2 zone=0.575 max=48
+     4      130.0 $3,556,191    259  79.5%   7.7x $  75,900    6/6 $ 103,273 $2,397,031 $1,159,160 FINE days=11 zone=0.225 zone=0.575 max=5
+     5      128.6 $3,525,320    258  79.5%   7.7x $  75,900    6/6 $ 103,273 $2,366,160 $1,159,160 FINE days=11 zone=0.2 zone=0.6 max=48
+     6      128.4 $3,523,506    258  79.5%   7.7x $  75,900    6/6 $ 103,273 $2,364,346 $1,159,160 FINE days=11 zone=0.225 zone=0.6 max=48
+     7      106.1 $3,439,335    266  78.6%   6.4x $  82,177    6/6 $ 107,234 $2,413,118 $1,026,216 FINE days=14 zone=0.175 zone=0.575 max=4
+     8      105.5 $3,439,904    267  78.3%   6.3x $  82,177    6/6 $ 107,234 $2,413,688 $1,026,216 FINE days=14 zone=0.2 zone=0.575 max=48
+     9      103.0 $3,392,693    266  78.6%   6.2x $  82,177    6/6 $ 107,234 $2,366,476 $1,026,216 FINE days=14 zone=0.175 zone=0.575 max=4
+    10      102.5 $3,393,263    267  78.3%   6.2x $  82,177    6/6 $ 107,234 $2,367,046 $1,026,216 FINE days=14 zone=0.2 zone=0.575 max=48
+
+  ★ Best Volatile: Score 135.6, WF PnL $3,608,348, MaxDD $75,900
+    (params CHANGED from previous round)
+
+================================================================================
+  PHASE: R2 Positive Momentum (Range=R2, Volatile=R2)
+  Grid size: 16200 configs × 6 WF windows = 97200 backtests
+  Workers: 22
+================================================================================
+  [   50/16200] 1487s elapsed, 0.0 configs/s, ETA 8002.5min
+  [  100/16200] 1487s elapsed, 0.1 configs/s, ETA 3988.8min
+  [  150/16200] 1487s elapsed, 0.1 configs/s, ETA 2651.0min
+  [  200/16200] 1491s elapsed, 0.1 configs/s, ETA 1988.6min
+  [  250/16200] 1491s elapsed, 0.2 configs/s, ETA 1585.9min
+  [  300/16200] 1491s elapsed, 0.2 configs/s, ETA 1317.5min
+  [  350/16200] 1491s elapsed, 0.2 configs/s, ETA 1125.7min
+  [  400/16200] 1511s elapsed, 0.3 configs/s, ETA 994.9min
+  [  450/16200] 1511s elapsed, 0.3 configs/s, ETA 881.5min
+  [  500/16200] 1511s elapsed, 0.3 configs/s, ETA 790.8min
+  [  550/16200] 1511s elapsed, 0.4 configs/s, ETA 716.7min
+  [  600/16200] 1530s elapsed, 0.4 configs/s, ETA 663.2min
+  [  650/16200] 1530s elapsed, 0.4 configs/s, ETA 610.2min
+  [  700/16200] 1530s elapsed, 0.5 configs/s, ETA 564.8min
+  [  750/16200] 1543s elapsed, 0.5 configs/s, ETA 529.9min
+  [  800/16200] 1543s elapsed, 0.5 configs/s, ETA 495.1min
+  [  850/16200] 1543s elapsed, 0.6 configs/s, ETA 464.5min
+  [  900/16200] 1543s elapsed, 0.6 configs/s, ETA 437.3min
+  [  950/16200] 1549s elapsed, 0.6 configs/s, ETA 414.4min
+  [ 1000/16200] 1549s elapsed, 0.6 configs/s, ETA 392.4min
+  [ 1050/16200] 1549s elapsed, 0.7 configs/s, ETA 372.5min
+  [ 1100/16200] 1549s elapsed, 0.7 configs/s, ETA 354.4min
+  [ 1150/16200] 1563s elapsed, 0.7 configs/s, ETA 340.8min
+  [ 1200/16200] 1563s elapsed, 0.8 configs/s, ETA 325.5min
+  [ 1250/16200] 1563s elapsed, 0.8 configs/s, ETA 311.5min
+  [ 1300/16200] 1570s elapsed, 0.8 configs/s, ETA 299.8min
+  [ 1350/16200] 1570s elapsed, 0.9 configs/s, ETA 287.7min
+  [ 1400/16200] 1570s elapsed, 0.9 configs/s, ETA 276.5min
+  [ 1450/16200] 1570s elapsed, 0.9 configs/s, ETA 266.1min
+  [ 1500/16200] 1636s elapsed, 0.9 configs/s, ETA 267.3min
+  [ 1550/16200] 1636s elapsed, 0.9 configs/s, ETA 257.8min
+  [ 1600/16200] 1636s elapsed, 1.0 configs/s, ETA 248.9min
+  [ 1650/16200] 1636s elapsed, 1.0 configs/s, ETA 240.5min
+  [ 1700/16200] 1641s elapsed, 1.0 configs/s, ETA 233.3min
+  [ 1750/16200] 1641s elapsed, 1.1 configs/s, ETA 225.8min
+  [ 1800/16200] 1641s elapsed, 1.1 configs/s, ETA 218.8min
+  [ 1850/16200] 1645s elapsed, 1.1 configs/s, ETA 212.6min
+  [ 1900/16200] 1645s elapsed, 1.2 configs/s, ETA 206.3min
+  [ 1950/16200] 1645s elapsed, 1.2 configs/s, ETA 200.3min
+  [ 2000/16200] 1645s elapsed, 1.2 configs/s, ETA 194.6min
+  [ 2050/16200] 1646s elapsed, 1.2 configs/s, ETA 189.3min
+  [ 2100/16200] 1646s elapsed, 1.3 configs/s, ETA 184.2min
+  [ 2150/16200] 1646s elapsed, 1.3 configs/s, ETA 179.2min
+  [ 2200/16200] 1646s elapsed, 1.3 configs/s, ETA 174.5min
+  [ 2250/16200] 1647s elapsed, 1.4 configs/s, ETA 170.1min
+  [ 2300/16200] 1647s elapsed, 1.4 configs/s, ETA 165.9min
+  [ 2350/16200] 1647s elapsed, 1.4 configs/s, ETA 161.7min
+  [ 2400/16200] 1651s elapsed, 1.5 configs/s, ETA 158.2min
+  [ 2450/16200] 1651s elapsed, 1.5 configs/s, ETA 154.4min
+  [ 2500/16200] 1651s elapsed, 1.5 configs/s, ETA 150.8min
+  [ 2550/16200] 1651s elapsed, 1.5 configs/s, ETA 147.3min
+  [ 2600/16200] 1653s elapsed, 1.6 configs/s, ETA 144.1min
+  [ 2650/16200] 1653s elapsed, 1.6 configs/s, ETA 140.9min
+  [ 2700/16200] 1653s elapsed, 1.6 configs/s, ETA 137.7min
+  [ 2750/16200] 1653s elapsed, 1.7 configs/s, ETA 134.7min
+  [ 2800/16200] 1656s elapsed, 1.7 configs/s, ETA 132.1min
+  [ 2850/16200] 1656s elapsed, 1.7 configs/s, ETA 129.3min
+  [ 2900/16200] 1656s elapsed, 1.8 configs/s, ETA 126.6min
+  [ 2950/16200] 1673s elapsed, 1.8 configs/s, ETA 125.2min
+  [ 3000/16200] 1673s elapsed, 1.8 configs/s, ETA 122.7min
+  [ 3050/16200] 1673s elapsed, 1.8 configs/s, ETA 120.2min
+  [ 3100/16200] 1673s elapsed, 1.9 configs/s, ETA 117.8min
+  [ 3150/16200] 1678s elapsed, 1.9 configs/s, ETA 115.8min
+  [ 3200/16200] 1678s elapsed, 1.9 configs/s, ETA 113.6min
+  [ 3250/16200] 1678s elapsed, 1.9 configs/s, ETA 111.4min
+  [ 3300/16200] 1678s elapsed, 2.0 configs/s, ETA 109.3min
+  [ 3350/16200] 1678s elapsed, 2.0 configs/s, ETA 107.3min
+  [ 3400/16200] 1678s elapsed, 2.0 configs/s, ETA 105.3min
+  [ 3450/16200] 1678s elapsed, 2.1 configs/s, ETA 103.4min
+  [ 3500/16200] 1703s elapsed, 2.1 configs/s, ETA 103.0min
+  [ 3550/16200] 1703s elapsed, 2.1 configs/s, ETA 101.2min
+  [ 3600/16200] 1703s elapsed, 2.1 configs/s, ETA 99.4min
+  [ 3650/16200] 1703s elapsed, 2.1 configs/s, ETA 97.6min
+  [ 3700/16200] 1710s elapsed, 2.2 configs/s, ETA 96.3min
+  [ 3750/16200] 1710s elapsed, 2.2 configs/s, ETA 94.6min
+  [ 3800/16200] 1710s elapsed, 2.2 configs/s, ETA 93.0min
+  [ 3850/16200] 1710s elapsed, 2.3 configs/s, ETA 91.4min
+  [ 3900/16200] 1721s elapsed, 2.3 configs/s, ETA 90.5min
+  [ 3950/16200] 1721s elapsed, 2.3 configs/s, ETA 89.0min
+  [ 4000/16200] 1721s elapsed, 2.3 configs/s, ETA 87.5min
+  [ 4050/16200] 2781s elapsed, 1.5 configs/s, ETA 139.1min
+  [ 4100/16200] 2781s elapsed, 1.5 configs/s, ETA 136.8min
+  [ 4150/16200] 2781s elapsed, 1.5 configs/s, ETA 134.6min
+  [ 4200/16200] 2781s elapsed, 1.5 configs/s, ETA 132.4min
+  [ 4250/16200] 2809s elapsed, 1.5 configs/s, ETA 131.6min
+  [ 4300/16200] 2809s elapsed, 1.5 configs/s, ETA 129.6min
+  [ 4350/16200] 2809s elapsed, 1.5 configs/s, ETA 127.5min
+  [ 4400/16200] 2809s elapsed, 1.6 configs/s, ETA 125.6min
+  [ 4450/16200] 2842s elapsed, 1.6 configs/s, ETA 125.0min
+  [ 4500/16200] 2842s elapsed, 1.6 configs/s, ETA 123.1min
+  [ 4550/16200] 2842s elapsed, 1.6 configs/s, ETA 121.3min
+  [ 4600/16200] 2842s elapsed, 1.6 configs/s, ETA 119.4min
+  [ 4650/16200] 2853s elapsed, 1.6 configs/s, ETA 118.1min
+  [ 4700/16200] 2853s elapsed, 1.6 configs/s, ETA 116.4min
+  [ 4750/16200] 2853s elapsed, 1.7 configs/s, ETA 114.6min
+  [ 4800/16200] 2856s elapsed, 1.7 configs/s, ETA 113.1min
+  [ 4850/16200] 2856s elapsed, 1.7 configs/s, ETA 111.4min
+  [ 4900/16200] 2856s elapsed, 1.7 configs/s, ETA 109.8min
+  [ 4950/16200] 2856s elapsed, 1.7 configs/s, ETA 108.2min
+  [ 5000/16200] 2859s elapsed, 1.7 configs/s, ETA 106.7min
+  [ 5050/16200] 2859s elapsed, 1.8 configs/s, ETA 105.2min
+  [ 5100/16200] 2859s elapsed, 1.8 configs/s, ETA 103.7min
+  [ 5150/16200] 2859s elapsed, 1.8 configs/s, ETA 102.2min
+  [ 5200/16200] 2864s elapsed, 1.8 configs/s, ETA 101.0min
+  [ 5250/16200] 2864s elapsed, 1.8 configs/s, ETA 99.6min
+  [ 5300/16200] 2864s elapsed, 1.9 configs/s, ETA 98.2min
+  [ 5350/16200] 2908s elapsed, 1.8 configs/s, ETA 98.3min
+  [ 5400/16200] 2908s elapsed, 1.9 configs/s, ETA 96.9min
+  [ 5450/16200] 2908s elapsed, 1.9 configs/s, ETA 95.6min
+  [ 5500/16200] 2908s elapsed, 1.9 configs/s, ETA 94.3min
+  [ 5550/16200] 3465s elapsed, 1.6 configs/s, ETA 110.8min
+  [ 5600/16200] 3465s elapsed, 1.6 configs/s, ETA 109.3min
+  [ 5650/16200] 3465s elapsed, 1.6 configs/s, ETA 107.8min
+  [ 5700/16200] 3465s elapsed, 1.6 configs/s, ETA 106.4min
+  [ 5750/16200] 3484s elapsed, 1.7 configs/s, ETA 105.5min
+  [ 5800/16200] 3484s elapsed, 1.7 configs/s, ETA 104.1min
+  [ 5850/16200] 3484s elapsed, 1.7 configs/s, ETA 102.7min
+  [ 5900/16200] 3485s elapsed, 1.7 configs/s, ETA 101.4min
+  [ 5950/16200] 3485s elapsed, 1.7 configs/s, ETA 100.1min
+  [ 6000/16200] 3485s elapsed, 1.7 configs/s, ETA 98.8min
+  [ 6050/16200] 3485s elapsed, 1.7 configs/s, ETA 97.5min
+  [ 6100/16200] 3502s elapsed, 1.7 configs/s, ETA 96.6min
+  [ 6150/16200] 3502s elapsed, 1.8 configs/s, ETA 95.4min
+  [ 6200/16200] 3502s elapsed, 1.8 configs/s, ETA 94.1min
+  [ 6250/16200] 3502s elapsed, 1.8 configs/s, ETA 92.9min
+  [ 6300/16200] 3505s elapsed, 1.8 configs/s, ETA 91.8min
+  [ 6350/16200] 3505s elapsed, 1.8 configs/s, ETA 90.6min
+  [ 6400/16200] 3505s elapsed, 1.8 configs/s, ETA 89.5min
+  [ 6450/16200] 3507s elapsed, 1.8 configs/s, ETA 88.4min
+  [ 6500/16200] 3507s elapsed, 1.9 configs/s, ETA 87.2min
+  [ 6550/16200] 3507s elapsed, 1.9 configs/s, ETA 86.1min
+  [ 6600/16200] 3507s elapsed, 1.9 configs/s, ETA 85.0min
+  [ 6650/16200] 3514s elapsed, 1.9 configs/s, ETA 84.1min
+  [ 6700/16200] 3514s elapsed, 1.9 configs/s, ETA 83.0min
+  [ 6750/16200] 3514s elapsed, 1.9 configs/s, ETA 82.0min
+  [ 6800/16200] 3514s elapsed, 1.9 configs/s, ETA 81.0min
+  [ 6850/16200] 3521s elapsed, 1.9 configs/s, ETA 80.1min
+  [ 6900/16200] 3521s elapsed, 2.0 configs/s, ETA 79.1min
+  [ 6950/16200] 3521s elapsed, 2.0 configs/s, ETA 78.1min
+  [ 7000/16200] 3522s elapsed, 2.0 configs/s, ETA 77.2min
+  [ 7050/16200] 3522s elapsed, 2.0 configs/s, ETA 76.2min
+  [ 7100/16200] 3522s elapsed, 2.0 configs/s, ETA 75.2min
+  [ 7150/16200] 3522s elapsed, 2.0 configs/s, ETA 74.3min
+  [ 7200/16200] 3532s elapsed, 2.0 configs/s, ETA 73.6min
+  [ 7250/16200] 3532s elapsed, 2.1 configs/s, ETA 72.7min
+  [ 7300/16200] 3532s elapsed, 2.1 configs/s, ETA 71.8min
+  [ 7350/16200] 3532s elapsed, 2.1 configs/s, ETA 70.9min
+  [ 7400/16200] 3545s elapsed, 2.1 configs/s, ETA 70.3min
+  [ 7450/16200] 3545s elapsed, 2.1 configs/s, ETA 69.4min
+  [ 7500/16200] 3545s elapsed, 2.1 configs/s, ETA 68.5min
+  [ 7550/16200] 3581s elapsed, 2.1 configs/s, ETA 68.4min
+  [ 7600/16200] 3581s elapsed, 2.1 configs/s, ETA 67.5min
+  [ 7650/16200] 3581s elapsed, 2.1 configs/s, ETA 66.7min
+  [ 7700/16200] 3581s elapsed, 2.2 configs/s, ETA 65.9min
+  [ 7750/16200] 3590s elapsed, 2.2 configs/s, ETA 65.2min
+  [ 7800/16200] 3590s elapsed, 2.2 configs/s, ETA 64.4min
+  [ 7850/16200] 3590s elapsed, 2.2 configs/s, ETA 63.6min
+  [ 7900/16200] 3590s elapsed, 2.2 configs/s, ETA 62.9min
+  [ 7950/16200] 3592s elapsed, 2.2 configs/s, ETA 62.1min
+  [ 8000/16200] 3592s elapsed, 2.2 configs/s, ETA 61.4min
+  [ 8050/16200] 3592s elapsed, 2.2 configs/s, ETA 60.6min
+  [ 8100/16200] 4090s elapsed, 2.0 configs/s, ETA 68.2min
+  [ 8150/16200] 4090s elapsed, 2.0 configs/s, ETA 67.3min
+  [ 8200/16200] 4090s elapsed, 2.0 configs/s, ETA 66.5min
+  [ 8250/16200] 4090s elapsed, 2.0 configs/s, ETA 65.7min
+  [ 8300/16200] 4114s elapsed, 2.0 configs/s, ETA 65.3min
+  [ 8350/16200] 4114s elapsed, 2.0 configs/s, ETA 64.5min
+  [ 8400/16200] 4114s elapsed, 2.0 configs/s, ETA 63.7min
+  [ 8450/16200] 4114s elapsed, 2.1 configs/s, ETA 62.9min
+  [ 8500/16200] 4137s elapsed, 2.1 configs/s, ETA 62.5min
+  [ 8550/16200] 4137s elapsed, 2.1 configs/s, ETA 61.7min
+  [ 8600/16200] 4137s elapsed, 2.1 configs/s, ETA 60.9min
+  [ 8650/16200] 4176s elapsed, 2.1 configs/s, ETA 60.7min
+  [ 8700/16200] 4176s elapsed, 2.1 configs/s, ETA 60.0min
+  [ 8750/16200] 4176s elapsed, 2.1 configs/s, ETA 59.3min
+  [ 8800/16200] 4176s elapsed, 2.1 configs/s, ETA 58.5min
+  [ 8850/16200] 4185s elapsed, 2.1 configs/s, ETA 57.9min
+  [ 8900/16200] 4185s elapsed, 2.1 configs/s, ETA 57.2min
+  [ 8950/16200] 4185s elapsed, 2.1 configs/s, ETA 56.5min
+  [ 9000/16200] 4185s elapsed, 2.2 configs/s, ETA 55.8min
+  [ 9050/16200] 4191s elapsed, 2.2 configs/s, ETA 55.2min
+  [ 9100/16200] 4191s elapsed, 2.2 configs/s, ETA 54.5min
+  [ 9150/16200] 4191s elapsed, 2.2 configs/s, ETA 53.8min
+  [ 9200/16200] 4191s elapsed, 2.2 configs/s, ETA 53.1min
+  [ 9250/16200] 4202s elapsed, 2.2 configs/s, ETA 52.6min
+  [ 9300/16200] 4202s elapsed, 2.2 configs/s, ETA 52.0min
+  [ 9350/16200] 4202s elapsed, 2.2 configs/s, ETA 51.3min
+  [ 9400/16200] 4226s elapsed, 2.2 configs/s, ETA 51.0min
+  [ 9450/16200] 4226s elapsed, 2.2 configs/s, ETA 50.3min
+  [ 9500/16200] 4226s elapsed, 2.2 configs/s, ETA 49.7min
+  [ 9550/16200] 4226s elapsed, 2.3 configs/s, ETA 49.1min
+  [ 9600/16200] 5252s elapsed, 1.8 configs/s, ETA 60.2min
+  [ 9650/16200] 5252s elapsed, 1.8 configs/s, ETA 59.4min
+  [ 9700/16200] 5252s elapsed, 1.8 configs/s, ETA 58.7min
+  [ 9750/16200] 5252s elapsed, 1.9 configs/s, ETA 57.9min
+  [ 9800/16200] 5281s elapsed, 1.9 configs/s, ETA 57.5min
+  [ 9850/16200] 5281s elapsed, 1.9 configs/s, ETA 56.7min
+  [ 9900/16200] 5281s elapsed, 1.9 configs/s, ETA 56.0min
+  [ 9950/16200] 5294s elapsed, 1.9 configs/s, ETA 55.4min
+  [10000/16200] 5294s elapsed, 1.9 configs/s, ETA 54.7min
+  [10050/16200] 5294s elapsed, 1.9 configs/s, ETA 54.0min
+  [10100/16200] 5294s elapsed, 1.9 configs/s, ETA 53.3min
+  [10150/16200] 5302s elapsed, 1.9 configs/s, ETA 52.7min
+  [10200/16200] 5302s elapsed, 1.9 configs/s, ETA 52.0min
+  [10250/16200] 5302s elapsed, 1.9 configs/s, ETA 51.3min
+  [10300/16200] 5302s elapsed, 1.9 configs/s, ETA 50.6min
+  [10350/16200] 5308s elapsed, 2.0 configs/s, ETA 50.0min
+  [10400/16200] 5308s elapsed, 2.0 configs/s, ETA 49.3min
+  [10450/16200] 5308s elapsed, 2.0 configs/s, ETA 48.7min
+  [10500/16200] 5312s elapsed, 2.0 configs/s, ETA 48.1min
+  [10550/16200] 5312s elapsed, 2.0 configs/s, ETA 47.4min
+  [10600/16200] 5312s elapsed, 2.0 configs/s, ETA 46.8min
+  [10650/16200] 5312s elapsed, 2.0 configs/s, ETA 46.1min
+  [10700/16200] 5324s elapsed, 2.0 configs/s, ETA 45.6min
+  [10750/16200] 5324s elapsed, 2.0 configs/s, ETA 45.0min
+  [10800/16200] 5324s elapsed, 2.0 configs/s, ETA 44.4min
+  [10850/16200] 5324s elapsed, 2.0 configs/s, ETA 43.8min
+  [10900/16200] 5326s elapsed, 2.0 configs/s, ETA 43.2min
+  [10950/16200] 5326s elapsed, 2.1 configs/s, ETA 42.6min
+  [11000/16200] 5326s elapsed, 2.1 configs/s, ETA 42.0min
+  [11050/16200] 5345s elapsed, 2.1 configs/s, ETA 41.5min
+  [11100/16200] 5345s elapsed, 2.1 configs/s, ETA 40.9min
+  [11150/16200] 5345s elapsed, 2.1 configs/s, ETA 40.3min
+  [11200/16200] 5345s elapsed, 2.1 configs/s, ETA 39.8min
+  [11250/16200] 5347s elapsed, 2.1 configs/s, ETA 39.2min
+  [11300/16200] 5347s elapsed, 2.1 configs/s, ETA 38.6min
+  [11350/16200] 5347s elapsed, 2.1 configs/s, ETA 38.1min
+  [11400/16200] 5347s elapsed, 2.1 configs/s, ETA 37.5min
+  [11450/16200] 5347s elapsed, 2.1 configs/s, ETA 37.0min
+  [11500/16200] 5347s elapsed, 2.2 configs/s, ETA 36.4min
+  [11550/16200] 5347s elapsed, 2.2 configs/s, ETA 35.9min
+  [11600/16200] 5365s elapsed, 2.2 configs/s, ETA 35.5min
+  [11650/16200] 5365s elapsed, 2.2 configs/s, ETA 34.9min
+  [11700/16200] 5365s elapsed, 2.2 configs/s, ETA 34.4min
+  [11750/16200] 5365s elapsed, 2.2 configs/s, ETA 33.9min
+  [11800/16200] 5392s elapsed, 2.2 configs/s, ETA 33.5min
+  [11850/16200] 5392s elapsed, 2.2 configs/s, ETA 33.0min
+  [11900/16200] 5392s elapsed, 2.2 configs/s, ETA 32.5min
+  [11950/16200] 5392s elapsed, 2.2 configs/s, ETA 32.0min
+  [12000/16200] 5415s elapsed, 2.2 configs/s, ETA 31.6min
+  [12050/16200] 5415s elapsed, 2.2 configs/s, ETA 31.1min
+  [12100/16200] 5415s elapsed, 2.2 configs/s, ETA 30.6min
+  [12150/16200] 5524s elapsed, 2.2 configs/s, ETA 30.7min
+  [12200/16200] 5524s elapsed, 2.2 configs/s, ETA 30.2min
+  [12250/16200] 5524s elapsed, 2.2 configs/s, ETA 29.7min
+  [12300/16200] 5524s elapsed, 2.2 configs/s, ETA 29.2min
+  [12350/16200] 5528s elapsed, 2.2 configs/s, ETA 28.7min
+  [12400/16200] 5528s elapsed, 2.2 configs/s, ETA 28.2min
+  [12450/16200] 5528s elapsed, 2.3 configs/s, ETA 27.8min
+  [12500/16200] 5528s elapsed, 2.3 configs/s, ETA 27.3min
+  [12550/16200] 5547s elapsed, 2.3 configs/s, ETA 26.9min
+  [12600/16200] 5547s elapsed, 2.3 configs/s, ETA 26.4min
+  [12650/16200] 5547s elapsed, 2.3 configs/s, ETA 25.9min
+  [12700/16200] 5590s elapsed, 2.3 configs/s, ETA 25.7min
+  [12750/16200] 5595s elapsed, 2.3 configs/s, ETA 25.2min
+  [12800/16200] 5595s elapsed, 2.3 configs/s, ETA 24.8min
+  [12850/16200] 5595s elapsed, 2.3 configs/s, ETA 24.3min
+  [12900/16200] 5631s elapsed, 2.3 configs/s, ETA 24.0min
+  [12950/16200] 5631s elapsed, 2.3 configs/s, ETA 23.6min
+  [13000/16200] 5631s elapsed, 2.3 configs/s, ETA 23.1min
+  [13050/16200] 5631s elapsed, 2.3 configs/s, ETA 22.7min
+  [13100/16200] 5649s elapsed, 2.3 configs/s, ETA 22.3min
+  [13150/16200] 5649s elapsed, 2.3 configs/s, ETA 21.8min
+  [13200/16200] 5649s elapsed, 2.3 configs/s, ETA 21.4min
+  [13250/16200] 5649s elapsed, 2.3 configs/s, ETA 21.0min
+  [13300/16200] 5650s elapsed, 2.4 configs/s, ETA 20.5min
+  [13350/16200] 5650s elapsed, 2.4 configs/s, ETA 20.1min
+  [13400/16200] 5650s elapsed, 2.4 configs/s, ETA 19.7min
+  [13450/16200] 5670s elapsed, 2.4 configs/s, ETA 19.3min
+  [13500/16200] 5670s elapsed, 2.4 configs/s, ETA 18.9min
+  [13550/16200] 5670s elapsed, 2.4 configs/s, ETA 18.5min
+  [13600/16200] 5670s elapsed, 2.4 configs/s, ETA 18.1min
+  [13650/16200] 6602s elapsed, 2.1 configs/s, ETA 20.6min
+  [13700/16200] 6602s elapsed, 2.1 configs/s, ETA 20.1min
+  [13750/16200] 6602s elapsed, 2.1 configs/s, ETA 19.6min
+  [13800/16200] 6602s elapsed, 2.1 configs/s, ETA 19.1min
+  [13850/16200] 6619s elapsed, 2.1 configs/s, ETA 18.7min
+  [13900/16200] 6619s elapsed, 2.1 configs/s, ETA 18.3min
+  [13950/16200] 6619s elapsed, 2.1 configs/s, ETA 17.8min
+  [14000/16200] 6659s elapsed, 2.1 configs/s, ETA 17.4min
+  [14050/16200] 6659s elapsed, 2.1 configs/s, ETA 17.0min
+  [14100/16200] 6659s elapsed, 2.1 configs/s, ETA 16.5min
+  [14150/16200] 6659s elapsed, 2.1 configs/s, ETA 16.1min
+  [14200/16200] 6660s elapsed, 2.1 configs/s, ETA 15.6min
+  [14250/16200] 6660s elapsed, 2.1 configs/s, ETA 15.2min
+  [14300/16200] 6660s elapsed, 2.1 configs/s, ETA 14.7min
+  [14350/16200] 6660s elapsed, 2.2 configs/s, ETA 14.3min
+  [14400/16200] 6663s elapsed, 2.2 configs/s, ETA 13.9min
+  [14450/16200] 6663s elapsed, 2.2 configs/s, ETA 13.4min
+  [14500/16200] 6663s elapsed, 2.2 configs/s, ETA 13.0min
+  [14550/16200] 6663s elapsed, 2.2 configs/s, ETA 12.6min
+  [14600/16200] 6663s elapsed, 2.2 configs/s, ETA 12.2min
+  [14650/16200] 6663s elapsed, 2.2 configs/s, ETA 11.7min
+  [14700/16200] 6663s elapsed, 2.2 configs/s, ETA 11.3min
+  [14750/16200] 6672s elapsed, 2.2 configs/s, ETA 10.9min
+  [14800/16200] 6672s elapsed, 2.2 configs/s, ETA 10.5min
+  [14850/16200] 6672s elapsed, 2.2 configs/s, ETA 10.1min
+  [14900/16200] 6672s elapsed, 2.2 configs/s, ETA 9.7min
+  [14950/16200] 6676s elapsed, 2.2 configs/s, ETA 9.3min
+  [15000/16200] 6676s elapsed, 2.2 configs/s, ETA 8.9min
+  [15050/16200] 6676s elapsed, 2.3 configs/s, ETA 8.5min
+  [15100/16200] 6696s elapsed, 2.3 configs/s, ETA 8.1min
+  [15150/16200] 6696s elapsed, 2.3 configs/s, ETA 7.7min
+  [15200/16200] 6696s elapsed, 2.3 configs/s, ETA 7.3min
+  [15250/16200] 6696s elapsed, 2.3 configs/s, ETA 7.0min
+  [15300/16200] 6698s elapsed, 2.3 configs/s, ETA 6.6min
+  [15350/16200] 6698s elapsed, 2.3 configs/s, ETA 6.2min
+  [15400/16200] 6698s elapsed, 2.3 configs/s, ETA 5.8min
+  [15450/16200] 6698s elapsed, 2.3 configs/s, ETA 5.4min
+  [15500/16200] 6710s elapsed, 2.3 configs/s, ETA 5.1min
+  [15550/16200] 6710s elapsed, 2.3 configs/s, ETA 4.7min
+  [15600/16200] 6710s elapsed, 2.3 configs/s, ETA 4.3min
+  [15650/16200] 6720s elapsed, 2.3 configs/s, ETA 3.9min
+  [15700/16200] 6720s elapsed, 2.3 configs/s, ETA 3.6min
+  [15750/16200] 6720s elapsed, 2.3 configs/s, ETA 3.2min
+  [15800/16200] 6720s elapsed, 2.4 configs/s, ETA 2.8min
+  [15850/16200] 6724s elapsed, 2.4 configs/s, ETA 2.5min
+  [15900/16200] 6724s elapsed, 2.4 configs/s, ETA 2.1min
+  [15950/16200] 6724s elapsed, 2.4 configs/s, ETA 1.8min
+  [16000/16200] 6724s elapsed, 2.4 configs/s, ETA 1.4min
+  [16050/16200] 6733s elapsed, 2.4 configs/s, ETA 1.0min
+  [16100/16200] 6733s elapsed, 2.4 configs/s, ETA 0.7min
+  [16150/16200] 6733s elapsed, 2.4 configs/s, ETA 0.3min
+  [16200/16200] 6733s elapsed, 2.4 configs/s, ETA 0.0min
+
+  Coarse pass completed in 6733.5s (112.2min)
+
+  FINE PASS: 270 configs around top 5 coarse winners
+  [FINE    50/270] 44s elapsed, 1.1 configs/s, ETA 3.2min
+  [FINE   100/270] 81s elapsed, 1.2 configs/s, ETA 2.3min
+  [FINE   150/270] 82s elapsed, 1.8 configs/s, ETA 1.1min
+  [FINE   200/270] 120s elapsed, 1.7 configs/s, ETA 0.7min
+  [FINE   250/270] 121s elapsed, 2.1 configs/s, ETA 0.2min
+  [FINE   270/270] 148s elapsed, 1.8 configs/s, ETA 0.0min
+  Fine pass completed in 148.5s (2.5min)
+  Total phase time: 6882.0s (114.7min)
+  Deduped: 12947 duplicate configs removed
+
+  TOP 10 RESULTS (ranked by risk-adjusted score):
+  Rank      Score     WF PnL  Trades     WR     PF     MaxDD ProfW     Worst       Pri$       Sec$ Label
+  ──── ────────── ────────── ─────── ────── ────── ───────── ───── ───────── ────────── ────────── ────────────────────────────────────────
+     1      135.5 $3,609,684    261  79.7%   8.2x $  75,900    6/6 $ 103,273 $2,452,417 $1,157,268 FINE lookback=3 mult=1.25 min=13 period=
+     2      134.3 $3,586,658    261  79.7%   8.1x $  75,900    6/6 $ 109,246 $2,423,418 $1,163,240 FINE lookback=3 mult=1.25 min=13 period=
+     3      132.4 $3,562,875    261  78.9%   8.0x $  75,900    6/6 $  94,611 $2,430,380 $1,132,496 FINE lookback=3 mult=1.25 min=15 period=
+     4      131.4 $3,537,539    258  79.5%   8.0x $  75,900    6/6 $ 103,994 $2,420,313 $1,117,227 FINE lookback=3 mult=1.25 min=13 period=
+     5      131.3 $3,538,875    260  79.2%   8.0x $  75,900    6/6 $ 103,994 $2,423,541 $1,115,334 FINE lookback=3 mult=1.25 min=13 period=
+     6      131.2 $3,539,849    261  78.9%   8.0x $  75,900    6/6 $ 100,584 $2,401,380 $1,138,468 FINE lookback=3 mult=1.25 min=15 period=
+     7      130.7 $3,533,312    260  78.8%   8.0x $  75,900    6/6 $  97,375 $2,440,990 $1,092,321 FINE lookback=3 mult=1.25 min=17 period=
+     8      129.5 $3,510,285    260  78.8%   7.9x $  75,900    6/6 $ 103,347 $2,411,991 $1,098,294 FINE lookback=3 mult=1.25 min=17 period=
+     9      128.4 $3,490,730    258  78.7%   7.8x $  75,900    6/6 $  95,332 $2,398,276 $1,092,455 FINE lookback=3 mult=1.25 min=15 period=
+    10      128.3 $3,492,066    260  78.5%   7.8x $  75,900    6/6 $  95,332 $2,401,504 $1,090,562 FINE lookback=3 mult=1.25 min=15 period=
+
+  ★ Best Positive Momentum: Score 135.5, WF PnL $3,609,684, MaxDD $75,900
+    (params CHANGED from previous round)
+
+  ── Round 2 Summary ──
+  Combined WF PnL: $3,609,684
+  Round runtime: 9914s (165.2min)
+  Throughput: 2.2 configs/s
+  Improvement vs Round 1: -1.64%
+  → Continuing to Round 3 (improvement > 1.0%)
+
+################################################################################
+  ROUND 3 of 5
+  Estimated round time: 175min (at 2.2 configs/s)
+################################################################################
+
+================================================================================
+  PHASE: R3 Range (Volatile=prev, Trend=prev)
+  Grid size: 1452 configs × 6 WF windows = 8712 backtests
+  Workers: 22
+================================================================================
+  [   50/1452] 155s elapsed, 0.3 configs/s, ETA 72.4min
+  [  100/1452] 155s elapsed, 0.6 configs/s, ETA 35.0min
+  [  150/1452] 155s elapsed, 1.0 configs/s, ETA 22.5min
+  [  200/1452] 156s elapsed, 1.3 configs/s, ETA 16.2min
+  [  250/1452] 156s elapsed, 1.6 configs/s, ETA 12.5min
+  [  300/1452] 156s elapsed, 1.9 configs/s, ETA 10.0min
+  [  350/1452] 157s elapsed, 2.2 configs/s, ETA 8.2min
+  [  400/1452] 306s elapsed, 1.3 configs/s, ETA 13.4min
+  [  450/1452] 307s elapsed, 1.5 configs/s, ETA 11.4min
+  [  500/1452] 307s elapsed, 1.6 configs/s, ETA 9.8min
+  [  550/1452] 308s elapsed, 1.8 configs/s, ETA 8.4min
+  [  600/1452] 308s elapsed, 1.9 configs/s, ETA 7.3min
+  [  650/1452] 309s elapsed, 2.1 configs/s, ETA 6.4min
+  [  700/1452] 311s elapsed, 2.3 configs/s, ETA 5.6min
+  [  750/1452] 458s elapsed, 1.6 configs/s, ETA 7.1min
+  [  800/1452] 459s elapsed, 1.7 configs/s, ETA 6.2min
+  [  850/1452] 460s elapsed, 1.8 configs/s, ETA 5.4min
+  [  900/1452] 461s elapsed, 2.0 configs/s, ETA 4.7min
+  [  950/1452] 461s elapsed, 2.1 configs/s, ETA 4.1min
+  [ 1000/1452] 462s elapsed, 2.2 configs/s, ETA 3.5min
+  [ 1050/1452] 465s elapsed, 2.3 configs/s, ETA 3.0min
+  [ 1100/1452] 610s elapsed, 1.8 configs/s, ETA 3.3min
+  [ 1150/1452] 612s elapsed, 1.9 configs/s, ETA 2.7min
+  [ 1200/1452] 612s elapsed, 2.0 configs/s, ETA 2.1min
+  [ 1250/1452] 613s elapsed, 2.0 configs/s, ETA 1.7min
+  [ 1300/1452] 614s elapsed, 2.1 configs/s, ETA 1.2min
+  [ 1350/1452] 616s elapsed, 2.2 configs/s, ETA 0.8min
+  [ 1400/1452] 618s elapsed, 2.3 configs/s, ETA 0.4min
+  [ 1450/1452] 731s elapsed, 2.0 configs/s, ETA 0.0min
+  [ 1452/1452] 731s elapsed, 2.0 configs/s, ETA 0.0min
+
+  Coarse pass completed in 731.3s (12.2min)
+
+  FINE PASS: 405 configs around top 5 coarse winners
+  [FINE    50/405] 44s elapsed, 1.1 configs/s, ETA 5.2min
+  [FINE   100/405] 82s elapsed, 1.2 configs/s, ETA 4.2min
+  [FINE   150/405] 83s elapsed, 1.8 configs/s, ETA 2.3min
+  [FINE   200/405] 121s elapsed, 1.7 configs/s, ETA 2.1min
+  [FINE   250/405] 122s elapsed, 2.0 configs/s, ETA 1.3min
+  [FINE   300/405] 160s elapsed, 1.9 configs/s, ETA 0.9min
+  [FINE   350/405] 163s elapsed, 2.1 configs/s, ETA 0.4min
+  [FINE   400/405] 191s elapsed, 2.1 configs/s, ETA 0.0min
+  [FINE   405/405] 191s elapsed, 2.1 configs/s, ETA 0.0min
+  Fine pass completed in 191.1s (3.2min)
+  Total phase time: 922.4s (15.4min)
+  Deduped: 679 duplicate configs removed
+
+  TOP 10 RESULTS (ranked by risk-adjusted score):
+  Rank      Score     WF PnL  Trades     WR     PF     MaxDD ProfW     Worst       Pri$       Sec$ Label
+  ──── ────────── ────────── ─────── ────── ────── ───────── ───── ───────── ────────── ────────── ────────────────────────────────────────
+     1      135.5 $3,609,684    261  79.7%   8.2x $  75,900    6/6 $ 103,273 $2,452,417 $1,157,268 FINE days=21 zone=0.45 zone=0.525 max=40
+     2      135.5 $3,609,403    261  79.7%   8.2x $  75,900    6/6 $ 103,273 $2,452,135 $1,157,268 FINE days=21 zone=0.45 zone=0.525 max=40
+     3      135.3 $3,605,764    260  79.6%   8.2x $  75,900    6/6 $ 103,273 $2,448,496 $1,157,268 RNG AM40 AX24 LT75% EZ45%/55% C21 ST25%
+     4      135.3 $3,605,482    260  79.6%   8.2x $  75,900    6/6 $ 103,273 $2,448,214 $1,157,268 RNG AM40 AX24 LT75% EZ45%/55% C21 ST20%
+     5      135.3 $3,608,320    262  79.4%   8.2x $  75,900    6/6 $ 103,273 $2,451,053 $1,157,268 FINE days=21 zone=0.475 zone=0.525 max=4
+     6      135.2 $3,608,039    262  79.4%   8.2x $  75,900    6/6 $ 103,273 $2,450,771 $1,157,268 FINE days=21 zone=0.475 zone=0.525 max=4
+     7      135.0 $3,604,400    261  79.3%   8.1x $  75,900    6/6 $ 103,273 $2,447,132 $1,157,268 FINE days=21 zone=0.475 zone=0.55 max=40
+     8      135.0 $3,604,118    261  79.3%   8.1x $  75,900    6/6 $ 103,273 $2,446,850 $1,157,268 FINE days=21 zone=0.475 zone=0.575 max=4
+     9      134.4 $3,591,376    261  79.7%   8.1x $  75,900    6/6 $ 103,273 $2,434,109 $1,157,268 FINE days=21 zone=0.45 zone=0.525 max=40
+    10      134.2 $3,587,455    260  79.6%   8.1x $  75,900    6/6 $ 103,273 $2,430,188 $1,157,268 RNG AM40 AX24 LT75% EZ45%/55% C21 ST30%
+
+  ★ Best Range: Score 135.5, WF PnL $3,609,684, MaxDD $75,900
+    (params unchanged)
+
+================================================================================
+  PHASE: R3 Volatile (Range=R3, Trend=prev)
+  Grid size: 3896 configs × 6 WF windows = 23376 backtests
+  Workers: 22
+================================================================================
+  [   50/3896] 437s elapsed, 0.1 configs/s, ETA 560.5min
+  [  100/3896] 438s elapsed, 0.2 configs/s, ETA 276.8min
+  [  150/3896] 438s elapsed, 0.3 configs/s, ETA 182.2min
+  [  200/3896] 438s elapsed, 0.5 configs/s, ETA 134.8min
+  [  250/3896] 438s elapsed, 0.6 configs/s, ETA 106.5min
+  [  300/3896] 438s elapsed, 0.7 configs/s, ETA 87.6min
+  [  350/3896] 439s elapsed, 0.8 configs/s, ETA 74.1min
+  [  400/3896] 440s elapsed, 0.9 configs/s, ETA 64.0min
+  [  450/3896] 440s elapsed, 1.0 configs/s, ETA 56.2min
+  [  500/3896] 440s elapsed, 1.1 configs/s, ETA 49.8min
+  [  550/3896] 440s elapsed, 1.2 configs/s, ETA 44.6min
+  [  600/3896] 440s elapsed, 1.4 configs/s, ETA 40.3min
+  [  650/3896] 440s elapsed, 1.5 configs/s, ETA 36.7min
+  [  700/3896] 441s elapsed, 1.6 configs/s, ETA 33.6min
+  [  750/3896] 441s elapsed, 1.7 configs/s, ETA 30.8min
+  [  800/3896] 442s elapsed, 1.8 configs/s, ETA 28.5min
+  [  850/3896] 443s elapsed, 1.9 configs/s, ETA 26.4min
+  [  900/3896] 443s elapsed, 2.0 configs/s, ETA 24.6min
+  [  950/3896] 444s elapsed, 2.1 configs/s, ETA 22.9min
+  [ 1000/3896] 862s elapsed, 1.2 configs/s, ETA 41.6min
+  [ 1050/3896] 863s elapsed, 1.2 configs/s, ETA 39.0min
+  [ 1100/3896] 868s elapsed, 1.3 configs/s, ETA 36.8min
+  [ 1150/3896] 871s elapsed, 1.3 configs/s, ETA 34.7min
+  [ 1200/3896] 872s elapsed, 1.4 configs/s, ETA 32.7min
+  [ 1250/3896] 872s elapsed, 1.4 configs/s, ETA 30.8min
+  [ 1300/3896] 873s elapsed, 1.5 configs/s, ETA 29.1min
+  [ 1350/3896] 874s elapsed, 1.5 configs/s, ETA 27.5min
+  [ 1400/3896] 874s elapsed, 1.6 configs/s, ETA 26.0min
+  [ 1450/3896] 875s elapsed, 1.7 configs/s, ETA 24.6min
+  [ 1500/3896] 877s elapsed, 1.7 configs/s, ETA 23.3min
+  [ 1550/3896] 878s elapsed, 1.8 configs/s, ETA 22.1min
+  [ 1600/3896] 878s elapsed, 1.8 configs/s, ETA 21.0min
+  [ 1650/3896] 879s elapsed, 1.9 configs/s, ETA 19.9min
+  [ 1700/3896] 879s elapsed, 1.9 configs/s, ETA 18.9min
+  [ 1750/3896] 880s elapsed, 2.0 configs/s, ETA 18.0min
+  [ 1800/3896] 880s elapsed, 2.0 configs/s, ETA 17.1min
+  [ 1850/3896] 882s elapsed, 2.1 configs/s, ETA 16.3min
+  [ 1900/3896] 884s elapsed, 2.1 configs/s, ETA 15.5min
+  [ 1950/3896] 1214s elapsed, 1.6 configs/s, ETA 20.2min
+  [ 2000/3896] 1214s elapsed, 1.6 configs/s, ETA 19.2min
+  [ 2050/3896] 1222s elapsed, 1.7 configs/s, ETA 18.3min
+  [ 2100/3896] 1319s elapsed, 1.6 configs/s, ETA 18.8min
+  [ 2150/3896] 1321s elapsed, 1.6 configs/s, ETA 17.9min
+  [ 2200/3896] 1322s elapsed, 1.7 configs/s, ETA 17.0min
+  [ 2250/3896] 1324s elapsed, 1.7 configs/s, ETA 16.1min
+  [ 2300/3896] 1324s elapsed, 1.7 configs/s, ETA 15.3min
+  [ 2350/3896] 1325s elapsed, 1.8 configs/s, ETA 14.5min
+  [ 2400/3896] 1325s elapsed, 1.8 configs/s, ETA 13.8min
+  [ 2450/3896] 1327s elapsed, 1.8 configs/s, ETA 13.0min
+  [ 2500/3896] 1329s elapsed, 1.9 configs/s, ETA 12.4min
+  [ 2550/3896] 1331s elapsed, 1.9 configs/s, ETA 11.7min
+  [ 2600/3896] 1332s elapsed, 2.0 configs/s, ETA 11.1min
+  [ 2650/3896] 1332s elapsed, 2.0 configs/s, ETA 10.4min
+  [ 2700/3896] 1334s elapsed, 2.0 configs/s, ETA 9.8min
+  [ 2750/3896] 1334s elapsed, 2.1 configs/s, ETA 9.3min
+  [ 2800/3896] 1336s elapsed, 2.1 configs/s, ETA 8.7min
+  [ 2850/3896] 1337s elapsed, 2.1 configs/s, ETA 8.2min
+  [ 2900/3896] 1340s elapsed, 2.2 configs/s, ETA 7.7min
+  [ 2950/3896] 1566s elapsed, 1.9 configs/s, ETA 8.4min
+  [ 3000/3896] 1578s elapsed, 1.9 configs/s, ETA 7.9min
+  [ 3050/3896] 1750s elapsed, 1.7 configs/s, ETA 8.1min
+  [ 3100/3896] 1753s elapsed, 1.8 configs/s, ETA 7.5min
+  [ 3150/3896] 1754s elapsed, 1.8 configs/s, ETA 6.9min
+  [ 3200/3896] 1754s elapsed, 1.8 configs/s, ETA 6.4min
+  [ 3250/3896] 1756s elapsed, 1.9 configs/s, ETA 5.8min
+  [ 3300/3896] 1756s elapsed, 1.9 configs/s, ETA 5.3min
+  [ 3350/3896] 1757s elapsed, 1.9 configs/s, ETA 4.8min
+  [ 3400/3896] 1758s elapsed, 1.9 configs/s, ETA 4.3min
+  [ 3450/3896] 1759s elapsed, 2.0 configs/s, ETA 3.8min
+  [ 3500/3896] 1761s elapsed, 2.0 configs/s, ETA 3.3min
+  [ 3550/3896] 1764s elapsed, 2.0 configs/s, ETA 2.9min
+  [ 3600/3896] 1764s elapsed, 2.0 configs/s, ETA 2.4min
+  [ 3650/3896] 1765s elapsed, 2.1 configs/s, ETA 2.0min
+  [ 3700/3896] 1766s elapsed, 2.1 configs/s, ETA 1.6min
+  [ 3750/3896] 1766s elapsed, 2.1 configs/s, ETA 1.1min
+  [ 3800/3896] 1768s elapsed, 2.1 configs/s, ETA 0.7min
+  [ 3850/3896] 1768s elapsed, 2.2 configs/s, ETA 0.4min
+  [ 3896/3896] 1772s elapsed, 2.2 configs/s, ETA 0.0min
+
+  Coarse pass completed in 1771.5s (29.5min)
+
+  FINE PASS: 405 configs around top 5 coarse winners
+  [FINE    50/405] 45s elapsed, 1.1 configs/s, ETA 5.3min
+  [FINE   100/405] 83s elapsed, 1.2 configs/s, ETA 4.2min
+  [FINE   150/405] 84s elapsed, 1.8 configs/s, ETA 2.4min
+  [FINE   200/405] 123s elapsed, 1.6 configs/s, ETA 2.1min
+  [FINE   250/405] 124s elapsed, 2.0 configs/s, ETA 1.3min
+  [FINE   300/405] 162s elapsed, 1.9 configs/s, ETA 0.9min
+  [FINE   350/405] 163s elapsed, 2.1 configs/s, ETA 0.4min
+  [FINE   400/405] 194s elapsed, 2.1 configs/s, ETA 0.0min
+  [FINE   405/405] 194s elapsed, 2.1 configs/s, ETA 0.0min
+  Fine pass completed in 194.1s (3.2min)
+  Total phase time: 1965.6s (32.8min)
+  Deduped: 4203 duplicate configs removed
+
+  TOP 10 RESULTS (ranked by risk-adjusted score):
+  Rank      Score     WF PnL  Trades     WR     PF     MaxDD ProfW     Worst       Pri$       Sec$ Label
+  ──── ────────── ────────── ─────── ────── ────── ───────── ───── ───────── ────────── ────────── ────────────────────────────────────────
+     1      133.8 $3,577,000    260  79.6%   8.1x $  75,900    6/6 $ 103,273 $2,419,733 $1,157,268 FINE days=11 zone=0.175 zone=0.625 max=5
+     2      133.6 $3,573,804    259  79.5%   8.1x $  75,900    6/6 $ 103,273 $2,416,536 $1,157,268 FINE days=11 zone=0.175 zone=0.65 max=53
+     3      128.6 $3,525,003    259  79.5%   7.7x $  75,900    6/6 $ 103,273 $2,366,160 $1,158,843 FINE days=11 zone=0.2 zone=0.625 max=53
+     4      128.5 $3,521,807    258  79.5%   7.7x $  75,900    6/6 $ 103,273 $2,362,964 $1,158,843 FINE days=11 zone=0.2 zone=0.675 max=55
+     5      128.3 $3,523,190    259  79.5%   7.7x $  75,900    6/6 $ 103,273 $2,364,346 $1,158,843 FINE days=11 zone=0.225 zone=0.625 max=5
+     6      128.2 $3,519,993    258  79.5%   7.7x $  75,900    6/6 $ 103,273 $2,361,150 $1,158,843 FINE days=11 zone=0.225 zone=0.65 max=53
+     7      101.2 $3,352,671    265  78.5%   6.2x $  82,177    6/6 $ 107,234 $2,326,771 $1,025,900 FINE days=14 zone=0.175 zone=0.625 max=5
+     8      100.7 $3,353,241    266  78.2%   6.1x $  82,177    6/6 $ 107,234 $2,327,341 $1,025,900 VOL C14 AM55 AX24 LE20% SE65% LT85% ST15
+     9       99.8 $3,330,423    266  78.2%   6.1x $  82,177    6/6 $ 107,234 $2,304,524 $1,025,900 VOL C14 AM55 AX24 LE20% SE70% LT80% ST15
+    10       96.6 $3,251,757    267  77.9%   5.9x $  82,177    6/6 $ 107,234 $2,275,359 $  976,398 FINE days=14 zone=0.225 zone=0.65 max=53
+
+  ★ Best Volatile: Score 133.8, WF PnL $3,577,000, MaxDD $75,900
+    (params CHANGED from previous round)
+
+================================================================================
+  PHASE: R3 Positive Momentum (Range=R3, Volatile=R3)
+  Grid size: 16200 configs × 6 WF windows = 97200 backtests
+  Workers: 22
+================================================================================
+  [   50/16200] 1581s elapsed, 0.0 configs/s, ETA 8508.4min
+  [  100/16200] 1581s elapsed, 0.1 configs/s, ETA 4241.0min
+  [  150/16200] 1581s elapsed, 0.1 configs/s, ETA 2818.6min
+  [  200/16200] 1581s elapsed, 0.1 configs/s, ETA 2107.4min
+  [  250/16200] 1581s elapsed, 0.2 configs/s, ETA 1680.7min
+  [  300/16200] 1581s elapsed, 0.2 configs/s, ETA 1396.2min
+  [  350/16200] 1581s elapsed, 0.2 configs/s, ETA 1192.9min
+  [  400/16200] 1582s elapsed, 0.3 configs/s, ETA 1041.3min
+  [  450/16200] 1582s elapsed, 0.3 configs/s, ETA 922.6min
+  [  500/16200] 1582s elapsed, 0.3 configs/s, ETA 827.7min
+  [  550/16200] 1582s elapsed, 0.3 configs/s, ETA 750.1min
+  [  600/16200] 1582s elapsed, 0.4 configs/s, ETA 685.4min
+  [  650/16200] 1582s elapsed, 0.4 configs/s, ETA 630.7min
+  [  700/16200] 1582s elapsed, 0.4 configs/s, ETA 583.7min
+  [  750/16200] 1583s elapsed, 0.5 configs/s, ETA 543.3min
+  [  800/16200] 1583s elapsed, 0.5 configs/s, ETA 507.7min
+  [  850/16200] 1583s elapsed, 0.5 configs/s, ETA 476.3min
+  [  900/16200] 1583s elapsed, 0.6 configs/s, ETA 448.4min
+  [  950/16200] 1587s elapsed, 0.6 configs/s, ETA 424.7min
+  [ 1000/16200] 1587s elapsed, 0.6 configs/s, ETA 402.2min
+  [ 1050/16200] 1587s elapsed, 0.7 configs/s, ETA 381.7min
+  [ 1100/16200] 1587s elapsed, 0.7 configs/s, ETA 363.2min
+  [ 1150/16200] 1589s elapsed, 0.7 configs/s, ETA 346.6min
+  [ 1200/16200] 1589s elapsed, 0.8 configs/s, ETA 331.0min
+  [ 1250/16200] 1589s elapsed, 0.8 configs/s, ETA 316.7min
+  [ 1300/16200] 1589s elapsed, 0.8 configs/s, ETA 303.5min
+  [ 1350/16200] 1589s elapsed, 0.8 configs/s, ETA 291.3min
+  [ 1400/16200] 1589s elapsed, 0.9 configs/s, ETA 280.0min
+  [ 1450/16200] 1589s elapsed, 0.9 configs/s, ETA 269.4min
+  [ 1500/16200] 1591s elapsed, 0.9 configs/s, ETA 259.8min
+  [ 1550/16200] 1591s elapsed, 1.0 configs/s, ETA 250.6min
+  [ 1600/16200] 1591s elapsed, 1.0 configs/s, ETA 241.9min
+  [ 1650/16200] 1591s elapsed, 1.0 configs/s, ETA 233.8min
+  [ 1700/16200] 1599s elapsed, 1.1 configs/s, ETA 227.2min
+  [ 1750/16200] 1599s elapsed, 1.1 configs/s, ETA 220.0min
+  [ 1800/16200] 1599s elapsed, 1.1 configs/s, ETA 213.1min
+  [ 1850/16200] 1603s elapsed, 1.2 configs/s, ETA 207.2min
+  [ 1900/16200] 1603s elapsed, 1.2 configs/s, ETA 201.1min
+  [ 1950/16200] 1603s elapsed, 1.2 configs/s, ETA 195.2min
+  [ 2000/16200] 1603s elapsed, 1.2 configs/s, ETA 189.7min
+  [ 2050/16200] 1605s elapsed, 1.3 configs/s, ETA 184.6min
+  [ 2100/16200] 1605s elapsed, 1.3 configs/s, ETA 179.6min
+  [ 2150/16200] 1605s elapsed, 1.3 configs/s, ETA 174.8min
+  [ 2200/16200] 1605s elapsed, 1.4 configs/s, ETA 170.2min
+  [ 2250/16200] 1608s elapsed, 1.4 configs/s, ETA 166.2min
+  [ 2300/16200] 1608s elapsed, 1.4 configs/s, ETA 162.0min
+  [ 2350/16200] 1608s elapsed, 1.5 configs/s, ETA 158.0min
+  [ 2400/16200] 1611s elapsed, 1.5 configs/s, ETA 154.4min
+  [ 2450/16200] 1611s elapsed, 1.5 configs/s, ETA 150.7min
+  [ 2500/16200] 1611s elapsed, 1.6 configs/s, ETA 147.1min
+  [ 2550/16200] 1611s elapsed, 1.6 configs/s, ETA 143.7min
+  [ 2600/16200] 1614s elapsed, 1.6 configs/s, ETA 140.7min
+  [ 2650/16200] 1614s elapsed, 1.6 configs/s, ETA 137.5min
+  [ 2700/16200] 1614s elapsed, 1.7 configs/s, ETA 134.5min
+  [ 2750/16200] 1614s elapsed, 1.7 configs/s, ETA 131.5min
+  [ 2800/16200] 1616s elapsed, 1.7 configs/s, ETA 128.9min
+  [ 2850/16200] 1616s elapsed, 1.8 configs/s, ETA 126.2min
+  [ 2900/16200] 1616s elapsed, 1.8 configs/s, ETA 123.6min
+  [ 2950/16200] 1621s elapsed, 1.8 configs/s, ETA 121.3min
+  [ 3000/16200] 1621s elapsed, 1.9 configs/s, ETA 118.8min
+  [ 3050/16200] 1621s elapsed, 1.9 configs/s, ETA 116.5min
+  [ 3100/16200] 1621s elapsed, 1.9 configs/s, ETA 114.1min
+  [ 3150/16200] 1624s elapsed, 1.9 configs/s, ETA 112.2min
+  [ 3200/16200] 1624s elapsed, 2.0 configs/s, ETA 110.0min
+  [ 3250/16200] 1624s elapsed, 2.0 configs/s, ETA 107.9min
+  [ 3300/16200] 1624s elapsed, 2.0 configs/s, ETA 105.8min
+  [ 3350/16200] 1629s elapsed, 2.1 configs/s, ETA 104.1min
+  [ 3400/16200] 1629s elapsed, 2.1 configs/s, ETA 102.2min
+  [ 3450/16200] 1629s elapsed, 2.1 configs/s, ETA 100.3min
+  [ 3500/16200] 1639s elapsed, 2.1 configs/s, ETA 99.1min
+  [ 3550/16200] 1639s elapsed, 2.2 configs/s, ETA 97.3min
+  [ 3600/16200] 1639s elapsed, 2.2 configs/s, ETA 95.6min
+  [ 3650/16200] 1639s elapsed, 2.2 configs/s, ETA 93.9min
+  [ 3700/16200] 1650s elapsed, 2.2 configs/s, ETA 92.9min
+  [ 3750/16200] 1650s elapsed, 2.3 configs/s, ETA 91.3min
+  [ 3800/16200] 1650s elapsed, 2.3 configs/s, ETA 89.7min
+  [ 3850/16200] 1650s elapsed, 2.3 configs/s, ETA 88.2min
+  [ 3900/16200] 1653s elapsed, 2.4 configs/s, ETA 86.9min
+  [ 3950/16200] 1653s elapsed, 2.4 configs/s, ETA 85.5min
+  [ 4000/16200] 1653s elapsed, 2.4 configs/s, ETA 84.0min
+  [ 4050/16200] 3156s elapsed, 1.3 configs/s, ETA 157.8min
+  [ 4100/16200] 3156s elapsed, 1.3 configs/s, ETA 155.3min
+  [ 4150/16200] 3156s elapsed, 1.3 configs/s, ETA 152.8min
+  [ 4200/16200] 3156s elapsed, 1.3 configs/s, ETA 150.3min
+  [ 4250/16200] 3172s elapsed, 1.3 configs/s, ETA 148.7min
+  [ 4300/16200] 3172s elapsed, 1.4 configs/s, ETA 146.3min
+  [ 4350/16200] 3172s elapsed, 1.4 configs/s, ETA 144.0min
+  [ 4400/16200] 3172s elapsed, 1.4 configs/s, ETA 141.8min
+  [ 4450/16200] 3174s elapsed, 1.4 configs/s, ETA 139.7min
+  [ 4500/16200] 3174s elapsed, 1.4 configs/s, ETA 137.6min
+  [ 4550/16200] 3174s elapsed, 1.4 configs/s, ETA 135.5min
+  [ 4600/16200] 3174s elapsed, 1.4 configs/s, ETA 133.4min
+  [ 4650/16200] 3182s elapsed, 1.5 configs/s, ETA 131.7min
+  [ 4700/16200] 3182s elapsed, 1.5 configs/s, ETA 129.8min
+  [ 4750/16200] 3182s elapsed, 1.5 configs/s, ETA 127.8min
+  [ 4800/16200] 3186s elapsed, 1.5 configs/s, ETA 126.1min
+  [ 4850/16200] 3186s elapsed, 1.5 configs/s, ETA 124.3min
+  [ 4900/16200] 3186s elapsed, 1.5 configs/s, ETA 122.4min
+  [ 4950/16200] 3186s elapsed, 1.6 configs/s, ETA 120.7min
+  [ 5000/16200] 3191s elapsed, 1.6 configs/s, ETA 119.1min
+  [ 5050/16200] 3191s elapsed, 1.6 configs/s, ETA 117.4min
+  [ 5100/16200] 3191s elapsed, 1.6 configs/s, ETA 115.7min
+  [ 5150/16200] 3191s elapsed, 1.6 configs/s, ETA 114.1min
+  [ 5200/16200] 3197s elapsed, 1.6 configs/s, ETA 112.7min
+  [ 5250/16200] 3197s elapsed, 1.6 configs/s, ETA 111.1min
+  [ 5300/16200] 3197s elapsed, 1.7 configs/s, ETA 109.6min
+  [ 5350/16200] 3197s elapsed, 1.7 configs/s, ETA 108.1min
+  [ 5400/16200] 3197s elapsed, 1.7 configs/s, ETA 106.6min
+  [ 5450/16200] 3197s elapsed, 1.7 configs/s, ETA 105.1min
+  [ 5500/16200] 3197s elapsed, 1.7 configs/s, ETA 103.7min
+  [ 5550/16200] 3200s elapsed, 1.7 configs/s, ETA 102.3min
+  [ 5600/16200] 3200s elapsed, 1.7 configs/s, ETA 101.0min
+  [ 5650/16200] 3200s elapsed, 1.8 configs/s, ETA 99.6min
+  [ 5700/16200] 3200s elapsed, 1.8 configs/s, ETA 98.2min
+  [ 5750/16200] 3204s elapsed, 1.8 configs/s, ETA 97.0min
+  [ 5800/16200] 3204s elapsed, 1.8 configs/s, ETA 95.7min
+  [ 5850/16200] 3204s elapsed, 1.8 configs/s, ETA 94.5min
+  [ 5900/16200] 3206s elapsed, 1.8 configs/s, ETA 93.3min
+  [ 5950/16200] 3206s elapsed, 1.9 configs/s, ETA 92.1min
+  [ 6000/16200] 3206s elapsed, 1.9 configs/s, ETA 90.8min
+  [ 6050/16200] 3206s elapsed, 1.9 configs/s, ETA 89.6min
+  [ 6100/16200] 3210s elapsed, 1.9 configs/s, ETA 88.6min
+  [ 6150/16200] 3210s elapsed, 1.9 configs/s, ETA 87.4min
+  [ 6200/16200] 3210s elapsed, 1.9 configs/s, ETA 86.3min
+  [ 6250/16200] 3210s elapsed, 1.9 configs/s, ETA 85.2min
+  [ 6300/16200] 3214s elapsed, 2.0 configs/s, ETA 84.2min
+  [ 6350/16200] 3214s elapsed, 2.0 configs/s, ETA 83.1min
+  [ 6400/16200] 3214s elapsed, 2.0 configs/s, ETA 82.0min
+  [ 6450/16200] 3221s elapsed, 2.0 configs/s, ETA 81.1min
+  [ 6500/16200] 3221s elapsed, 2.0 configs/s, ETA 80.1min
+  [ 6550/16200] 3221s elapsed, 2.0 configs/s, ETA 79.1min
+  [ 6600/16200] 3221s elapsed, 2.0 configs/s, ETA 78.1min
+  [ 6650/16200] 3224s elapsed, 2.1 configs/s, ETA 77.2min
+  [ 6700/16200] 3224s elapsed, 2.1 configs/s, ETA 76.2min
+  [ 6750/16200] 3224s elapsed, 2.1 configs/s, ETA 75.2min
+  [ 6800/16200] 3224s elapsed, 2.1 configs/s, ETA 74.3min
+  [ 6850/16200] 3226s elapsed, 2.1 configs/s, ETA 73.4min
+  [ 6900/16200] 3226s elapsed, 2.1 configs/s, ETA 72.5min
+  [ 6950/16200] 3226s elapsed, 2.2 configs/s, ETA 71.6min
+  [ 7000/16200] 3234s elapsed, 2.2 configs/s, ETA 70.8min
+  [ 7050/16200] 3234s elapsed, 2.2 configs/s, ETA 70.0min
+  [ 7100/16200] 3234s elapsed, 2.2 configs/s, ETA 69.1min
+  [ 7150/16200] 3234s elapsed, 2.2 configs/s, ETA 68.2min
+  [ 7200/16200] 3241s elapsed, 2.2 configs/s, ETA 67.5min
+  [ 7250/16200] 3241s elapsed, 2.2 configs/s, ETA 66.7min
+  [ 7300/16200] 3241s elapsed, 2.3 configs/s, ETA 65.8min
+  [ 7350/16200] 3241s elapsed, 2.3 configs/s, ETA 65.0min
+  [ 7400/16200] 3241s elapsed, 2.3 configs/s, ETA 64.2min
+  [ 7450/16200] 3241s elapsed, 2.3 configs/s, ETA 63.4min
+  [ 7500/16200] 3241s elapsed, 2.3 configs/s, ETA 62.7min
+  [ 7550/16200] 3272s elapsed, 2.3 configs/s, ETA 62.5min
+  [ 7600/16200] 3272s elapsed, 2.3 configs/s, ETA 61.7min
+  [ 7650/16200] 3272s elapsed, 2.3 configs/s, ETA 60.9min
+  [ 7700/16200] 3272s elapsed, 2.4 configs/s, ETA 60.2min
+  [ 7750/16200] 3273s elapsed, 2.4 configs/s, ETA 59.5min
+  [ 7800/16200] 3273s elapsed, 2.4 configs/s, ETA 58.7min
+  [ 7850/16200] 3273s elapsed, 2.4 configs/s, ETA 58.0min
+  [ 7900/16200] 3273s elapsed, 2.4 configs/s, ETA 57.3min
+  [ 7950/16200] 3285s elapsed, 2.4 configs/s, ETA 56.8min
+  [ 8000/16200] 3285s elapsed, 2.4 configs/s, ETA 56.1min
+  [ 8050/16200] 3285s elapsed, 2.5 configs/s, ETA 55.4min
+  [ 8100/16200] 4753s elapsed, 1.7 configs/s, ETA 79.2min
+  [ 8150/16200] 4753s elapsed, 1.7 configs/s, ETA 78.2min
+  [ 8200/16200] 4753s elapsed, 1.7 configs/s, ETA 77.3min
+  [ 8250/16200] 4753s elapsed, 1.7 configs/s, ETA 76.3min
+  [ 8300/16200] 4761s elapsed, 1.7 configs/s, ETA 75.5min
+  [ 8350/16200] 4761s elapsed, 1.8 configs/s, ETA 74.6min
+  [ 8400/16200] 4761s elapsed, 1.8 configs/s, ETA 73.7min
+  [ 8450/16200] 4761s elapsed, 1.8 configs/s, ETA 72.8min
+  [ 8500/16200] 4764s elapsed, 1.8 configs/s, ETA 71.9min
+  [ 8550/16200] 4764s elapsed, 1.8 configs/s, ETA 71.0min
+  [ 8600/16200] 4764s elapsed, 1.8 configs/s, ETA 70.2min
+  [ 8650/16200] 4786s elapsed, 1.8 configs/s, ETA 69.6min
+  [ 8700/16200] 4786s elapsed, 1.8 configs/s, ETA 68.8min
+  [ 8750/16200] 4786s elapsed, 1.8 configs/s, ETA 67.9min
+  [ 8800/16200] 4786s elapsed, 1.8 configs/s, ETA 67.1min
+  [ 8850/16200] 4792s elapsed, 1.8 configs/s, ETA 66.3min
+  [ 8900/16200] 4792s elapsed, 1.9 configs/s, ETA 65.5min
+  [ 8950/16200] 4792s elapsed, 1.9 configs/s, ETA 64.7min
+  [ 9000/16200] 4792s elapsed, 1.9 configs/s, ETA 63.9min
+  [ 9050/16200] 4796s elapsed, 1.9 configs/s, ETA 63.2min
+  [ 9100/16200] 4796s elapsed, 1.9 configs/s, ETA 62.4min
+  [ 9150/16200] 4796s elapsed, 1.9 configs/s, ETA 61.6min
+  [ 9200/16200] 4796s elapsed, 1.9 configs/s, ETA 60.8min
+  [ 9250/16200] 4803s elapsed, 1.9 configs/s, ETA 60.1min
+  [ 9300/16200] 4803s elapsed, 1.9 configs/s, ETA 59.4min
+  [ 9350/16200] 4803s elapsed, 1.9 configs/s, ETA 58.6min
+  [ 9400/16200] 4814s elapsed, 2.0 configs/s, ETA 58.0min
+  [ 9450/16200] 4814s elapsed, 2.0 configs/s, ETA 57.3min
+  [ 9500/16200] 4814s elapsed, 2.0 configs/s, ETA 56.6min
+  [ 9550/16200] 4814s elapsed, 2.0 configs/s, ETA 55.9min
+  [ 9600/16200] 4815s elapsed, 2.0 configs/s, ETA 55.2min
+  [ 9650/16200] 4815s elapsed, 2.0 configs/s, ETA 54.5min
+  [ 9700/16200] 4815s elapsed, 2.0 configs/s, ETA 53.8min
+  [ 9750/16200] 4815s elapsed, 2.0 configs/s, ETA 53.1min
+  [ 9800/16200] 4817s elapsed, 2.0 configs/s, ETA 52.4min
+  [ 9850/16200] 4817s elapsed, 2.0 configs/s, ETA 51.8min
+  [ 9900/16200] 4817s elapsed, 2.1 configs/s, ETA 51.1min
+  [ 9950/16200] 4818s elapsed, 2.1 configs/s, ETA 50.4min
+  [10000/16200] 4818s elapsed, 2.1 configs/s, ETA 49.8min
+  [10050/16200] 4818s elapsed, 2.1 configs/s, ETA 49.1min
+  [10100/16200] 4818s elapsed, 2.1 configs/s, ETA 48.5min
+  [10150/16200] 4826s elapsed, 2.1 configs/s, ETA 47.9min
+  [10200/16200] 4826s elapsed, 2.1 configs/s, ETA 47.3min
+  [10250/16200] 4826s elapsed, 2.1 configs/s, ETA 46.7min
+  [10300/16200] 4826s elapsed, 2.1 configs/s, ETA 46.1min
+  [10350/16200] 4828s elapsed, 2.1 configs/s, ETA 45.5min
+  [10400/16200] 4828s elapsed, 2.2 configs/s, ETA 44.9min
+  [10450/16200] 4828s elapsed, 2.2 configs/s, ETA 44.3min
+  [10500/16200] 4831s elapsed, 2.2 configs/s, ETA 43.7min
+  [10550/16200] 4831s elapsed, 2.2 configs/s, ETA 43.1min
+  [10600/16200] 4831s elapsed, 2.2 configs/s, ETA 42.5min
+  [10650/16200] 4831s elapsed, 2.2 configs/s, ETA 42.0min
+  [10700/16200] 4838s elapsed, 2.2 configs/s, ETA 41.5min
+  [10750/16200] 4838s elapsed, 2.2 configs/s, ETA 40.9min
+  [10800/16200] 4838s elapsed, 2.2 configs/s, ETA 40.3min
+  [10850/16200] 4838s elapsed, 2.2 configs/s, ETA 39.8min
+  [10900/16200] 4854s elapsed, 2.2 configs/s, ETA 39.3min
+  [10950/16200] 4854s elapsed, 2.3 configs/s, ETA 38.8min
+  [11000/16200] 4854s elapsed, 2.3 configs/s, ETA 38.2min
+  [11050/16200] 4855s elapsed, 2.3 configs/s, ETA 37.7min
+  [11100/16200] 4855s elapsed, 2.3 configs/s, ETA 37.2min
+  [11150/16200] 4855s elapsed, 2.3 configs/s, ETA 36.6min
+  [11200/16200] 4855s elapsed, 2.3 configs/s, ETA 36.1min
+  [11250/16200] 4859s elapsed, 2.3 configs/s, ETA 35.6min
+  [11300/16200] 4859s elapsed, 2.3 configs/s, ETA 35.1min
+  [11350/16200] 4859s elapsed, 2.3 configs/s, ETA 34.6min
+  [11400/16200] 4859s elapsed, 2.3 configs/s, ETA 34.1min
+  [11450/16200] 4860s elapsed, 2.4 configs/s, ETA 33.6min
+  [11500/16200] 4860s elapsed, 2.4 configs/s, ETA 33.1min
+  [11550/16200] 4860s elapsed, 2.4 configs/s, ETA 32.6min
+  [11600/16200] 4878s elapsed, 2.4 configs/s, ETA 32.2min
+  [11650/16200] 4878s elapsed, 2.4 configs/s, ETA 31.8min
+  [11700/16200] 4878s elapsed, 2.4 configs/s, ETA 31.3min
+  [11750/16200] 4878s elapsed, 2.4 configs/s, ETA 30.8min
+  [11800/16200] 4893s elapsed, 2.4 configs/s, ETA 30.4min
+  [11850/16200] 4893s elapsed, 2.4 configs/s, ETA 29.9min
+  [11900/16200] 4893s elapsed, 2.4 configs/s, ETA 29.5min
+  [11950/16200] 4893s elapsed, 2.4 configs/s, ETA 29.0min
+  [12000/16200] 4932s elapsed, 2.4 configs/s, ETA 28.8min
+  [12050/16200] 4932s elapsed, 2.4 configs/s, ETA 28.3min
+  [12100/16200] 4932s elapsed, 2.5 configs/s, ETA 27.9min
+  [12150/16200] 6355s elapsed, 1.9 configs/s, ETA 35.3min
+  [12200/16200] 6355s elapsed, 1.9 configs/s, ETA 34.7min
+  [12250/16200] 6355s elapsed, 1.9 configs/s, ETA 34.2min
+  [12300/16200] 6355s elapsed, 1.9 configs/s, ETA 33.6min
+  [12350/16200] 6361s elapsed, 1.9 configs/s, ETA 33.0min
+  [12400/16200] 6361s elapsed, 1.9 configs/s, ETA 32.5min
+  [12450/16200] 6361s elapsed, 2.0 configs/s, ETA 31.9min
+  [12500/16200] 6361s elapsed, 2.0 configs/s, ETA 31.4min
+  [12550/16200] 6367s elapsed, 2.0 configs/s, ETA 30.9min
+  [12600/16200] 6367s elapsed, 2.0 configs/s, ETA 30.3min
+  [12650/16200] 6367s elapsed, 2.0 configs/s, ETA 29.8min
+  [12700/16200] 6372s elapsed, 2.0 configs/s, ETA 29.3min
+  [12750/16200] 6372s elapsed, 2.0 configs/s, ETA 28.7min
+  [12800/16200] 6372s elapsed, 2.0 configs/s, ETA 28.2min
+  [12850/16200] 6372s elapsed, 2.0 configs/s, ETA 27.7min
+  [12900/16200] 6404s elapsed, 2.0 configs/s, ETA 27.3min
+  [12950/16200] 6404s elapsed, 2.0 configs/s, ETA 26.8min
+  [13000/16200] 6404s elapsed, 2.0 configs/s, ETA 26.3min
+  [13050/16200] 6404s elapsed, 2.0 configs/s, ETA 25.8min
+  [13100/16200] 6409s elapsed, 2.0 configs/s, ETA 25.3min
+  [13150/16200] 6409s elapsed, 2.1 configs/s, ETA 24.8min
+  [13200/16200] 6409s elapsed, 2.1 configs/s, ETA 24.3min
+  [13250/16200] 6413s elapsed, 2.1 configs/s, ETA 23.8min
+  [13300/16200] 6413s elapsed, 2.1 configs/s, ETA 23.3min
+  [13350/16200] 6413s elapsed, 2.1 configs/s, ETA 22.8min
+  [13400/16200] 6413s elapsed, 2.1 configs/s, ETA 22.3min
+  [13450/16200] 6416s elapsed, 2.1 configs/s, ETA 21.9min
+  [13500/16200] 6416s elapsed, 2.1 configs/s, ETA 21.4min
+  [13550/16200] 6416s elapsed, 2.1 configs/s, ETA 20.9min
+  [13600/16200] 6416s elapsed, 2.1 configs/s, ETA 20.4min
+  [13650/16200] 6421s elapsed, 2.1 configs/s, ETA 20.0min
+  [13700/16200] 6421s elapsed, 2.1 configs/s, ETA 19.5min
+  [13750/16200] 6421s elapsed, 2.1 configs/s, ETA 19.1min
+  [13800/16200] 6421s elapsed, 2.1 configs/s, ETA 18.6min
+  [13850/16200] 6426s elapsed, 2.2 configs/s, ETA 18.2min
+  [13900/16200] 6426s elapsed, 2.2 configs/s, ETA 17.7min
+  [13950/16200] 6426s elapsed, 2.2 configs/s, ETA 17.3min
+  [14000/16200] 6430s elapsed, 2.2 configs/s, ETA 16.8min
+  [14050/16200] 6430s elapsed, 2.2 configs/s, ETA 16.4min
+  [14100/16200] 6430s elapsed, 2.2 configs/s, ETA 16.0min
+  [14150/16200] 6430s elapsed, 2.2 configs/s, ETA 15.5min
+  [14200/16200] 6432s elapsed, 2.2 configs/s, ETA 15.1min
+  [14250/16200] 6432s elapsed, 2.2 configs/s, ETA 14.7min
+  [14300/16200] 6432s elapsed, 2.2 configs/s, ETA 14.2min
+  [14350/16200] 6432s elapsed, 2.2 configs/s, ETA 13.8min
+  [14400/16200] 6442s elapsed, 2.2 configs/s, ETA 13.4min
+  [14450/16200] 6442s elapsed, 2.2 configs/s, ETA 13.0min
+  [14500/16200] 6442s elapsed, 2.3 configs/s, ETA 12.6min
+  [14550/16200] 6444s elapsed, 2.3 configs/s, ETA 12.2min
+  [14600/16200] 6444s elapsed, 2.3 configs/s, ETA 11.8min
+  [14650/16200] 6444s elapsed, 2.3 configs/s, ETA 11.4min
+  [14700/16200] 6444s elapsed, 2.3 configs/s, ETA 11.0min
+  [14750/16200] 6446s elapsed, 2.3 configs/s, ETA 10.6min
+  [14800/16200] 6446s elapsed, 2.3 configs/s, ETA 10.2min
+  [14850/16200] 6446s elapsed, 2.3 configs/s, ETA 9.8min
+  [14900/16200] 6446s elapsed, 2.3 configs/s, ETA 9.4min
+  [14950/16200] 6449s elapsed, 2.3 configs/s, ETA 9.0min
+  [15000/16200] 6449s elapsed, 2.3 configs/s, ETA 8.6min
+  [15050/16200] 6449s elapsed, 2.3 configs/s, ETA 8.2min
+  [15100/16200] 6462s elapsed, 2.3 configs/s, ETA 7.8min
+  [15150/16200] 6462s elapsed, 2.3 configs/s, ETA 7.5min
+  [15200/16200] 6462s elapsed, 2.4 configs/s, ETA 7.1min
+  [15250/16200] 6462s elapsed, 2.4 configs/s, ETA 6.7min
+  [15300/16200] 6471s elapsed, 2.4 configs/s, ETA 6.3min
+  [15350/16200] 6471s elapsed, 2.4 configs/s, ETA 6.0min
+  [15400/16200] 6471s elapsed, 2.4 configs/s, ETA 5.6min
+  [15450/16200] 6471s elapsed, 2.4 configs/s, ETA 5.2min
+  [15500/16200] 6474s elapsed, 2.4 configs/s, ETA 4.9min
+  [15550/16200] 6474s elapsed, 2.4 configs/s, ETA 4.5min
+  [15600/16200] 6474s elapsed, 2.4 configs/s, ETA 4.2min
+  [15650/16200] 6477s elapsed, 2.4 configs/s, ETA 3.8min
+  [15700/16200] 6477s elapsed, 2.4 configs/s, ETA 3.4min
+  [15750/16200] 6477s elapsed, 2.4 configs/s, ETA 3.1min
+  [15800/16200] 6477s elapsed, 2.4 configs/s, ETA 2.7min
+  [15850/16200] 6480s elapsed, 2.4 configs/s, ETA 2.4min
+  [15900/16200] 6480s elapsed, 2.5 configs/s, ETA 2.0min
+  [15950/16200] 6480s elapsed, 2.5 configs/s, ETA 1.7min
+  [16000/16200] 6480s elapsed, 2.5 configs/s, ETA 1.4min
+  [16050/16200] 6507s elapsed, 2.5 configs/s, ETA 1.0min
+  [16100/16200] 6507s elapsed, 2.5 configs/s, ETA 0.7min
+  [16150/16200] 6507s elapsed, 2.5 configs/s, ETA 0.3min
+  [16200/16200] 6507s elapsed, 2.5 configs/s, ETA 0.0min
+
+  Coarse pass completed in 6506.6s (108.4min)
+
+  FINE PASS: 270 configs around top 5 coarse winners
+  [FINE    50/270] 44s elapsed, 1.1 configs/s, ETA 3.2min
+  [FINE   100/270] 81s elapsed, 1.2 configs/s, ETA 2.3min
+  [FINE   150/270] 82s elapsed, 1.8 configs/s, ETA 1.1min
+  [FINE   200/270] 120s elapsed, 1.7 configs/s, ETA 0.7min
+  [FINE   250/270] 121s elapsed, 2.1 configs/s, ETA 0.2min
+  [FINE   270/270] 148s elapsed, 1.8 configs/s, ETA 0.0min
+  Fine pass completed in 148.4s (2.5min)
+  Total phase time: 6655.0s (110.9min)
+  Deduped: 12947 duplicate configs removed
+
+  TOP 10 RESULTS (ranked by risk-adjusted score):
+  Rank      Score     WF PnL  Trades     WR     PF     MaxDD ProfW     Worst       Pri$       Sec$ Label
+  ──── ────────── ────────── ─────── ────── ────── ───────── ───── ───────── ────────── ────────── ────────────────────────────────────────
+     1      133.8 $3,577,000    260  79.6%   8.1x $  75,900    6/6 $ 103,273 $2,419,733 $1,157,268 FINE lookback=3 mult=1.25 min=13 period=
+     2      132.6 $3,553,974    260  79.6%   8.1x $  75,900    6/6 $ 109,246 $2,390,733 $1,163,240 FINE lookback=3 mult=1.25 min=13 period=
+     3      130.7 $3,530,191    260  78.8%   7.9x $  75,900    6/6 $  94,611 $2,397,695 $1,132,496 FINE lookback=3 mult=1.25 min=15 period=
+     4      129.7 $3,504,855    257  79.4%   7.9x $  75,900    6/6 $ 103,994 $2,387,629 $1,117,227 FINE lookback=3 mult=1.25 min=13 period=
+     5      129.6 $3,506,191    259  79.2%   7.9x $  75,900    6/6 $ 103,994 $2,390,857 $1,115,334 FINE lookback=3 mult=1.25 min=13 period=
+     6      129.5 $3,507,165    260  78.8%   7.9x $  75,900    6/6 $ 100,584 $2,368,696 $1,138,468 FINE lookback=3 mult=1.25 min=15 period=
+     7      129.0 $3,500,628    259  78.8%   7.9x $  75,900    6/6 $  97,375 $2,408,306 $1,092,321 FINE lookback=3 mult=1.25 min=17 period=
+     8      127.8 $3,477,601    259  78.8%   7.8x $  75,900    6/6 $ 103,347 $2,379,307 $1,098,294 FINE lookback=3 mult=1.25 min=17 period=
+     9      126.7 $3,458,046    257  78.6%   7.8x $  75,900    6/6 $  95,332 $2,365,591 $1,092,455 FINE lookback=3 mult=1.25 min=15 period=
+    10      126.6 $3,459,382    259  78.4%   7.8x $  75,900    6/6 $  95,332 $2,368,820 $1,090,562 FINE lookback=3 mult=1.25 min=15 period=
+
+  ★ Best Positive Momentum: Score 133.8, WF PnL $3,577,000, MaxDD $75,900
+    (params unchanged)
+
+  ── Round 3 Summary ──
+  Combined WF PnL: $3,577,000
+  Round runtime: 9543s (159.1min)
+  Throughput: 2.3 configs/s
+  Improvement vs Round 2: -0.91%
+
+  ✓ CONVERGED — PnL improvement < 1.0%. Stopping early.
+
+================================================================================
+  CONVERGENCE HISTORY
+================================================================================
+  Round       WF PnL      Δ PnL      Δ %    Runtime
+  ───── ──────────── ────────── ──────── ──────────
+  R   1 $ 3,669,771                         333.7m
+  R   2 $ 3,609,684   -60,087   -1.6%     165.2m
+  R   3 $ 3,577,000   -32,684   -0.9%     159.1m
+
+================================================================================
+  FINAL COMPARISON: Full-period backtest
+================================================================================
+
+  Metric                      Config I + V3    V3 Optimized      Delta
+  ───────────────────────── ─────────────── ─────────────── ──────────
+  Total PnL                 $ 2,960,002.35 $ 4,125,663.99 +1,165,661.64
+  Trades                                290             301 +       11
+  Win Rate %                          75.2%           78.7% +     3.5%
+  Profit Factor                        4.05            6.45 +     2.40
+  Max Drawdown              $   182,125.65 $    97,144.95 -84,980.70
+
+================================================================================
+  HOLDOUT VALIDATION: Q1 2026 (out-of-sample)
+================================================================================
+
+  Metric                           Baseline       Optimized      Delta
+  ───────────────────────── ─────────────── ─────────────── ──────────
+  Holdout PnL               $    -9,424.97 $   -99,552.57 -90,127.60
+  Trades                                  1               2 +        1
+  Win Rate %                           0.0%            0.0% +     0.0%
+  Profit Factor                        0.00            0.00 +     0.00
+  Max Drawdown              $         0.00 $     3,495.44 + 3,495.44
+
+  ⚠ WARNING: Optimized params UNDERPERFORM baseline on holdout!
+    This may indicate overfitting to the training windows.
+
+================================================================================
+  SENSITIVITY REPORT: ±10% perturbation per parameter
+================================================================================
+
+  Param                              Base    Worst Δ PnL    Avg Δ PnL  Impact%
+  ──────────────────────────── ────────── ────────────── ──────────── ────────
+  bull_calib_days                      30 $    -507,252 $  -264,346   -12.3% ◀ FRAGILE
+  bear_calib_days                      11 $    -439,972 $  -198,472   -10.7% ◀ FRAGILE
+  calib_days                           21 $    -167,139 $  -148,287    -4.1%
+  long_target_zone                 0.7500 $    -136,641 $   -98,452    -3.3%
+  bull_atr_trail_mult              1.2500 $    -125,356 $   -90,538    -3.0%
+  short_entry_zone                 0.5250 $    -107,897 $   -55,909    -2.6%
+  bear_short_entry_zone            0.6250 $     -96,387 $   -49,792    -2.3%
+  bull_atr_period                      14 $     -81,532 $   -53,496    -2.0%
+  long_entry_zone                  0.4500 $     -73,279 $   -37,322    -1.8%
+  bull_stop_pct                    0.0300 $     -56,744 $   -28,372    -1.4%
+  bear_long_entry_zone             0.1750 $     -42,720 $   -21,360    -1.0%
+  short_adx_max                        40 $     -36,396 $   -15,371    -0.9%
+  short_adx_exit                       24 $     -29,196 $   -17,354    -0.7%
+  bear_long_target_zone            0.8500 $     -22,817 $    10,906    -0.6%
+  short_target_zone                0.2500 $     -18,308 $    -9,295    -0.4%
+  bull_adx_min                         13 $     -18,074 $    -8,851    -0.4%
+  short_trail_pct                  0.0400 $     -13,507 $   -12,636    -0.3%
+  bear_short_trail_pct             0.0600 $           0 $         0     0.0%
+  bear_short_stop_pct              0.0400 $           0 $         0     0.0%
+  bear_short_adx_exit                  24 $           0 $         0     0.0%
+  bear_short_adx_max                   53 $           0 $         0     0.0%
+  bear_short_target_zone           0.1500 $           0 $         0     0.0%
+  bull_adx_exit                        10 $           0 $         0     0.0%
+  bull_max_hold_days                   15 $           0 $         0     0.0%
+  bull_cooldown_hours                  24 $           0 $         0     0.0%
+  short_stop_pct                   0.0200 $       4,289 $     6,730     0.1%
+  ind_period                           14 $     438,762 $   442,645    10.6%
+
+  ⚠ 2 FRAGILE parameters (>5% PnL loss from ±10% change):
+    - bull_calib_days = 30 (worst: $-507,252, -12.3%)
+    - bear_calib_days = 11 (worst: $-439,972, -10.7%)
+
+  Rounds completed: 3/5
+  Total runtime: 39929s (665.5min, 11.1h)
+  Results saved to: /Users/pza1/btc-trading-simulator/v3_optimization_results.json
+
+================================================================================
+  V3-OPTIMIZED PARAMS (after 3 rounds)
+================================================================================
+{
+    "exec_mode": "best_price",
+    "ind_period": 14,
+    "calib_days": 21,
+    "short_trail_pct": 0.04,
+    "short_stop_pct": 0.02,
+    "short_adx_exit": 24,
+    "short_adx_max": 40,
+    "long_target_zone": 0.75,
+    "long_entry_zone": 0.45,
+    "short_entry_zone": 0.525,
+    "short_target_zone": 0.25,
+    "bear_calib_days": 11,
+    "bear_short_trail_pct": 0.06,
+    "bear_short_stop_pct": 0.04,
+    "bear_short_adx_exit": 24,
+    "bear_short_adx_max": 53,
+    "bear_long_entry_zone": 0.175,
+    "bear_short_entry_zone": 0.625,
+    "bear_long_target_zone": 0.85,
+    "bear_short_target_zone": 0.15,
+    "bull_calib_days": 30,
+    "bull_lookback": 3,
+    "bull_atr_period": 14,
+    "bull_atr_trail_mult": 1.25,
+    "bull_stop_pct": 0.03,
+    "bull_adx_min": 13,
+    "bull_adx_exit": 10,
+    "bull_max_hold_days": 15,
+    "bull_cooldown_hours": 24
+}
