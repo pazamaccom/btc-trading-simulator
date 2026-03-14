@@ -104,10 +104,10 @@ def build_tier3_grid():
 
     base = {
         "exec_mode": "best_price",
-        "ind_period": 14,
+        "ind_period": 12,
         "short_trail_pct": 0.04,
         "short_stop_pct": 0.02,
-        "short_adx_exit": 28,
+        "short_adx_exit": 24,
     }
 
     for adx_max, l_tgt, (l_ez, s_ez), cal, s_tgt in itertools.product(
@@ -414,11 +414,11 @@ if __name__ == "__main__":
     print("\n\n  --- Comparison: Walk-forward on Tier 2 winner (baseline) ---")
     tier2_base = {
         "exec_mode": "best_price",
-        "ind_period": 14,
-        "calib_days": 14,
+        "ind_period": 12,
+        "calib_days": 21,
         "short_trail_pct": 0.04,
         "short_stop_pct": 0.02,
-        "short_adx_exit": 28,
+        "short_adx_exit": 24,
         "short_adx_max": 40,
         "label": "Tier 2 Winner (ADX_MAX=40)",
     }

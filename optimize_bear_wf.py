@@ -31,16 +31,16 @@ _DIR = os.path.dirname(os.path.abspath(__file__))
 # ── Frozen choppy params (Tier 3 winner) ──────────────────────────────────────────────
 CHOPPY_FROZEN = {
     "exec_mode": "best_price",
-    "ind_period": 14,
-    "calib_days": 14,
+    "ind_period": 12,
+    "calib_days": 21,
     "short_trail_pct": 0.04,
     "short_stop_pct": 0.02,
-    "short_adx_exit": 28,
+    "short_adx_exit": 24,
     "short_adx_max": 40,
-    "long_target_zone": 0.85,
-    "long_entry_zone": 0.40,
-    "short_entry_zone": 0.60,
-    "short_target_zone": 0.30,
+    "long_target_zone": 0.75,
+    "long_entry_zone": 0.45,
+    "short_entry_zone": 0.525,
+    "short_target_zone": 0.25,
 }
 
 

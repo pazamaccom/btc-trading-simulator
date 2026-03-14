@@ -269,15 +269,15 @@ class Trader:
         """Get BullStrategy params for Positive Momentum regime from strategy_config.json."""
         sc = self._strat_config.get("positive_momentum", {})
         return {
-            "lookback":       sc.get("bull_lookback", 5),
+            "lookback":       sc.get("bull_lookback", 3),
             "atr_period":     sc.get("bull_atr_period", 14),
-            "atr_trail_mult": sc.get("bull_atr_trail_mult", 1.5),
+            "atr_trail_mult": sc.get("bull_atr_trail_mult", 1.25),
             "stop_pct":       sc.get("bull_stop_pct", 0.03),
-            "adx_min":        sc.get("bull_adx_min", 15),
+            "adx_min":        sc.get("bull_adx_min", 13),
             "adx_exit":       sc.get("bull_adx_exit", 10),
-            "max_hold_days":  sc.get("bull_max_hold_days", 25),
+            "max_hold_days":  sc.get("bull_max_hold_days", 15),
             "cooldown_hours": sc.get("bull_cooldown_hours", 24),
-            "calib_days":     sc.get("bull_calib_days", 30),
+            "calib_days":     sc.get("bull_calib_days", 32),
         }
 
     def _get_calib_days(self) -> int:
@@ -285,7 +285,7 @@ class Trader:
         if self.regime == "choppy":
             return self._strat_config.get("range", {}).get("calib_days", cfg.CALIBRATION_MAX_DAYS)
         elif self.regime == "bear":
-            return self._strat_config.get("volatile", {}).get("bear_calib_days", 14)
+            return self._strat_config.get("volatile", {}).get("bear_calib_days", 9)
         elif self.regime == "bull":
             return self._get_bull_params().get("calib_days", 30)
         return cfg.CALIBRATION_MAX_DAYS
