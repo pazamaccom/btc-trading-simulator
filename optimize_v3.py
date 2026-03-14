@@ -97,7 +97,7 @@ FINE_CROSS = {
 # ── Config I baseline (starting point) ───────────────────────────────────────
 CONFIG_I = {
     "exec_mode": "best_price",
-    "ind_period": 14,
+    "ind_period": 12,
     # Range
     "calib_days": 21,
     "short_trail_pct": 0.04,
@@ -109,7 +109,7 @@ CONFIG_I = {
     "short_entry_zone": 0.525,
     "short_target_zone": 0.25,
     # Volatile
-    "bear_calib_days": 11,
+    "bear_calib_days": 9,
     "bear_short_trail_pct": 0.06,
     "bear_short_stop_pct": 0.04,
     "bear_short_adx_exit": 24,
@@ -119,7 +119,7 @@ CONFIG_I = {
     "bear_long_target_zone": 0.85,
     "bear_short_target_zone": 0.15,
     # Positive Momentum
-    "bull_calib_days": 30,
+    "bull_calib_days": 32,
     "bull_lookback": 3,
     "bull_atr_period": 14,
     "bull_atr_trail_mult": 1.25,

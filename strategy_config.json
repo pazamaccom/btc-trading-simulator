@@ -2,18 +2,18 @@
   "_description": "V3 4-cluster optimized strategy configuration",
   "_updated": "2026-03-14",
   "_classifier": "V3 ensemble (HMM + GMM + KMeans + RF meta), 4 clusters",
-  "_optimization": "Iterative coordinate descent with 6 training windows + holdout, converged in 3 rounds",
+  "_optimization": "Iterative coordinate descent + robustness sweep, converged in 3 rounds",
   "_performance": {
-    "total_pnl": 4125664,
-    "total_trades": 301,
-    "win_rate": 78.7,
-    "profit_factor": 6.45,
-    "max_drawdown": 97145,
+    "total_pnl": 4442699,
+    "total_trades": 261,
+    "win_rate": 81.6,
+    "profit_factor": 10.51,
+    "max_drawdown": 62903,
     "period": "2020-01-01 to 2026-03-14"
   },
 
   "exec_mode": "best_price",
-  "ind_period": 14,
+  "ind_period": 12,
 
   "range": {
     "_cluster": "Range (71.2% of days)",
@@ -32,7 +32,7 @@
   "volatile": {
     "_cluster": "Volatile (17.5% of days)",
     "_strategy": "ChoppyStrategy with wider params + secondary BullStrategy",
-    "bear_calib_days": 11,
+    "bear_calib_days": 9,
     "bear_short_trail_pct": 0.06,
     "bear_short_stop_pct": 0.04,
     "bear_short_adx_exit": 24,
@@ -46,7 +46,7 @@
   "positive_momentum": {
     "_cluster": "Positive Momentum (6.2% of days)",
     "_strategy": "BullStrategy — Donchian breakout trend-following",
-    "bull_calib_days": 30,
+    "bull_calib_days": 32,
     "bull_lookback": 3,
     "bull_atr_period": 14,
     "bull_atr_trail_mult": 1.25,
