@@ -1032,7 +1032,7 @@ class Trader:
                 if is_pyramid:
                     old_sz = self._virt["contracts"]
                     old_avg = self._virt["avg_entry"]
-                    new_sz = old_sz + fill["filled_qty"]
+                    new_sz = min(old_sz + fill["filled_qty"], cfg.MAX_CONTRACTS)
                     self._virt["avg_entry"] = (old_avg * old_sz + fill["fill_price"] * fill["filled_qty"]) / new_sz
                     self._virt["contracts"] = new_sz
                     print(f"\n  PYRAMID BUY: +{fill['filled_qty']} MBT @ ${fill['fill_price']:,.2f}")
@@ -1041,7 +1041,7 @@ class Trader:
                     self._virt["side"] = "long"
                     self._virt["entry_price"] = fill["fill_price"]
                     self._virt["avg_entry"] = fill["fill_price"]
-                    self._virt["contracts"] = fill["filled_qty"]
+                    self._virt["contracts"] = min(fill["filled_qty"], cfg.MAX_CONTRACTS)
                     self._virt["entry_time"] = fill["time"]
                     print(f"\n  BUY FILLED: {fill['filled_qty']} MBT @ ${fill['fill_price']:,.2f} "
                           f"({conviction} conviction)")
@@ -1116,7 +1116,7 @@ class Trader:
                 self._virt["side"] = "short"
                 self._virt["entry_price"] = fill["fill_price"]
                 self._virt["avg_entry"] = fill["fill_price"]
-                self._virt["contracts"] = fill["filled_qty"]
+                self._virt["contracts"] = min(fill["filled_qty"], cfg.MAX_CONTRACTS)
                 self._virt["entry_time"] = fill["time"]
 
                 self.orders_placed += 1
